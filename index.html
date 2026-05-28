@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>報位神器</title>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- 移除所有容易卡住的框架，只留外觀 CSS 和 圖示 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -16,39 +14,82 @@
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        @keyframes highlight { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
-        .animate-parse { animation: highlight 0.3s ease-in-out; }
     </style>
-    
-    <!-- 載入 Firebase 雲端服務 -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        window.Firebase = { initializeApp, getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged, getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, setDoc };
-        window.dispatchEvent(new Event('firebaseLoaded'));
-    </script>
 </head>
-<body>
-    <div id="root"></div>
+<body class="pb-20 md:pb-0 md:flex md:justify-center min-h-screen">
+    <div class="w-full max-w-md bg-white min-h-screen md:min-h-0 md:h-[95vh] md:my-4 md:rounded-3xl md:shadow-2xl overflow-hidden flex flex-col relative">
+        
+        <!-- 標題列 -->
+        <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 text-center font-bold text-lg shadow-md z-10 flex justify-between items-center relative">
+            <div class="w-8"></div>
+            <span>報位神器</span>
+            <button onclick="toggleBook()" class="w-8 h-8 flex items-center justify-center bg-white/20 rounded-full hover:bg-white/30 transition text-sm">
+                <i id="bookToggleIcon" class="fa-solid fa-book-open"></i>
+            </button>
+        </div>
 
-    <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+        <!-- 主操作畫面 -->
+        <div id="mainView" class="flex-1 overflow-y-auto p-4 bg-gray-50 flex flex-col gap-4 no-scrollbar">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-indigo-100 transition-all">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="bg-indigo-600 text-white w-6 h-6 rounded-full flex justify-center items-center font-bold text-sm"><i class="fa-solid fa-bolt text-xs"></i></div>
+                    <label class="text-gray-800 font-bold text-lg text-indigo-700">報位表丟這</label>
+                </div>
+                <textarea id="importText" class="w-full p-3 bg-indigo-50 border border-indigo-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm resize-none mb-3 text-gray-700" rows="4"></textarea>
+                <button id="parseBtn" onclick="handleParse()" class="w-full font-bold py-3 rounded-xl shadow-md transition-all bg-gradient-to-r from-indigo-500 to-blue-500 text-white hover:opacity-90 transform active:scale-95">
+                    <i class="fa-solid fa-wand-magic-sparkles mr-2"></i>一鍵產生純地址！
+                </button>
+            </div>
 
-        const REGIONS = ['台北市', '新北市', '基隆/宜蘭', '桃竹苗', '中彰投', '雲嘉南', '高屏', '花東/外島'];
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col mb-[70px]">
+                <textarea id="outputText" oninput="updateCopyBtn()" class="w-full flex-1 p-3 bg-yellow-50 border border-yellow-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-400 text-sm resize-none text-gray-800 leading-relaxed" style="min-height: 350px;"></textarea>
+            </div>
+        </div>
 
-        // 92 個市場資料庫
+        <!-- 地址簿畫面 (預設隱藏) -->
+        <div id="bookView" class="flex-1 overflow-y-auto p-4 bg-gray-50 pb-[80px]" style="display: none;">
+            <h2 class="text-xl font-bold text-gray-800 mb-4"><i class="fa-solid fa-address-book text-blue-500 mr-2"></i>地址簿 (<span id="marketCount">0</span> 攤)</h2>
+            
+            <form onsubmit="addMarket(event)" class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mb-6">
+                <div class="space-y-3">
+                    <select id="newRegion" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                        <option value="台北市">台北市</option>
+                        <option value="新北市">新北市</option>
+                        <option value="基隆/宜蘭">基隆/宜蘭</option>
+                        <option value="桃竹苗">桃竹苗</option>
+                        <option value="中彰投">中彰投</option>
+                        <option value="雲嘉南">雲嘉南</option>
+                        <option value="高屏">高屏</option>
+                        <option value="花東/外島">花東/外島</option>
+                    </select>
+                    <input type="text" id="newName" placeholder="市場名稱" required class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"/>
+                    <input type="text" id="newAddress" placeholder="詳細地址 (含門牌號碼)" required class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"/>
+                    <button type="submit" class="w-full bg-blue-100 text-blue-700 font-bold py-2 rounded-lg hover:bg-blue-200 transition-colors"><i class="fa-solid fa-plus mr-1"></i> 新增</button>
+                </div>
+            </form>
+
+            <div id="bookList" class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100"></div>
+        </div>
+
+        <!-- 浮動複製按鈕 -->
+        <div id="copyBtnContainer" class="absolute bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
+            <button id="copyBtn" onclick="copyText()" disabled class="w-full py-4 rounded-xl font-bold text-lg text-white transition-all transform active:scale-95 flex justify-center items-center gap-2 bg-gray-300">
+                <i class="fa-regular fa-copy"></i> 複製地址
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // 92 個市場預設資料
         const defaultMarkets = [
             { id: 1, region: '台北市', name: '士東市場', address: '台北市士林區德行東路109巷50號', note: '' },
             { id: 2, region: '台北市', name: '737市場', address: '台北市內湖區內湖路一段737巷38弄4號', note: '' },
             { id: 82, region: '台北市', name: '南京公寓市場', address: '台北市松山區南京東路五段291巷25號', note: '' },
             { id: 85, region: '台北市', name: '士東市場', address: '台北市士林區德行東路109巷46號', note: '' },
             { id: 86, region: '台北市', name: '北投市場', address: '台北市北投區光明路新生巷23號', note: '' },
-            
             { id: 3, region: '新北市', name: '三峽市場', address: '新北市民生街211號', note: '' },
             { id: 4, region: '新北市', name: '埔墘市場', address: '新北市板橋區民享街134號', note: '' },
-            { id: 91, region: '新北市', name: '埔墘市場', address: '新北市板橋區民享街123號', note: '' }, // 新門牌
+            { id: 91, region: '新北市', name: '埔墘市場', address: '新北市板橋區民享街123號', note: '' },
             { id: 5, region: '新北市', name: '國泰市場', address: '新北市板橋區國泰街75巷1號', note: '' },
             { id: 6, region: '新北市', name: '聯邦市場', address: '新北市新莊區復興路一段33巷5號', note: '' },
             { id: 7, region: '新北市', name: '博愛市場', address: '新北市樹林區博愛街58號', note: '' },
@@ -70,7 +111,6 @@
             { id: 64, region: '新北市', name: '成仔寮市場', address: '新北市五股區凌雲路一段83巷10弄3號', note: '' },
             { id: 81, region: '新北市', name: '西盛市場', address: '新北市新莊區西盛街263號', note: '' },
             { id: 87, region: '新北市', name: '三峽市場', address: '新北市民生街221號', note: '' }, 
-            
             { id: 21, region: '桃竹苗', name: '大園市場', address: '桃園市大園區忠孝三街32號', note: '' },
             { id: 22, region: '桃竹苗', name: '新埔市場', address: '新竹縣新埔鎮中正路359巷19弄5號', note: '' },
             { id: 23, region: '桃竹苗', name: '湖口市場', address: '新竹縣湖口鄉民生街72號', note: '' },
@@ -101,9 +141,7 @@
             { id: 74, region: '桃竹苗', name: '大溪市場', address: '桃園市中央路看台下10號', note: '' },
             { id: 76, region: '桃竹苗', name: '公館市場', address: '苗栗縣公館鄉宮前路71號', note: '' },
             { id: 83, region: '桃竹苗', name: '頭份市場', address: '苗栗縣民族路54號', note: '' }, 
-            
             { id: 84, region: '基隆/宜蘭', name: '羅東市場', address: '宜蘭縣羅東鎮中正街116號', note: '' }, 
-
             { id: 41, region: '中彰投', name: '水里市場', address: '南投縣水里鄉民族路478號', note: '' },
             { id: 42, region: '中彰投', name: '竹山市場', address: '南投縣竹山鎮集山路三段977號', note: '' },
             { id: 43, region: '中彰投', name: '田中市場', address: '彰化縣田中鎮復興路856號', note: '' },
@@ -116,7 +154,6 @@
             { id: 68, region: '中彰投', name: '大肚市場', address: '台中市大肚區沙田路二段712號', note: '' },
             { id: 72, region: '中彰投', name: '二林市場', address: '彰化縣二林鎮儒林路二段431號', note: '' },
             { id: 77, region: '中彰投', name: '太平市場', address: '台中市太平區中南路8-1號', note: '' },
-            
             { id: 48, region: '雲嘉南', name: '朴子市場', address: '嘉義縣朴子市山通路第二市場', note: '' },
             { id: 49, region: '雲嘉南', name: '麥寮市場', address: '雲林縣麥寮鄉表福路98號', note: '' },
             { id: 50, region: '雲嘉南', name: '崙背市場', address: '雲林縣崙背鄉永昌路4號', note: '' },
@@ -125,9 +162,7 @@
             { id: 53, region: '雲嘉南', name: '北港市場', address: '雲林縣北港鎮民治路與文昌路路口', note: '' },
             { id: 54, region: '雲嘉南', name: '新港市場', address: '嘉義縣新港鄉新中路73號', note: '' },
             { id: 69, region: '雲嘉南', name: '新港市場', address: '嘉義縣新港鄉新中路77號', note: '' },
-            
-            { id: 92, region: '高屏', name: '三民市場', address: '高雄市三民區三民街145號', note: '' }, // 新增首個高屏區
-
+            { id: 92, region: '高屏', name: '三民市場', address: '高雄市三民區三民街145號', note: '' }, 
             { id: 55, region: '花東/外島', name: '綜合市場', address: '花蓮市復興街40-4號對面', note: '' },
             { id: 56, region: '花東/外島', name: '光復市場', address: '花蓮縣光復鄉光華街15號', note: '' },
             { id: 57, region: '花東/外島', name: '鳳林市場', address: '花蓮縣鳳林鎮民生街18號', note: '' },
@@ -136,380 +171,241 @@
             { id: 60, region: '花東/外島', name: '關山市場', address: '台東縣關山鎮中華路64號', note: '' },
             { id: 61, region: '花東/外島', name: '玉里市場', address: '花蓮縣玉里鎮和平路上（市場路口）', note: '' },
             { id: 62, region: '花東/外島', name: '瑞穗市場', address: '花蓮縣瑞穗鄉市場街', note: '' },
-            { id: 88, region: '花東/外島', name: '長濱市場', address: '台東縣長濱鄉長濱68號', note: '' }, // 新增
-            { id: 89, region: '花東/外島', name: '台東市場', address: '台東市正氣路269號', note: '' }, // 新增
-            { id: 90, region: '花東/外島', name: '池上市場', address: '台東縣池上鄉新生路92號', note: '' }, // 新增
+            { id: 88, region: '花東/外島', name: '長濱市場', address: '台東縣長濱鄉長濱68號', note: '' }, 
+            { id: 89, region: '花東/外島', name: '台東市場', address: '台東市正氣路269號', note: '' }, 
+            { id: 90, region: '花東/外島', name: '池上市場', address: '台東縣池上鄉新生路92號', note: '' }
         ];
 
-        let app, auth, db;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'market-app-cloud';
+        let markets = [];
 
-        const App = () => {
-            const [fbLoaded, setFbLoaded] = useState(!!window.Firebase);
-            const [user, setUser] = useState(null);
-            
-            const [markets, setMarkets] = useState([]);
-            const [isLoading, setIsLoading] = useState(true);
-            const [showAddressBook, setShowAddressBook] = useState(false);
-            
-            const [selectedDate, setSelectedDate] = useState("");
-            const [selectedMarketIds, setSelectedMarketIds] = useState([]);
-            const [dynamicNotes, setDynamicNotes] = useState({});
-            
-            const [importText, setImportText] = useState("");
-            const [editableText, setEditableText] = useState("");
-            const [isParsing, setIsParsing] = useState(false);
-            const [copySuccess, setCopySuccess] = useState(false);
-            
-            const [newMarket, setNewMarket] = useState({ region: '台北市', name: '', address: '', note: '' });
-
-            useEffect(() => {
-                if (fbLoaded) return;
-                const handleLoad = () => setFbLoaded(true);
-                window.addEventListener('firebaseLoaded', handleLoad);
-                return () => window.removeEventListener('firebaseLoaded', handleLoad);
-            }, [fbLoaded]);
-
-            useEffect(() => {
-                if (!fbLoaded) return;
-                
-                const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-                if (!app) {
-                    app = window.Firebase.initializeApp(firebaseConfig);
-                    auth = window.Firebase.getAuth(app);
-                    db = window.Firebase.getFirestore(app);
+        // 安全讀取資料庫
+        function loadMarkets() {
+            try {
+                let saved = localStorage.getItem('marketDb_native_v1');
+                if(saved) {
+                    let parsed = JSON.parse(saved);
+                    // 把程式碼裡的新市場補進去
+                    defaultMarkets.forEach(dm => {
+                        if(!parsed.find(m => m.id === dm.id)) parsed.push(dm);
+                    });
+                    markets = parsed;
+                } else {
+                    markets = [...defaultMarkets];
                 }
-
-                const initAuth = async () => {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await window.Firebase.signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await window.Firebase.signInAnonymously(auth);
-                    }
-                };
-                initAuth();
-                
-                const unsubscribe = window.Firebase.onAuthStateChanged(auth, setUser);
-                return () => unsubscribe();
-            }, [fbLoaded]);
-
-            // 連接雲端資料庫
-            useEffect(() => {
-                if (!user || !db) return;
-                
-                const marketsRef = window.Firebase.collection(db, 'artifacts', appId, 'public', 'data', 'markets');
-                
-                const unsubscribe = window.Firebase.onSnapshot(marketsRef, (snapshot) => {
-                    if (snapshot.empty) {
-                        // 首次載入寫入所有資料
-                        defaultMarkets.forEach(m => {
-                            window.Firebase.setDoc(window.Firebase.doc(marketsRef, `default_${m.id}`), { ...m, dbId: `default_${m.id}` });
-                        });
-                    } else {
-                        const loadedMarkets = snapshot.docs.map(d => ({ ...d.data(), dbId: d.id }));
-                        const loadedOriginalIds = loadedMarkets.map(m => m.id);
-                        
-                        // ✨ 自動比對：如果雲端遺漏了我們這次新加的攤位，自動補進去
-                        defaultMarkets.forEach(m => {
-                            if (!loadedOriginalIds.includes(m.id)) {
-                                window.Firebase.setDoc(window.Firebase.doc(marketsRef, `default_${m.id}`), { ...m, dbId: `default_${m.id}` });
-                            }
-                        });
-
-                        loadedMarkets.sort((a, b) => a.id - b.id);
-                        setMarkets(loadedMarkets);
-                        setIsLoading(false);
-                    }
-                }, (error) => {
-                    console.error("雲端連線失敗", error);
-                    setIsLoading(false);
-                });
-
-                return () => unsubscribe();
-            }, [user]);
-
-            const formatDate = (dateString) => {
-                if (!dateString) return '';
-                if (dateString.includes('-')) {
-                    const date = new Date(dateString);
-                    const month = String(date.getMonth() + 1).padStart(2, '0');
-                    const day = String(date.getDate()).padStart(2, '0');
-                    const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
-                    const weekday = weekdays[date.getDay()];
-                    return `${month}/${day}（${weekday}）`;
-                }
-                return dateString;
-            };
-
-            // 文字生成
-            useEffect(() => {
-                if (!selectedDate && selectedMarketIds.length === 0) {
-                    setEditableText("");
-                    return;
-                }
-
-                let text = "";
-                if (selectedDate) {
-                    text += `📍${formatDate(selectedDate)}地點\n\n`;
-                }
-                
-                selectedMarketIds.forEach(id => {
-                    const m = markets.find(x => x.dbId === id || x.id === id);
-                    if (m) {
-                        text += `📍${m.name}\n${m.address}\n`;
-                        const matchedId = m.dbId || m.id;
-                        if (dynamicNotes[matchedId]) {
-                            text += `📍${dynamicNotes[matchedId]}\n`;
-                        }
-                        text += `\n`;
-                    }
-                });
-
-                setEditableText(text.trimEnd());
-            }, [selectedDate, selectedMarketIds, markets, dynamicNotes]);
-
-            // 解析邏輯
-            const handleSmartParse = () => {
-                if (!importText.trim() || markets.length === 0) return;
-                setIsParsing(true);
-                
-                setTimeout(() => {
-                    let lines = importText.split('\n').map(l => l.trim()).filter(l => l);
-                    let newSelectedIds = [];
-                    let newDynamicNotes = {};
-                    let newDateStr = "";
-
-                    const dateLine = lines.find(l => /\d{1,2}\/\d{1,2}/.test(l));
-                    if (dateLine) {
-                        const match = dateLine.match(/(\d{1,2})\/(\d{1,2})/);
-                        if (match) {
-                            const currentYear = new Date().getFullYear();
-                            const m = match[1].padStart(2, '0');
-                            const d = match[2].padStart(2, '0');
-                            newDateStr = `${currentYear}-${m}-${d}`;
-                        } else {
-                            newDateStr = dateLine;
-                        }
-                    }
-
-                    let currentMarketId = null;
-                    for (let i = 0; i < lines.length; i++) {
-                        let line = lines[i];
-
-                        if (line.includes('休') && !line.includes('市場')) continue;
-
-                        if (line.includes('檔期')) {
-                            if (currentMarketId) {
-                                newDynamicNotes[currentMarketId] = line;
-                            }
-                            continue;
-                        }
-
-                        const numbersInLine = line.match(/\d+/g) || [];
-                        let bestMatch = null;
-                        let possibleMatches = markets.filter(m => {
-                            let coreName = m.name.replace(/市場/g, ''); 
-                            return line.includes(coreName);
-                        });
-
-                        if (possibleMatches.length === 1) {
-                            bestMatch = possibleMatches[0];
-                        } else if (possibleMatches.length > 1) {
-                            bestMatch = possibleMatches.find(m => {
-                                const addrNumbers = m.address.match(/\d+/g) || [];
-                                return addrNumbers.some(num => numbersInLine.includes(num));
-                            }) || possibleMatches[0]; 
-                        }
-
-                        if (bestMatch) {
-                            const mId = bestMatch.dbId || bestMatch.id;
-                            // 允許同一個市場被排到多次(有時不同人去同個市場)，所以不檢查 includes
-                            newSelectedIds.push(mId);
-                            currentMarketId = mId;
-                        }
-                    }
-
-                    setSelectedDate(newDateStr);
-                    setSelectedMarketIds(newSelectedIds);
-                    setDynamicNotes(newDynamicNotes);
-                    setImportText(""); 
-                    setIsParsing(false);
-                }, 400); 
-            };
-
-            const handleCopy = () => {
-                if(!editableText) return;
-                const textarea = document.createElement('textarea');
-                textarea.value = editableText;
-                document.body.appendChild(textarea);
-                textarea.select();
-                try {
-                    document.execCommand('copy');
-                    setCopySuccess(true);
-                    setTimeout(() => setCopySuccess(false), 2000);
-                } catch (err) {
-                    alert('複製失敗，請手動複製。');
-                }
-                document.body.removeChild(textarea);
-            };
-
-            const handleAddMarket = async (e) => {
-                e.preventDefault();
-                if (!newMarket.name || !newMarket.address || !db) return;
-                
-                const marketsRef = window.Firebase.collection(db, 'artifacts', appId, 'public', 'data', 'markets');
-                const customId = Date.now();
-                await window.Firebase.addDoc(marketsRef, { ...newMarket, id: customId });
-                
-                setNewMarket({ region: newMarket.region, name: '', address: '', note: '' }); 
-                alert('已成功新增並同步至雲端！');
-            };
-
-            const handleDeleteMarket = async (dbId) => {
-                if (!db) return;
-                if(confirm('⚠️ 確定要刪除嗎？\n這會連同所有同事手機上的資料一起刪除喔！')) {
-                    const docRef = window.Firebase.doc(db, 'artifacts', appId, 'public', 'data', 'markets', dbId);
-                    await window.Firebase.deleteDoc(docRef);
-                }
-            };
-
-            if (!fbLoaded || isLoading) {
-                return (
-                    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                        <div className="text-center text-indigo-600">
-                            <i className="fa-solid fa-cloud-arrow-down fa-beat fa-2x mb-3"></i>
-                            <p className="font-bold">連線雲端資料庫中...</p>
-                        </div>
-                    </div>
-                );
+            } catch(e) {
+                // 如果無痕模式阻擋 localStorage，直接吃預設資料
+                markets = [...defaultMarkets];
             }
+        }
 
-            return (
-                <div className="min-h-screen pb-20 md:pb-0 md:flex md:justify-center">
-                    <div className="w-full max-w-md bg-white min-h-screen md:min-h-0 md:h-[95vh] md:my-4 md:rounded-3xl md:shadow-2xl overflow-hidden flex flex-col relative">
-                        
-                        {/* 標題列 */}
-                        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 text-center font-bold text-lg shadow-md z-10 flex justify-between items-center relative">
-                            <div className="w-8"></div>
-                            <span>報位神器</span>
-                            <button 
-                                onClick={() => setShowAddressBook(!showAddressBook)}
-                                className="w-8 h-8 flex items-center justify-center bg-white/20 rounded-full hover:bg-white/30 transition text-sm"
-                            >
-                                {showAddressBook ? <i className="fa-solid fa-xmark"></i> : <i className="fa-solid fa-book-open"></i>}
-                            </button>
-                        </div>
+        // 安全儲存資料庫
+        function saveMarkets() {
+            try {
+                localStorage.setItem('marketDb_native_v1', JSON.stringify(markets));
+            } catch(e) { console.warn("無痕模式下無法永久儲存新增的市場。"); }
+        }
 
-                        {/* 主頁面 */}
-                        {!showAddressBook && (
-                            <div className="flex-1 overflow-y-auto p-4 bg-gray-50 flex flex-col gap-4 no-scrollbar">
-                                
-                                <div className={`bg-white p-4 rounded-2xl shadow-sm border ${isParsing ? 'border-indigo-400 animate-parse' : 'border-indigo-100'} transition-all`}>
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <div className="bg-indigo-600 text-white w-6 h-6 rounded-full flex justify-center items-center font-bold text-sm"><i className="fa-solid fa-bolt text-xs"></i></div>
-                                        <label className="text-gray-800 font-bold text-lg text-indigo-700">報位表丟這</label>
-                                    </div>
-                                    <textarea 
-                                        value={importText}
-                                        onChange={(e) => setImportText(e.target.value)}
-                                        placeholder=""
-                                        className="w-full p-3 bg-indigo-50 border border-indigo-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm resize-none mb-3 text-gray-700"
-                                        rows="4"
-                                    ></textarea>
-                                    <button 
-                                        onClick={handleSmartParse} 
-                                        disabled={isParsing || !importText.trim()}
-                                        className={`w-full font-bold py-3 rounded-xl shadow-md transition-all ${!importText.trim() ? 'bg-gray-200 text-gray-400' : 'bg-gradient-to-r from-indigo-500 to-blue-500 text-white hover:opacity-90 transform active:scale-95'}`}
-                                    >
-                                        {isParsing ? <><i className="fa-solid fa-spinner fa-spin mr-2"></i>處理中...</> : <><i className="fa-solid fa-wand-magic-sparkles mr-2"></i>一鍵產生純地址！</>}
-                                    </button>
-                                </div>
-
-                                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col mb-[70px]">
-                                    <textarea 
-                                        value={editableText}
-                                        onChange={(e) => setEditableText(e.target.value)}
-                                        placeholder=""
-                                        className="w-full flex-1 p-3 bg-yellow-50 border border-yellow-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-400 text-sm resize-none text-gray-800 leading-relaxed"
-                                        style={{ minHeight: '350px' }}
-                                    ></textarea>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* 地址簿頁面 */}
-                        {showAddressBook && (
-                            <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
-                                <div className="flex justify-between items-center mb-4">
-                                    <h2 className="text-xl font-bold text-gray-800">
-                                        <i className="fa-solid fa-cloud text-blue-500 mr-2"></i>雲端地址簿 ({markets.length} 攤)
-                                    </h2>
-                                </div>
-                                <div className="text-xs text-orange-500 font-bold mb-4 bg-orange-50 p-2 rounded">
-                                    ⚠️ 在這裡新增或刪除，所有同事的手機都會同步變更喔！
-                                </div>
-
-                                <form onSubmit={handleAddMarket} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mb-6">
-                                    <div className="space-y-3">
-                                        <select value={newMarket.region} onChange={e => setNewMarket({...newMarket, region: e.target.value})} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                                            {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
-                                        </select>
-                                        <input type="text" placeholder="市場名稱 (如: 綜合市場)" required value={newMarket.name} onChange={e => setNewMarket({...newMarket, name: e.target.value})} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"/>
-                                        <input type="text" placeholder="詳細地址 (包含門牌號碼)" required value={newMarket.address} onChange={e => setNewMarket({...newMarket, address: e.target.value})} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"/>
-                                        <button type="submit" className="w-full bg-blue-100 text-blue-700 font-bold py-2 rounded-lg hover:bg-blue-200 transition-colors"><i className="fa-solid fa-plus mr-1"></i> 新增並同步</button>
-                                    </div>
-                                </form>
-
-                                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                                    {REGIONS.map(region => {
-                                        const rMarkets = markets.filter(m => m.region === region);
-                                        if(rMarkets.length === 0) return null;
-                                        return (
-                                            <div key={`edit-${region}`} className="mb-4">
-                                                <div className="text-sm font-bold text-gray-500 mb-2">{region}</div>
-                                                <div className="space-y-2">
-                                                    {rMarkets.map(m => (
-                                                        <div key={m.dbId} className="p-3 border border-gray-100 rounded-xl bg-gray-50 flex justify-between items-start">
-                                                            <div className="flex-1 min-w-0 pr-2">
-                                                                <div className="font-bold text-gray-800">{m.name}</div>
-                                                                <div className="text-xs text-blue-600 font-medium mt-1 truncate">{m.address}</div>
-                                                            </div>
-                                                            <button onClick={() => handleDeleteMarket(m.dbId)} className="text-red-400 hover:text-red-600 p-2 flex-shrink-0"><i className="fa-solid fa-trash-can"></i></button>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* 浮動複製按鈕 */}
-                        {!showAddressBook && (
-                            <div className="absolute bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
-                                <button 
-                                    onClick={handleCopy}
-                                    disabled={!editableText}
-                                    className={`w-full py-4 rounded-xl font-bold text-lg text-white transition-all transform active:scale-95 flex justify-center items-center gap-2 ${copySuccess ? 'bg-green-500' : !editableText ? 'bg-gray-300' : 'bg-blue-600 hover:bg-blue-700 shadow-lg'}`}
-                                >
-                                    {copySuccess ? (
-                                        <><i className="fa-solid fa-check"></i> 已複製！請貼到 LINE</>
-                                    ) : (
-                                        <><i className="fa-regular fa-copy"></i> 複製地址</>
-                                    )}
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            );
+        // 初始化
+        window.onload = function() {
+            loadMarkets();
         };
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        // UI 切換
+        let isBookOpen = false;
+        function toggleBook() {
+            isBookOpen = !isBookOpen;
+            document.getElementById('mainView').style.display = isBookOpen ? 'none' : 'flex';
+            document.getElementById('bookView').style.display = isBookOpen ? 'block' : 'none';
+            document.getElementById('copyBtnContainer').style.display = isBookOpen ? 'none' : 'block';
+            document.getElementById('bookToggleIcon').className = isBookOpen ? 'fa-solid fa-xmark' : 'fa-solid fa-book-open';
+            if(isBookOpen) renderBook();
+        }
+
+        // 複製按鈕狀態
+        function updateCopyBtn() {
+            const txt = document.getElementById('outputText').value;
+            const btn = document.getElementById('copyBtn');
+            if(txt) {
+                btn.disabled = false;
+                btn.classList.remove('bg-gray-300');
+                btn.classList.add('bg-blue-600', 'hover:bg-blue-700', 'shadow-lg');
+            } else {
+                btn.disabled = true;
+                btn.classList.add('bg-gray-300');
+                btn.classList.remove('bg-blue-600', 'hover:bg-blue-700', 'shadow-lg');
+            }
+        }
+
+        // 智能解析
+        function handleParse() {
+            const importText = document.getElementById('importText').value;
+            if(!importText.trim()) return;
+
+            const btn = document.getElementById('parseBtn');
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>處理中...';
+            btn.disabled = true;
+
+            setTimeout(() => {
+                let lines = importText.split('\n').map(l => l.trim()).filter(l => l);
+                let selectedIds = [];
+                let dynamicNotes = {};
+                let dateStr = "";
+
+                // 找日期
+                const dateLine = lines.find(l => /\d{1,2}\/\d{1,2}/.test(l));
+                if (dateLine) {
+                    const match = dateLine.match(/(\d{1,2})\/(\d{1,2})/);
+                    if (match) {
+                        const currentYear = new Date().getFullYear();
+                        const m = match[1].padStart(2, '0');
+                        const d = match[2].padStart(2, '0');
+                        dateStr = `${currentYear}-${m}-${d}`;
+                    } else {
+                        dateStr = dateLine;
+                    }
+                }
+
+                let currentMarketId = null;
+                for (let i = 0; i < lines.length; i++) {
+                    let line = lines[i];
+                    if (line.includes('休') && !line.includes('市場')) continue;
+                    if (line.includes('檔期')) {
+                        if (currentMarketId) dynamicNotes[currentMarketId] = line;
+                        continue;
+                    }
+
+                    const numbersInLine = line.match(/\d+/g) || [];
+                    let possibleMatches = markets.filter(m => {
+                        let coreName = m.name.replace(/市場/g, ''); 
+                        return line.includes(coreName);
+                    });
+
+                    let bestMatch = null;
+                    if (possibleMatches.length === 1) {
+                        bestMatch = possibleMatches[0];
+                    } else if (possibleMatches.length > 1) {
+                        bestMatch = possibleMatches.find(m => {
+                            const addrNumbers = m.address.match(/\d+/g) || [];
+                            return addrNumbers.some(num => numbersInLine.includes(num));
+                        }) || possibleMatches[0]; 
+                    }
+
+                    if (bestMatch) {
+                        selectedIds.push(bestMatch.id);
+                        currentMarketId = bestMatch.id;
+                    }
+                }
+
+                // 產生結果文字
+                let outText = "";
+                if (dateStr) {
+                    if (dateStr.includes('-')) {
+                        const d = new Date(dateStr);
+                        const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+                        outText += `📍${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}（${weekdays[d.getDay()]}）地點\n\n`;
+                    } else {
+                        outText += `📍${dateStr}地點\n\n`;
+                    }
+                }
+
+                selectedIds.forEach(id => {
+                    const m = markets.find(x => x.id === id);
+                    if (m) {
+                        outText += `📍${m.name}\n${m.address}\n`;
+                        if (dynamicNotes[id]) outText += `📍${dynamicNotes[id]}\n`;
+                        outText += `\n`;
+                    }
+                });
+
+                document.getElementById('outputText').value = outText.trimEnd();
+                document.getElementById('importText').value = ""; 
+                
+                btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles mr-2"></i>一鍵產生純地址！';
+                btn.disabled = false;
+                updateCopyBtn();
+            }, 300);
+        }
+
+        // 複製功能
+        function copyText() {
+            const text = document.getElementById('outputText').value;
+            if(!text) return;
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                const btn = document.getElementById('copyBtn');
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> 已複製！請貼到 LINE';
+                btn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                btn.classList.add('bg-green-500', 'hover:bg-green-600');
+                setTimeout(() => {
+                    btn.innerHTML = '<i class="fa-regular fa-copy"></i> 複製地址';
+                    btn.classList.remove('bg-green-500', 'hover:bg-green-600');
+                    btn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                }, 2000);
+            } catch (err) {
+                alert('複製失敗');
+            }
+            document.body.removeChild(textarea);
+        }
+
+        // 渲染地址簿
+        function renderBook() {
+            document.getElementById('marketCount').innerText = markets.length;
+            const container = document.getElementById('bookList');
+            container.innerHTML = '';
+            
+            const REGIONS = ['台北市', '新北市', '基隆/宜蘭', '桃竹苗', '中彰投', '雲嘉南', '高屏', '花東/外島'];
+            
+            REGIONS.forEach(region => {
+                const rm = markets.filter(m => m.region === region);
+                if(rm.length === 0) return;
+                
+                let html = `<div class="mb-4"><div class="text-sm font-bold text-gray-500 mb-2">${region}</div><div class="space-y-2">`;
+                rm.forEach(m => {
+                    html += `
+                        <div class="p-3 border border-gray-100 rounded-xl bg-gray-50 flex justify-between items-start">
+                            <div class="flex-1 min-w-0 pr-2">
+                                <div class="font-bold text-gray-800">${m.name}</div>
+                                <div class="text-xs text-blue-600 font-medium mt-1 truncate">${m.address}</div>
+                            </div>
+                            <button onclick="deleteMarket(${m.id})" class="text-red-400 hover:text-red-600 p-2 flex-shrink-0"><i class="fa-solid fa-trash-can"></i></button>
+                        </div>
+                    `;
+                });
+                html += `</div></div>`;
+                container.innerHTML += html;
+            });
+        }
+
+        // 新增與刪除市場
+        function addMarket(e) {
+            e.preventDefault();
+            const region = document.getElementById('newRegion').value;
+            const name = document.getElementById('newName').value;
+            const address = document.getElementById('newAddress').value;
+            if(!name || !address) return;
+
+            markets.push({ id: Date.now(), region, name, address, note: '' });
+            saveMarkets();
+            
+            document.getElementById('newName').value = '';
+            document.getElementById('newAddress').value = '';
+            alert('新增成功！');
+            renderBook();
+        }
+
+        function deleteMarket(id) {
+            if(confirm('確定要刪除嗎？')) {
+                markets = markets.filter(m => m.id !== id);
+                saveMarkets();
+                renderBook();
+            }
+        }
     </script>
 </body>
 </html>
 
-```
+
