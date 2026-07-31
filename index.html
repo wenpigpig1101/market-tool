@@ -75,15 +75,15 @@
         
         const Input = ({ label, value, onChange, type = "text", placeholder, disabled }) => (
             <div className="mb-3">
-                <div className={`flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 py-3 focus-within:border-[#bc9f8b] transition-colors ${disabled ? 'opacity-60 bg-[#f9f9f9]' : ''}`}>
+                <div className={`flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 h-[48px] focus-within:border-[#bc9f8b] transition-colors ${disabled ? 'opacity-60 bg-[#f9f9f9]' : ''}`}>
                     <input type={type} value={value} onChange={onChange} placeholder={placeholder || label} disabled={disabled}
-                        className="bg-transparent w-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
+                        className="bg-transparent w-full h-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
                 </div>
             </div>
         );
 
         const Button = ({ children, onClick, className = "" }) => (
-            <button onClick={onClick} className={`w-full py-3.5 rounded-xl font-bold transition-colors text-[15px] text-center flex justify-center items-center font-wawa tracking-wide shadow-sm ${className}`}>
+            <button onClick={onClick} className={`w-full h-[48px] rounded-xl font-bold transition-colors text-[15px] text-center flex justify-center items-center font-wawa tracking-wide bg-[#bc9f8b] text-white active:bg-[#a68a77] shadow-sm ${className}`}>
                 {children}
             </button>
         );
@@ -170,8 +170,8 @@
                         <Input placeholder="顧客姓名" value={customerName} onChange={e => setCustomerName(e.target.value)} />
                         
                         <div className="mb-3">
-                            <div className="flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 py-3 focus-within:border-[#bc9f8b] transition-colors">
-                                <input type="number" value={revenue} onChange={e => setRevenue(e.target.value)} placeholder="商品售價(營業額)" className="bg-transparent w-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
+                            <div className="flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 h-[48px] focus-within:border-[#bc9f8b] transition-colors">
+                                <input type="number" value={revenue} onChange={e => setRevenue(e.target.value)} placeholder="商品售價(營業額)" className="bg-transparent w-full h-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
                             </div>
                         </div>
 
@@ -180,14 +180,15 @@
                             <Input type="number" placeholder="買家付運費(代收)" value={shippingIncome} onChange={e => setShippingIncome(e.target.value)} />
                         </div>
                         
+                        {/* 完美對齊的贈品區塊 (強制鎖定高度 h-[48px]) */}
                         <div className="grid grid-cols-2 gap-3 mb-4">
                             <button 
-                                className={`w-full py-3 rounded-xl border text-[15px] transition-colors font-wawa font-bold flex items-center justify-center ${hasGift ? 'border-[#bc9f8b] bg-[#fdfaf7] text-[#bc9f8b]' : 'border-[#f0e6e0] bg-[#fdfdfd] text-[#a89689]'}`} 
+                                className={`w-full h-[48px] rounded-xl border text-[15px] transition-colors font-wawa font-bold flex items-center justify-center ${hasGift ? 'border-[#bc9f8b] bg-[#fdfaf7] text-[#bc9f8b]' : 'border-[#f0e6e0] bg-[#fdfdfd] text-[#a89689]'}`} 
                                 onClick={(e) => { e.preventDefault(); setHasGift(!hasGift); }}>
                                 🎁 {hasGift ? '有贈品' : '無贈品'}
                             </button>
-                            <div className={`flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 py-3 focus-within:border-[#bc9f8b] transition-colors ${!hasGift ? 'opacity-60 bg-[#f9f9f9]' : ''}`}>
-                                <input type="number" placeholder="贈品數量" value={giftCount} onChange={e => setGiftCount(e.target.value)} disabled={!hasGift} className="bg-transparent w-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
+                            <div className={`flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 h-[48px] focus-within:border-[#bc9f8b] transition-colors ${!hasGift ? 'opacity-60 bg-[#f9f9f9]' : ''}`}>
+                                <input type="number" placeholder="贈品數量" value={giftCount} onChange={e => setGiftCount(e.target.value)} disabled={!hasGift} className="bg-transparent w-full h-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
                             </div>
                         </div>
                         
@@ -350,14 +351,15 @@
                             <Input type="number" placeholder="過路費 (選填)" value={toll} onChange={e => setToll(e.target.value)} />
                         </div>
                         
+                        {/* 完美對齊的贈品區塊 (強制鎖定高度 h-[48px]) */}
                         <div className="grid grid-cols-2 gap-3 mb-4">
                             <button 
-                                className={`w-full py-3 rounded-xl border text-[15px] transition-colors font-wawa font-bold flex items-center justify-center ${hasGift ? 'border-[#bc9f8b] bg-[#fdfaf7] text-[#bc9f8b]' : 'border-[#f0e6e0] bg-[#fdfdfd] text-[#a89689]'}`} 
+                                className={`w-full h-[48px] rounded-xl border text-[15px] transition-colors font-wawa font-bold flex items-center justify-center ${hasGift ? 'border-[#bc9f8b] bg-[#fdfaf7] text-[#bc9f8b]' : 'border-[#f0e6e0] bg-[#fdfdfd] text-[#a89689]'}`} 
                                 onClick={(e) => { e.preventDefault(); setHasGift(!hasGift); }}>
                                 🎁 {hasGift ? '有贈品' : '無贈品'}
                             </button>
-                            <div className={`flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 py-3 focus-within:border-[#bc9f8b] transition-colors ${!hasGift ? 'opacity-60 bg-[#f9f9f9]' : ''}`}>
-                                <input type="number" placeholder="贈品數量" value={giftCount} onChange={e => setGiftCount(e.target.value)} disabled={!hasGift} className="bg-transparent w-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
+                            <div className={`flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 h-[48px] focus-within:border-[#bc9f8b] transition-colors ${!hasGift ? 'opacity-60 bg-[#f9f9f9]' : ''}`}>
+                                <input type="number" placeholder="贈品數量" value={giftCount} onChange={e => setGiftCount(e.target.value)} disabled={!hasGift} className="bg-transparent w-full h-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
                             </div>
                         </div>
 
@@ -369,7 +371,7 @@
                                     return (
                                         <div key={label}>
                                             <label className="block mb-1">{label}</label>
-                                            <input type="number" value={acc[keys[idx]]} onChange={e=>setAcc({...acc, [keys[idx]]: e.target.value})} className="w-full bg-[#fdfdfd] border border-[#f0e6e0] rounded-lg p-2 text-center outline-none focus:border-[#bc9f8b] font-wawa" />
+                                            <input type="number" value={acc[keys[idx]]} onChange={e=>setAcc({...acc, [keys[idx]]: e.target.value})} className="w-full h-[40px] bg-[#fdfdfd] border border-[#f0e6e0] rounded-lg px-2 text-center outline-none focus:border-[#bc9f8b] font-wawa" />
                                         </div>
                                     )
                                 })}
@@ -492,11 +494,11 @@
                     <div className="grid grid-cols-2 gap-3 mb-6">
                         <div className="bg-white rounded-xl p-3 shadow-sm border border-[#f2e7df] text-center">
                             <div className="text-xs text-[#a89689] font-bold mb-1">累積批貨成本</div>
-                            <div className="text-lg font-black text-[#e57373]">${wholesaleTotal}</div>
+                            <div className="text-lg font-black text-[#e57373]">${wholesaleTotal.toLocaleString()}</div>
                         </div>
                         <div className="bg-white rounded-xl p-3 shadow-sm border border-[#f2e7df] text-center">
                             <div className="text-xs text-[#a89689] font-bold mb-1">累積生財雜支</div>
-                            <div className="text-lg font-black text-[#e57373]">${supplyTotal}</div>
+                            <div className="text-lg font-black text-[#e57373]">${supplyTotal.toLocaleString()}</div>
                         </div>
                     </div>
 
@@ -529,7 +531,7 @@
             );
         }
 
-        // --- 分頁 4：報表 ---
+        // --- 分頁 4：報表 (方案A: 跨月累積資產版) ---
         const ReportTab = ({ deliveries, marketSales, expenses, settings, setSettings }) => {
             const [reportMonth, setReportMonth] = useState(() => {
                 const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -548,10 +550,29 @@
                 }
             };
 
+            // ---- 計算歷史累積 (上月結轉) ----
+            // 找出所有日期「小於」目前查看月份的第一天的紀錄
+            const pastDeliveries = deliveries.filter(d => d.date.substring(0, 7) < reportMonth && d.status === 'shipped');
+            const pastMarket = marketSales.filter(m => m.date.substring(0, 7) < reportMonth);
+            const pastExpenses = expenses.filter(e => e.date.substring(0, 7) < reportMonth);
+
+            let carryover = 0; // 上月結轉金額
+            pastDeliveries.forEach(d => {
+                carryover += (d.revenue || 0) + (d.shippingIncome || 0) - (d.shippingExpense || 0);
+            });
+            pastMarket.forEach(m => {
+                carryover += (m.revenue || 0) - (m.rent || 0) - ((m.electricity||0) + (m.cleaning||0) + (m.gas||0) + (m.toll||0) + (m.otherExpenses||0));
+            });
+            pastExpenses.forEach(e => {
+                carryover -= (e.amount || 0);
+            });
+
+            // ---- 計算當月資料 ----
             const currentDeliveries = deliveries.filter(d => d.date.startsWith(reportMonth) && d.status === 'shipped');
             const currentMarket = marketSales.filter(m => m.date.startsWith(reportMonth));
             const currentExpenses = expenses.filter(e => e.date.startsWith(reportMonth));
 
+            // 1. 超商當月
             const storeCount = currentDeliveries.length;
             const storeRevenue = currentDeliveries.reduce((sum, d) => sum + (d.revenue || 0), 0);
             const storeShippingIn = currentDeliveries.reduce((sum, d) => sum + (d.shippingIncome || 0), 0);
@@ -560,6 +581,7 @@
             const storeSubtotal = storeRevenue + storeShippingProfit; 
             const storeGifts = currentDeliveries.reduce((sum, d) => sum + (d.giftCount || 0), 0);
 
+            // 2. 市場當月
             const marketRevenue = currentMarket.reduce((sum, m) => sum + (m.revenue || 0), 0);
             const marketRent = currentMarket.reduce((sum, m) => sum + (m.rent || 0), 0);
             const marketMisc = currentMarket.reduce((sum, m) => sum + (m.electricity || 0) + (m.cleaning || 0) + (m.gas || 0) + (m.toll || 0), 0);
@@ -567,15 +589,19 @@
             const marketGifts = currentMarket.reduce((sum, m) => sum + (m.giftCount || 0), 0);
             const accTotal = currentMarket.reduce((sum, m) => sum + (m.accessories?.necklace||0) + (m.accessories?.hat||0) + (m.accessories?.bag||0) + (m.accessories?.other||0), 0);
 
+            // 3. 專屬支出當月
             const wholesaleTotal = currentExpenses.filter(e => e.type === 'wholesale').reduce((sum, e) => sum + e.amount, 0);
             const supplyTotal = currentExpenses.filter(e => e.type === 'supply').reduce((sum, e) => sum + e.amount, 0);
             const customExpenseTotal = wholesaleTotal + supplyTotal;
 
+            // 4. 當月結算與累積總資產
             const totalRevenue = storeRevenue + marketRevenue;
             const totalOperationsCost = marketRent + marketMisc + customExpenseTotal; 
-            const totalProfit = storeSubtotal + marketSubtotal - customExpenseTotal; 
+            const currentMonthProfit = storeSubtotal + marketSubtotal - customExpenseTotal; // 本月單月實賺
+            
+            const accumulatedProfit = carryover + currentMonthProfit; // 目前累積總實賺 (方案A核心)
 
-            const progressPercent = Math.min(100, Math.round((totalProfit / settings.monthlyGoal) * 100)) || 0;
+            const progressPercent = Math.min(100, Math.round((currentMonthProfit / settings.monthlyGoal) * 100)) || 0;
             const giftTotal = storeGifts + marketGifts;
             
             const marketDays = currentMarket.length;
@@ -592,34 +618,58 @@
                         <div className="font-bold text-[#7a6453] text-lg">{reportMonth.split('-')[0]}年 {parseInt(reportMonth.split('-')[1], 10)}月</div>
                         <button onClick={() => changeMonth(1)} className="p-2 text-[#a89689]"><Icon name="chevron_right" /></button>
                     </div>
+
+                    {/* 方案 A: 累積總資產看板 */}
+                    <Card className="bg-[#bc9f8b] bg-opacity-10 border-none mb-4">
+                        <div className="text-center mb-3 pt-2">
+                            <div className="text-sm text-[#7a6453] font-bold mb-1"><Icon name="account_balance" className="align-middle text-[18px] mr-1"/>目前累積總資產 (實賺)</div>
+                            <div className={`text-4xl font-black ${accumulatedProfit < 0 ? 'text-red-500' : 'text-[#bc9f8b]'}`}>
+                                {accumulatedProfit < 0 ? '-' : ''}${Math.abs(accumulatedProfit).toLocaleString()}
+                            </div>
+                        </div>
+                        <div className="flex justify-between text-sm border-t border-[#e0d6ce] pt-3 pb-1">
+                            <div className="text-center flex-1 border-r border-[#e0d6ce]">
+                                <div className="text-xs text-[#a89689] mb-1">上月結轉</div>
+                                <div className={`font-bold ${carryover < 0 ? 'text-red-400' : 'text-[#7a6453]'}`}>${carryover.toLocaleString()}</div>
+                            </div>
+                            <div className="text-center flex-1">
+                                <div className="text-xs text-[#a89689] mb-1">本月單月實賺</div>
+                                <div className={`font-bold ${currentMonthProfit < 0 ? 'text-red-500' : 'text-[#bc9f8b]'}`}>
+                                    ${currentMonthProfit.toLocaleString()}
+                                </div>
+                            </div>
+                        </div>
+                    </Card>
+
+                    {/* 當月單月進度 */}
                     <Card>
                         <div className="flex justify-between items-center mb-3">
-                            <div className="flex items-center font-bold text-[#7a6453] text-lg"><Icon name="track_changes" className="mr-2 text-[#e57373]" /> 本月總利潤進度</div>
+                            <div className="flex items-center font-bold text-[#7a6453] text-lg"><Icon name="track_changes" className="mr-2 text-[#e57373]" /> 單月利潤進度</div>
                             <button onClick={handleGoalChange} className="text-xs bg-[#fdfaf7] border border-[#e0d6ce] px-2 py-1 rounded-lg text-[#a89689] font-wawa">修改目標</button>
                         </div>
                         <div className="w-full bg-[#f2e7df] rounded-full h-3 mb-2 overflow-hidden">
                             <div className="bg-[#bc9f8b] h-3 rounded-full transition-all duration-500" style={{ width: `${progressPercent}%` }}></div>
                         </div>
                         <div className="flex justify-between text-sm text-[#7a6453] mb-4">
-                            <span className="font-bold text-[#bc9f8b] text-base">本月實賺 ${totalProfit}</span>
-                            <span className="font-bold text-[#a89689]">{progressPercent}% / 目標 ${settings.monthlyGoal}</span>
+                            <span className="font-bold text-[#bc9f8b] text-base">進度 ${currentMonthProfit.toLocaleString()}</span>
+                            <span className="font-bold text-[#a89689]">{progressPercent}% / 目標 ${settings.monthlyGoal.toLocaleString()}</span>
                         </div>
                         <div className="pt-3 border-t border-[#f2e7df] text-sm space-y-2">
-                            <div className="flex justify-between"><span className="text-[#a89689]">本月總營業收入 (超商+市場)</span><span className="font-bold text-[#5c4d43]">${totalRevenue}</span></div>
-                            <div className="flex justify-between"><span className="text-[#a89689]">超商運費淨賺 (代收-支出)</span><span className={`font-bold ${storeShippingProfit >= 0 ? 'text-[#4caf50]' : 'text-[#e57373]'}`}>{storeShippingProfit >= 0 ? '+' : ''}{storeShippingProfit}</span></div>
-                            <div className="flex justify-between"><span className="text-[#a89689] font-bold text-[#e57373]">本月總營運支出 (含批貨/市場/雜支)</span><span className="font-bold text-[#e57373]">-${totalOperationsCost}</span></div>
+                            <div className="flex justify-between"><span className="text-[#a89689]">本月總營業收入 (超商+市場)</span><span className="font-bold text-[#5c4d43]">${totalRevenue.toLocaleString()}</span></div>
+                            <div className="flex justify-between"><span className="text-[#a89689]">超商運費淨賺 (代收-支出)</span><span className={`font-bold ${storeShippingProfit >= 0 ? 'text-[#4caf50]' : 'text-[#e57373]'}`}>{storeShippingProfit >= 0 ? '+' : ''}{storeShippingProfit.toLocaleString()}</span></div>
+                            <div className="flex justify-between"><span className="text-[#a89689] font-bold text-[#e57373]">本月總營運支出 (含批貨/市場/雜支)</span><span className="font-bold text-[#e57373]">-${totalOperationsCost.toLocaleString()}</span></div>
                         </div>
                     </Card>
 
                     <div className="grid grid-cols-2 gap-3 mb-4">
                         <div className="bg-white rounded-2xl p-4 shadow-sm border border-[#f2e7df]">
                             <div className="flex items-center font-bold text-[#7a6453] mb-2"><Icon name="inventory_2" className="mr-1 text-[16px] text-[#bc9f8b]" /> 超商收入</div>
-                            <div className="font-bold text-[#bc9f8b] text-xl">${storeRevenue}</div>
+                            <div className="font-bold text-[#bc9f8b] text-xl">${storeRevenue.toLocaleString()}</div>
                             <div className="text-xs text-[#a89689] mt-1">共 {storeCount} 件</div>
                         </div>
                         <div className="bg-white rounded-2xl p-4 shadow-sm border border-[#f2e7df]">
                             <div className="flex items-center font-bold text-[#7a6453] mb-2"><Icon name="storefront" className="mr-1 text-[16px] text-[#bc9f8b]" /> 市場收入</div>
-                            <div className="font-bold text-[#bc9f8b] text-xl">${marketRevenue}</div>
+                            <div className="font-bold text-[#bc9f8b] text-xl">${marketRevenue.toLocaleString()}</div>
                             <div className="text-xs text-[#a89689] mt-1">出勤 {marketDays} 天</div>
                         </div>
                     </div>
@@ -627,10 +677,10 @@
                     <Card>
                         <div className="flex items-center font-bold text-[#7a6453] text-lg border-b border-[#f2e7df] pb-3 mb-3"><Icon name="payments" className="mr-2 text-[#e57373]" /> 各項支出拆解</div>
                         <div className="space-y-3 text-sm">
-                            <div className="flex justify-between"><span className="text-[#a89689]">批貨總成本</span><span className="font-bold text-[#e57373]">-${wholesaleTotal}</span></div>
-                            <div className="flex justify-between"><span className="text-[#a89689]">生財器具/一般雜支</span><span className="font-bold text-[#e57373]">-${supplyTotal}</span></div>
-                            <div className="flex justify-between"><span className="text-[#a89689]">市場攤位租金</span><span className="font-bold text-[#e57373]">-${marketRent}</span></div>
-                            <div className="flex justify-between"><span className="text-[#a89689]">市場雜支 (電/清/油/過)</span><span className="font-bold text-[#e57373]">-${marketMisc}</span></div>
+                            <div className="flex justify-between"><span className="text-[#a89689]">批貨總成本</span><span className="font-bold text-[#e57373]">-${wholesaleTotal.toLocaleString()}</span></div>
+                            <div className="flex justify-between"><span className="text-[#a89689]">生財器具/一般雜支</span><span className="font-bold text-[#e57373]">-${supplyTotal.toLocaleString()}</span></div>
+                            <div className="flex justify-between"><span className="text-[#a89689]">市場攤位租金</span><span className="font-bold text-[#e57373]">-${marketRent.toLocaleString()}</span></div>
+                            <div className="flex justify-between"><span className="text-[#a89689]">市場雜支 (電/清/油/過)</span><span className="font-bold text-[#e57373]">-${marketMisc.toLocaleString()}</span></div>
                         </div>
                     </Card>
 
