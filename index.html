@@ -24,7 +24,7 @@
         .font-wawa { font-family: 'HanziPen TC', 'Hannotate TC', 'DFWawaTC-W5', '華康娃娃體', 'M PLUS Rounded 1c', sans-serif !important; }
         input::placeholder { font-family: 'HanziPen TC', 'Hannotate TC', 'M PLUS Rounded 1c', sans-serif; }
         .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
-        .animate-fade-in { animation: fadeIn 0.2s ease-out forwards; }
+        .animate-fade-in { animation: fadeIn 0.25s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
@@ -32,7 +32,7 @@
     <div id="root">
         <div style="height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #bc9f8b; font-weight: bold; font-size: 1.2rem;">
             <div style="width: 40px; height: 40px; border: 4px solid #f2e7df; border-top-color: #bc9f8b; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px;"></div>
-            正在準備您的帳本...💰
+            正在準備您的企業帳本...💰
             <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
         </div>
     </div>
@@ -63,7 +63,6 @@
             return [value, setValue];
         };
 
-        // --- 輔助：滾動到頂部 ---
         const scrollToTop = () => {
             const main = document.getElementById('main-content');
             if(main) main.scrollTo({ top: 0, behavior: 'smooth' });
@@ -83,7 +82,7 @@
         );
 
         const Button = ({ children, onClick, className = "" }) => (
-            <button onClick={onClick} className={`w-full h-[48px] rounded-xl font-bold transition-colors text-[15px] text-center flex justify-center items-center font-wawa tracking-wide bg-[#bc9f8b] text-white active:bg-[#a68a77] shadow-sm ${className}`}>
+            <button onClick={onClick} className={`w-full h-[48px] rounded-xl font-bold transition-colors text-[15px] text-center flex justify-center items-center font-wawa tracking-wide shadow-sm ${className}`}>
                 {children}
             </button>
         );
@@ -180,7 +179,6 @@
                             <Input type="number" placeholder="買家付運費(代收)" value={shippingIncome} onChange={e => setShippingIncome(e.target.value)} />
                         </div>
                         
-                        {/* 完美對齊的贈品區塊 */}
                         <div className="grid grid-cols-2 gap-3 mb-4">
                             <button 
                                 className={`w-full h-[48px] rounded-xl border text-[15px] transition-colors font-wawa font-bold flex items-center justify-center ${hasGift ? 'border-[#bc9f8b] bg-[#fdfaf7] text-[#bc9f8b]' : 'border-[#f0e6e0] bg-[#fdfdfd] text-[#a89689]'}`} 
@@ -428,11 +426,11 @@
             );
         };
 
-        // --- 分頁 3：支出紀錄 ---
+        // --- 分頁 3：全新支出紀錄 (企業 4 大分類) ---
         const ExpenseTab = ({ expenses, setExpenses, setConfirmDialog }) => {
             const [editingId, setEditingId] = useState(null);
             const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-            const [type, setType] = useState('wholesale');
+            const [type, setType] = useState('wholesale'); // wholesale, supply, fixed, salary
             const [name, setName] = useState('');
             const [amount, setAmount] = useState('');
 
@@ -462,29 +460,45 @@
 
             const wholesaleTotal = expenses.filter(e => e.type === 'wholesale').reduce((sum, e) => sum + e.amount, 0);
             const supplyTotal = expenses.filter(e => e.type === 'supply').reduce((sum, e) => sum + e.amount, 0);
+            const fixedTotal = expenses.filter(e => e.type === 'fixed').reduce((sum, e) => sum + e.amount, 0);
+            const salaryTotal = expenses.filter(e => e.type === 'salary').reduce((sum, e) => sum + e.amount, 0);
+
+            // 類別設定對應表
+            const typeConfig = {
+                wholesale: { label: '批貨進貨', color: 'bg-[#e57373]', text: 'text-[#e57373]', bgLight: 'bg-[#ffebee]', placeholder: '批貨品名 / 廠商' },
+                supply: { label: '生財/包材', color: 'bg-[#64b5f6]', text: 'text-[#64b5f6]', bgLight: 'bg-[#e0f7fa]', placeholder: '如: 品牌袋、衣架、文具' },
+                fixed: { label: '倉租/水電', color: 'bg-[#81c784]', text: 'text-[#81c784]', bgLight: 'bg-[#e8f5e9]', placeholder: '如: 倉庫租金、水電網費' },
+                salary: { label: '老闆支薪', color: 'bg-[#ffd54f]', text: 'text-[#fbc02d]', bgLight: 'bg-[#fffde7]', placeholder: '如: 8月老闆薪水' }
+            };
 
             return (
                 <div className="animate-fade-in pb-20">
-                    <Card className={editingId ? 'border-2 border-[#e57373]' : ''}>
+                    <Card className={editingId ? `border-2 border-${typeConfig[type].color.split('-')[1]}` : ''}>
                         <div className="flex items-center mb-4 text-[#7a6453] font-bold text-lg">
-                            <Icon name={editingId ? 'edit' : 'payments'} className={`mr-2 ${editingId ? 'text-[#e57373]' : 'text-[#e57373]'}`} /> 
-                            {editingId ? '編輯支出紀錄' : '營運支出紀錄'}
+                            <Icon name={editingId ? 'edit' : 'account_balance_wallet'} className="mr-2 text-[#7a6453]" /> 
+                            {editingId ? '編輯支出紀錄' : '公司營運支出'}
                         </div>
                         
-                        <div className="flex bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl p-1 mb-4">
-                            <button onClick={() => setType('wholesale')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${type === 'wholesale' ? 'bg-[#e57373] text-white shadow-sm' : 'text-[#a89689]'}`}>批貨成本</button>
-                            <button onClick={() => setType('supply')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${type === 'supply' ? 'bg-[#e57373] text-white shadow-sm' : 'text-[#a89689]'}`}>生財/雜支</button>
+                        <div className="grid grid-cols-2 gap-2 mb-4">
+                            {Object.keys(typeConfig).map(tKey => (
+                                <button 
+                                    key={tKey}
+                                    onClick={() => setType(tKey)} 
+                                    className={`py-2.5 rounded-xl text-sm font-bold transition-all border ${type === tKey ? `${typeConfig[tKey].color} text-white border-transparent shadow-md` : 'bg-white border-[#f0e6e0] text-[#a89689]'}`}>
+                                    {typeConfig[tKey].label}
+                                </button>
+                            ))}
                         </div>
 
                         <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
-                        <Input placeholder={type === 'wholesale' ? "批貨品名 / 廠商" : "例如: 品牌袋、膠帶、筆"} value={name} onChange={e => setName(e.target.value)} />
+                        <Input placeholder={typeConfig[type].placeholder} value={name} onChange={e => setName(e.target.value)} />
                         <Input type="number" placeholder="支出金額" value={amount} onChange={e => setAmount(e.target.value)} />
                         
                         <div className="flex gap-3">
                             {editingId && (
                                 <Button onClick={resetForm} className="flex-1 bg-[#f2e7df] !text-[#7a6453]">取消</Button>
                             )}
-                            <Button onClick={handleAddExpense} className={`bg-[#e57373] hover:bg-[#ef5350] text-white ${editingId ? 'flex-[2]' : 'w-full'}`}>
+                            <Button onClick={handleAddExpense} className={`${typeConfig[type].color} hover:opacity-90 text-white ${editingId ? 'flex-[2]' : 'w-full'}`}>
                                 {editingId ? '儲存修改' : '儲存支出'}
                             </Button>
                         </div>
@@ -492,12 +506,20 @@
 
                     <div className="grid grid-cols-2 gap-3 mb-6">
                         <div className="bg-white rounded-xl p-3 shadow-sm border border-[#f2e7df] text-center">
-                            <div className="text-xs text-[#a89689] font-bold mb-1">累積批貨成本</div>
+                            <div className="text-[11px] text-[#a89689] font-bold mb-1">累積批貨成本</div>
                             <div className="text-lg font-black text-[#e57373]">${wholesaleTotal.toLocaleString()}</div>
                         </div>
                         <div className="bg-white rounded-xl p-3 shadow-sm border border-[#f2e7df] text-center">
-                            <div className="text-xs text-[#a89689] font-bold mb-1">累積生財雜支</div>
-                            <div className="text-lg font-black text-[#e57373]">${supplyTotal.toLocaleString()}</div>
+                            <div className="text-[11px] text-[#a89689] font-bold mb-1">累積生財/包材</div>
+                            <div className="text-lg font-black text-[#64b5f6]">${supplyTotal.toLocaleString()}</div>
+                        </div>
+                        <div className="bg-white rounded-xl p-3 shadow-sm border border-[#f2e7df] text-center">
+                            <div className="text-[11px] text-[#a89689] font-bold mb-1">累積倉租/水電</div>
+                            <div className="text-lg font-black text-[#81c784]">${fixedTotal.toLocaleString()}</div>
+                        </div>
+                        <div className="bg-white rounded-xl p-3 shadow-sm border border-[#f2e7df] text-center">
+                            <div className="text-[11px] text-[#a89689] font-bold mb-1">累積老闆支薪</div>
+                            <div className="text-lg font-black text-[#fbc02d]">${salaryTotal.toLocaleString()}</div>
                         </div>
                     </div>
 
@@ -510,15 +532,15 @@
                             <div key={e.id} className="bg-white rounded-xl p-4 shadow-sm border border-[#f2e7df] flex justify-between items-center">
                                 <div className="flex flex-col">
                                     <div className="flex items-center gap-2 mb-1">
-                                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${e.type === 'wholesale' ? 'bg-[#ffebee] text-[#e57373]' : 'bg-[#e0f7fa] text-[#64b5f6]'}`}>
-                                            {e.type === 'wholesale' ? '批貨' : '雜支'}
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${typeConfig[e.type].bgLight} ${typeConfig[e.type].text}`}>
+                                            {typeConfig[e.type].label.split('/')[0]}
                                         </span>
                                         <span className="font-bold text-[#5c4d43] text-base">{e.name}</span>
                                     </div>
                                     <div className="text-xs text-[#a89689]">{e.date}</div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <div className="font-black text-[#e57373] text-lg mr-2">-${e.amount}</div>
+                                    <div className={`font-black text-lg mr-2 ${typeConfig[e.type].text}`}>-${e.amount}</div>
                                     <button onClick={() => handleEditClick(e)} className="p-1.5 bg-[#fdfaf7] text-[#bc9f8b] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
                                     <button onClick={() => setConfirmDialog({isOpen: true, id: e.id, collection: 'expenses'})} className="p-1.5 bg-[#fdf2f2] text-[#e57373] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
                                 </div>
@@ -530,7 +552,7 @@
             );
         }
 
-        // --- 分頁 4：報表 ---
+        // --- 分頁 4：報表 (企業財務邏輯版) ---
         const ReportTab = ({ deliveries, marketSales, expenses, settings, setSettings }) => {
             const [reportMonth, setReportMonth] = useState(() => {
                 const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -543,60 +565,61 @@
             };
 
             const handleGoalChange = () => {
-                const newGoal = window.prompt("請輸入新的市場目標金額：", settings.monthlyGoal);
+                const newGoal = window.prompt("請輸入您的月淨利目標：", settings.monthlyGoal);
                 if (newGoal && !isNaN(newGoal)) {
                     setSettings({ ...settings, monthlyGoal: Number(newGoal) });
                 }
             };
 
+            // ---- 計算歷史累積 (上月結轉) ----
             const pastDeliveries = deliveries.filter(d => d.date.substring(0, 7) < reportMonth && d.status === 'shipped');
             const pastMarket = marketSales.filter(m => m.date.substring(0, 7) < reportMonth);
             const pastExpenses = expenses.filter(e => e.date.substring(0, 7) < reportMonth);
 
-            let carryover = 0;
+            let carryover = 0; 
             pastDeliveries.forEach(d => { carryover += (d.revenue || 0) + (d.shippingIncome || 0) - (d.shippingExpense || 0); });
             pastMarket.forEach(m => { carryover += (m.revenue || 0) - (m.rent || 0) - ((m.electricity||0) + (m.cleaning||0) + (m.gas||0) + (m.toll||0)); });
             pastExpenses.forEach(e => { carryover -= (e.amount || 0); });
 
+            // ---- 計算當月資料 ----
             const currentDeliveries = deliveries.filter(d => d.date.startsWith(reportMonth) && d.status === 'shipped');
             const currentMarket = marketSales.filter(m => m.date.startsWith(reportMonth));
             const currentExpenses = expenses.filter(e => e.date.startsWith(reportMonth));
 
-            const storeCount = currentDeliveries.length;
+            // 1. 營業額
             const storeRevenue = currentDeliveries.reduce((sum, d) => sum + (d.revenue || 0), 0);
+            const marketRevenue = currentMarket.reduce((sum, m) => sum + (m.revenue || 0), 0);
+            const totalRevenue = storeRevenue + marketRevenue;
+
+            // 2. 批貨成本
+            const wholesaleTotal = currentExpenses.filter(e => e.type === 'wholesale').reduce((sum, e) => sum + e.amount, 0);
+            const grossProfit = totalRevenue - wholesaleTotal; // 毛利 = 營業額 - 批貨成本
+
+            // 3. 營運雜支
             const storeShippingIn = currentDeliveries.reduce((sum, d) => sum + (d.shippingIncome || 0), 0);
             const storeShippingOut = currentDeliveries.reduce((sum, d) => sum + (d.shippingExpense || 0), 0);
-            const storeShippingProfit = storeShippingIn - storeShippingOut;
-            const storeSubtotal = storeRevenue + storeShippingProfit; 
-            const storeGifts = currentDeliveries.reduce((sum, d) => sum + (d.giftCount || 0), 0);
+            const storeShippingProfit = storeShippingIn - storeShippingOut; // 運費盈虧
 
-            const marketRevenue = currentMarket.reduce((sum, m) => sum + (m.revenue || 0), 0);
             const marketRent = currentMarket.reduce((sum, m) => sum + (m.rent || 0), 0);
             const marketMisc = currentMarket.reduce((sum, m) => sum + (m.electricity || 0) + (m.cleaning || 0) + (m.gas || 0) + (m.toll || 0), 0);
-            const marketSubtotal = marketRevenue - marketRent - marketMisc; 
-            const marketGifts = currentMarket.reduce((sum, m) => sum + (m.giftCount || 0), 0);
-            const accTotal = currentMarket.reduce((sum, m) => sum + (m.accessories?.necklace||0) + (m.accessories?.hat||0) + (m.accessories?.bag||0) + (m.accessories?.other||0), 0);
-
-            const wholesaleTotal = currentExpenses.filter(e => e.type === 'wholesale').reduce((sum, e) => sum + e.amount, 0);
             const supplyTotal = currentExpenses.filter(e => e.type === 'supply').reduce((sum, e) => sum + e.amount, 0);
-            const customExpenseTotal = wholesaleTotal + supplyTotal;
-
-            const totalRevenue = storeRevenue + marketRevenue;
-            const totalOperationsCost = marketRent + marketMisc + customExpenseTotal; 
-            const currentMonthProfit = storeSubtotal + marketSubtotal - customExpenseTotal; 
+            const fixedTotal = currentExpenses.filter(e => e.type === 'fixed').reduce((sum, e) => sum + e.amount, 0);
             
-            const accumulatedProfit = carryover + currentMonthProfit; 
+            // 總營運支出 = 市場租金 + 市場雜支 + 生財包材 + 倉租水電 - 運費補貼(盈虧)
+            const totalOperationsCost = marketRent + marketMisc + supplyTotal + fixedTotal - storeShippingProfit; 
+            const operatingProfit = grossProfit - totalOperationsCost; // 營業淨利 = 毛利 - 營運支出
 
-            const progressPercent = Math.min(100, Math.round((currentMonthProfit / settings.monthlyGoal) * 100)) || 0;
-            const giftTotal = storeGifts + marketGifts;
+            // 4. 老闆支薪
+            const salaryTotal = currentExpenses.filter(e => e.type === 'salary').reduce((sum, e) => sum + e.amount, 0);
+
+            // 5. 最終公司淨利 (存進公司的錢)
+            const currentMonthNetProfit = operatingProfit - salaryTotal; 
             
-            const marketDays = currentMarket.length;
-            const bestLocation = marketDays > 0 ? currentMarket.reduce((a, b) => {
-                const pA = a.revenue - a.rent - ((a.electricity||0) + (a.cleaning||0) + (a.gas||0) + (a.toll||0));
-                const pB = b.revenue - b.rent - ((b.electricity||0) + (b.cleaning||0) + (b.gas||0) + (b.toll||0));
-                return pA > pB ? a : b;
-            }).location : '-';
+            // 6. 目前累積總資產
+            const accumulatedProfit = carryover + currentMonthNetProfit; 
 
+            const progressPercent = Math.min(100, Math.round((currentMonthNetProfit / settings.monthlyGoal) * 100)) || 0;
+            
             return (
                 <div className="animate-fade-in pb-20">
                     <div className="flex justify-between items-center bg-white rounded-2xl p-3 shadow-sm border border-[#f2e7df] mb-4">
@@ -605,9 +628,10 @@
                         <button onClick={() => changeMonth(1)} className="p-2 text-[#a89689]"><Icon name="chevron_right" /></button>
                     </div>
 
+                    {/* 公司總資產看板 */}
                     <Card className="bg-[#bc9f8b] bg-opacity-10 border-none mb-4">
                         <div className="text-center mb-3 pt-2">
-                            <div className="text-sm text-[#7a6453] font-bold mb-1"><Icon name="account_balance" className="align-middle text-[18px] mr-1"/>目前累積總資產 (實賺)</div>
+                            <div className="text-sm text-[#7a6453] font-bold mb-1"><Icon name="account_balance" className="align-middle text-[18px] mr-1"/>目前公司總資產 (淨存)</div>
                             <div className={`text-4xl font-black ${accumulatedProfit < 0 ? 'text-red-500' : 'text-[#bc9f8b]'}`}>
                                 {accumulatedProfit < 0 ? '-' : ''}${Math.abs(accumulatedProfit).toLocaleString()}
                             </div>
@@ -618,71 +642,92 @@
                                 <div className={`font-bold ${carryover < 0 ? 'text-red-400' : 'text-[#7a6453]'}`}>${carryover.toLocaleString()}</div>
                             </div>
                             <div className="text-center flex-1">
-                                <div className="text-xs text-[#a89689] mb-1">本月單月實賺</div>
-                                <div className={`font-bold ${currentMonthProfit < 0 ? 'text-red-500' : 'text-[#bc9f8b]'}`}>
-                                    ${currentMonthProfit.toLocaleString()}
+                                <div className="text-xs text-[#a89689] mb-1">本月單月淨利</div>
+                                <div className={`font-bold ${currentMonthNetProfit < 0 ? 'text-red-500' : 'text-[#bc9f8b]'}`}>
+                                    ${currentMonthNetProfit.toLocaleString()}
                                 </div>
                             </div>
                         </div>
                     </Card>
 
-                    <Card>
-                        <div className="flex justify-between items-center mb-3">
-                            <div className="flex items-center font-bold text-[#7a6453] text-lg"><Icon name="track_changes" className="mr-2 text-[#e57373]" /> 單月利潤進度</div>
-                            <button onClick={handleGoalChange} className="text-xs bg-[#fdfaf7] border border-[#e0d6ce] px-2 py-1 rounded-lg text-[#a89689] font-wawa">修改目標</button>
+                    {/* 👑 專屬老闆成就區塊 */}
+                    <Card className="bg-gradient-to-r from-[#fdfbfb] to-[#fffde7] border-[#fff59d] mb-4 flex items-center justify-between">
+                        <div className="flex items-center">
+                            <div className="w-10 h-10 bg-[#fbc02d] rounded-full flex items-center justify-center text-white mr-3 shadow-sm"><Icon name="emoji_events" /></div>
+                            <div>
+                                <div className="text-xs text-[#a89689] font-bold mb-0.5">老闆本月已領薪資</div>
+                                <div className="text-lg font-black text-[#fbc02d]">${salaryTotal.toLocaleString()}</div>
+                            </div>
                         </div>
-                        <div className="w-full bg-[#f2e7df] rounded-full h-3 mb-2 overflow-hidden">
-                            <div className="bg-[#bc9f8b] h-3 rounded-full transition-all duration-500" style={{ width: `${progressPercent}%` }}></div>
-                        </div>
-                        <div className="flex justify-between text-sm text-[#7a6453] mb-4">
-                            <span className="font-bold text-[#bc9f8b] text-base">進度 ${currentMonthProfit.toLocaleString()}</span>
-                            <span className="font-bold text-[#a89689]">{progressPercent}% / 目標 ${settings.monthlyGoal.toLocaleString()}</span>
-                        </div>
-                        <div className="pt-3 border-t border-[#f2e7df] text-sm space-y-2">
-                            <div className="flex justify-between"><span className="text-[#a89689]">本月總營業收入 (超商+市場)</span><span className="font-bold text-[#5c4d43]">${totalRevenue.toLocaleString()}</span></div>
-                            <div className="flex justify-between"><span className="text-[#a89689]">超商運費淨賺 (代收-支出)</span><span className={`font-bold ${storeShippingProfit >= 0 ? 'text-[#4caf50]' : 'text-[#e57373]'}`}>{storeShippingProfit >= 0 ? '+' : ''}{storeShippingProfit.toLocaleString()}</span></div>
-                            <div className="flex justify-between"><span className="text-[#a89689] font-bold text-[#e57373]">本月總營運支出 (含批貨/市場/雜支)</span><span className="font-bold text-[#e57373]">-${totalOperationsCost.toLocaleString()}</span></div>
-                        </div>
+                        <Icon name="arrow_forward_ios" className="text-gray-300 text-sm" />
                     </Card>
 
-                    <div className="grid grid-cols-2 gap-3 mb-4">
-                        <div className="bg-white rounded-2xl p-4 shadow-sm border border-[#f2e7df]">
-                            <div className="flex items-center font-bold text-[#7a6453] mb-2"><Icon name="inventory_2" className="mr-1 text-[16px] text-[#bc9f8b]" /> 超商收入</div>
-                            <div className="font-bold text-[#bc9f8b] text-xl">${storeRevenue.toLocaleString()}</div>
-                            <div className="text-xs text-[#a89689] mt-1">共 {storeCount} 件</div>
-                        </div>
-                        <div className="bg-white rounded-2xl p-4 shadow-sm border border-[#f2e7df]">
-                            <div className="flex items-center font-bold text-[#7a6453] mb-2"><Icon name="storefront" className="mr-1 text-[16px] text-[#bc9f8b]" /> 市場收入</div>
-                            <div className="font-bold text-[#bc9f8b] text-xl">${marketRevenue.toLocaleString()}</div>
-                            <div className="text-xs text-[#a89689] mt-1">出勤 {marketDays} 天</div>
-                        </div>
-                    </div>
-
+                    {/* 企業級 P&L (損益表) */}
                     <Card>
-                        <div className="flex items-center font-bold text-[#7a6453] text-lg border-b border-[#f2e7df] pb-3 mb-3"><Icon name="payments" className="mr-2 text-[#e57373]" /> 各項支出拆解</div>
-                        <div className="space-y-3 text-sm">
-                            <div className="flex justify-between"><span className="text-[#a89689]">批貨總成本</span><span className="font-bold text-[#e57373]">-${wholesaleTotal.toLocaleString()}</span></div>
-                            <div className="flex justify-between"><span className="text-[#a89689]">生財器具/一般雜支</span><span className="font-bold text-[#e57373]">-${supplyTotal.toLocaleString()}</span></div>
-                            <div className="flex justify-between"><span className="text-[#a89689]">市場攤位租金</span><span className="font-bold text-[#e57373]">-${marketRent.toLocaleString()}</span></div>
-                            <div className="flex justify-between"><span className="text-[#a89689]">市場雜支 (電/清/油/過)</span><span className="font-bold text-[#e57373]">-${marketMisc.toLocaleString()}</span></div>
+                        <div className="flex justify-between items-center mb-4 pb-2 border-b border-[#f2e7df]">
+                            <div className="flex items-center font-bold text-[#7a6453] text-lg"><Icon name="request_quote" className="mr-2 text-[#e57373]" /> 本月損益表 (P&L)</div>
+                            <button onClick={handleGoalChange} className="text-xs bg-[#fdfaf7] border border-[#e0d6ce] px-2 py-1 rounded-lg text-[#a89689] font-wawa shadow-sm">淨利目標</button>
                         </div>
-                    </Card>
+                        
+                        <div className="space-y-4 text-sm font-bold text-[#5c4d43]">
+                            {/* 1. 營收 */}
+                            <div>
+                                <div className="flex justify-between text-base mb-1"><span>總營業額 (超商+市場)</span><span className="text-[#bc9f8b]">${totalRevenue.toLocaleString()}</span></div>
+                            </div>
+                            {/* 2. 批貨 */}
+                            <div>
+                                <div className="flex justify-between items-center text-[#e57373]"><span className="flex items-center"><Icon name="remove" className="text-[14px]"/> 批貨總成本</span><span>-${wholesaleTotal.toLocaleString()}</span></div>
+                            </div>
+                            
+                            <div className="border-t border-dashed border-[#e0d6ce] pt-2"></div>
+                            
+                            {/* = 毛利 */}
+                            <div className="bg-[#fdfaf7] p-2 rounded-lg flex justify-between text-base">
+                                <span className="text-[#7a6453]">本月毛利 (買賣價差)</span><span className="text-[#bc9f8b]">${grossProfit.toLocaleString()}</span>
+                            </div>
 
-                    <Card><div className="flex justify-between items-center text-base font-bold text-[#5c4d43]"><span className="flex items-center"><Icon name="diamond" className="mr-2 text-[#64b5f6]"/>當月配飾販售</span><span className="text-[#64b5f6]">共 {accTotal} 件</span></div></Card>
-                    <Card><div className="flex justify-between items-center text-base font-bold text-[#5c4d43]"><span className="flex items-center">🎁 當月贈品統計</span><span className="text-[#e57373]">共 {giftTotal} 件</span></div></Card>
-                    <Card className="bg-[#bc9f8b] bg-opacity-20 border-none">
-                        <div className="flex justify-between items-center mb-4">
-                            <div className="flex items-center font-bold text-[#7a6453] text-lg"><Icon name="flare" className="mr-2 text-[#bc9f8b]" /> {parseInt(reportMonth.split('-')[1], 10)}月 營運亮點</div>
-                        </div>
-                        <div className="space-y-3 text-sm">
-                            <div className="flex justify-between items-center"><span className="flex items-center text-[#7a6453]"><Icon name="emoji_events" className="mr-2 text-[#d4af37] text-[18px]"/> 最佳市場地點</span><span className="font-bold text-[#5c4d43]">{bestLocation}</span></div>
+                            {/* 3. 營運支出 */}
+                            <div className="pl-4 border-l-2 border-[#f2e7df] space-y-2 mt-2">
+                                <div className="flex justify-between text-xs text-[#a89689]"><span>市場攤租與雜支</span><span>-${(marketRent + marketMisc).toLocaleString()}</span></div>
+                                <div className="flex justify-between text-xs text-[#a89689]"><span>生財包材 / 倉租水電</span><span>-${(supplyTotal + fixedTotal).toLocaleString()}</span></div>
+                                <div className="flex justify-between text-xs text-[#a89689]"><span>超商運費盈虧</span><span className={storeShippingProfit >= 0 ? 'text-[#4caf50]' : 'text-[#e57373]'}>{storeShippingProfit >= 0 ? '+' : ''}{storeShippingProfit.toLocaleString()}</span></div>
+                            </div>
+                            <div>
+                                <div className="flex justify-between items-center text-[#e57373]"><span className="flex items-center"><Icon name="remove" className="text-[14px]"/> 總營運支出</span><span>-${totalOperationsCost.toLocaleString()}</span></div>
+                            </div>
+
+                            {/* = 營業淨利 */}
+                            <div className="bg-[#fdfaf7] p-2 rounded-lg flex justify-between text-base">
+                                <span className="text-[#7a6453]">營業淨利</span><span className="text-[#bc9f8b]">${operatingProfit.toLocaleString()}</span>
+                            </div>
+
+                            {/* 4. 支薪 */}
+                            <div>
+                                <div className="flex justify-between items-center text-[#fbc02d]"><span className="flex items-center"><Icon name="remove" className="text-[14px]"/> 老闆支薪</span><span>-${salaryTotal.toLocaleString()}</span></div>
+                            </div>
+
+                            <div className="border-t-2 border-[#bc9f8b] pt-3 mt-2"></div>
+
+                            {/* = 最終淨利 */}
+                            <div className="flex justify-between items-end">
+                                <div className="flex flex-col">
+                                    <span className="text-xs text-[#a89689] mb-1">目標達成: {progressPercent}%</span>
+                                    <span className="text-lg text-[#bc9f8b]">公司最終淨利</span>
+                                </div>
+                                <span className={`text-2xl font-black ${currentMonthNetProfit < 0 ? 'text-red-500' : 'text-[#bc9f8b]'}`}>
+                                    ${currentMonthNetProfit.toLocaleString()}
+                                </span>
+                            </div>
+                            <div className="w-full bg-[#f2e7df] rounded-full h-2 mt-2 overflow-hidden">
+                                <div className="bg-[#bc9f8b] h-2 rounded-full transition-all duration-500" style={{ width: `${progressPercent}%` }}></div>
+                            </div>
                         </div>
                     </Card>
                 </div>
             );
         };
 
-        // --- 分頁 5：留貨 (全新功能：一鍵轉單) ---
+        // --- 分頁 5：留貨 (一鍵轉單) ---
         const ReserveTab = ({ reservations, setReservations, setDeliveries, setConfirmDialog }) => {
             const [editingId, setEditingId] = useState(null);
             const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -690,7 +735,7 @@
             const [itemsCount, setItemsCount] = useState('');
             const [note, setNote] = useState('');
 
-            // 轉單功能狀態
+            // 轉單狀態
             const [transferRecord, setTransferRecord] = useState(null);
             const [tDate, setTDate] = useState('');
             const [tRevenue, setTRevenue] = useState('');
@@ -724,36 +769,20 @@
                 scrollToTop();
             };
 
-            // 打開轉單彈窗
             const openTransferModal = (record) => {
-                setTransferRecord(record);
-                setTDate(new Date().toISOString().split('T')[0]);
-                setTRevenue(''); setTShippingExpense(''); setTShippingIncome('');
-                setTHasGift(false); setTGiftCount('');
+                setTransferRecord(record); setTDate(new Date().toISOString().split('T')[0]);
+                setTRevenue(''); setTShippingExpense(''); setTShippingIncome(''); setTHasGift(false); setTGiftCount('');
             };
 
-            // 確認轉單
             const handleTransferSubmit = () => {
                 if (!transferRecord) return;
-                
-                // 1. 新增到超商寄件 (未寄出)
                 const newDelivery = {
-                    id: Date.now().toString(),
-                    date: tDate,
-                    customerName: transferRecord.customerName,
-                    revenue: Number(tRevenue) || 0,
-                    shippingExpense: Number(tShippingExpense) || 0,
-                    shippingIncome: Number(tShippingIncome) || 0,
-                    hasGift: tHasGift,
-                    giftCount: tHasGift ? (Number(tGiftCount) || 0) : 0,
-                    status: 'pending' 
+                    id: Date.now().toString(), date: tDate, customerName: transferRecord.customerName,
+                    revenue: Number(tRevenue) || 0, shippingExpense: Number(tShippingExpense) || 0, shippingIncome: Number(tShippingIncome) || 0,
+                    hasGift: tHasGift, giftCount: tHasGift ? (Number(tGiftCount) || 0) : 0, status: 'pending' 
                 };
                 setDeliveries(prev => [newDelivery, ...prev].sort((a,b)=>new Date(b.date)-new Date(a.date)));
-                
-                // 2. 從留貨清單刪除
                 setReservations(prev => prev.filter(r => r.id !== transferRecord.id));
-                
-                // 3. 關閉彈窗
                 setTransferRecord(null);
             };
 
@@ -794,9 +823,7 @@
                                     <div className="text-xs text-[#a89689] mt-1">留貨日期: {r.date}</div>
                                     {r.note && <div className="text-sm text-[#7a6453] mt-2 bg-[#f5f9ff] p-2 rounded-lg">{r.note}</div>}
                                 </div>
-                                
-                                {/* 一鍵轉單按鈕 */}
-                                <button onClick={() => openTransferModal(r)} className="w-full mt-4 py-2.5 bg-[#e8f5e9] text-[#4caf50] rounded-xl font-bold flex justify-center items-center text-sm shadow-sm transition-colors active:bg-[#c8e6c9]">
+                                <button onClick={() => openTransferModal(r)} className="w-full mt-4 py-3 bg-[#e8f5e9] text-[#4caf50] rounded-xl font-bold flex justify-center items-center text-sm shadow-sm transition-colors active:bg-[#c8e6c9]">
                                     <Icon name="local_shipping" className="mr-1 text-[18px]" /> 客人已確認，結單轉寄件
                                 </button>
                             </div>
@@ -804,38 +831,28 @@
                         </div>
                     )}
 
-                    {/* 轉單專用彈出視窗 */}
                     {transferRecord && (
                         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 animate-fade-in px-4">
                             <div className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-xl max-h-[90vh] overflow-y-auto custom-scrollbar">
                                 <div className="text-center text-[#5c4d43] font-bold mb-4 text-lg border-b border-[#f2e7df] pb-3">
                                     <Icon name="local_shipping" className="align-middle mr-1 text-[#4caf50]"/> 轉單出貨：{transferRecord.customerName}
                                 </div>
-                                
                                 <Input type="date" value={tDate} onChange={e => setTDate(e.target.value)} />
-                                
                                 <div className="mb-3">
                                     <div className="flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 h-[48px] focus-within:border-[#bc9f8b] transition-colors">
                                         <input type="number" value={tRevenue} onChange={e => setTRevenue(e.target.value)} placeholder="商品售價(營業額)" className="bg-transparent w-full h-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
                                     </div>
                                 </div>
-
                                 <div className="grid grid-cols-2 gap-3">
                                     <Input type="number" placeholder="賣家付運費" value={tShippingExpense} onChange={e => setTShippingExpense(e.target.value)} />
                                     <Input type="number" placeholder="買家付運費" value={tShippingIncome} onChange={e => setTShippingIncome(e.target.value)} />
                                 </div>
-                                
                                 <div className="grid grid-cols-2 gap-3 mb-2">
-                                    <button 
-                                        className={`w-full h-[48px] rounded-xl border text-[15px] transition-colors font-wawa font-bold flex items-center justify-center ${tHasGift ? 'border-[#bc9f8b] bg-[#fdfaf7] text-[#bc9f8b]' : 'border-[#f0e6e0] bg-[#fdfdfd] text-[#a89689]'}`} 
-                                        onClick={(e) => { e.preventDefault(); setTHasGift(!tHasGift); }}>
-                                        🎁 {tHasGift ? '有贈品' : '無贈品'}
-                                    </button>
+                                    <button className={`w-full h-[48px] rounded-xl border text-[15px] transition-colors font-wawa font-bold flex items-center justify-center ${tHasGift ? 'border-[#bc9f8b] bg-[#fdfaf7] text-[#bc9f8b]' : 'border-[#f0e6e0] bg-[#fdfdfd] text-[#a89689]'}`} onClick={(e) => { e.preventDefault(); setTHasGift(!tHasGift); }}>🎁 {tHasGift ? '有贈品' : '無贈品'}</button>
                                     <div className={`flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 h-[48px] focus-within:border-[#bc9f8b] transition-colors ${!tHasGift ? 'opacity-60 bg-[#f9f9f9]' : ''}`}>
                                         <input type="number" placeholder="贈品數量" value={tGiftCount} onChange={e => setTGiftCount(e.target.value)} disabled={!tHasGift} className="bg-transparent w-full h-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
                                     </div>
                                 </div>
-                                
                                 <div className="flex gap-3 mt-5">
                                     <button onClick={() => setTransferRecord(null)} className="flex-1 py-3.5 rounded-xl bg-[#f2e7df] text-[#7a6453] font-bold font-wawa">取消</button>
                                     <button onClick={handleTransferSubmit} className="flex-[2] py-3.5 rounded-xl bg-[#4caf50] text-white font-bold font-wawa shadow-sm">確定轉入超商</button>
