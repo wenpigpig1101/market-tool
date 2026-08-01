@@ -24,7 +24,7 @@
         .font-wawa { font-family: 'HanziPen TC', 'Hannotate TC', 'DFWawaTC-W5', '華康娃娃體', 'M PLUS Rounded 1c', sans-serif !important; }
         input::placeholder { font-family: 'HanziPen TC', 'Hannotate TC', 'M PLUS Rounded 1c', sans-serif; }
         .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
-        .animate-fade-in { animation: fadeIn 0.25s ease-out forwards; }
+        .animate-fade-in { animation: fadeIn 0.2s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
@@ -180,7 +180,7 @@
                             <Input type="number" placeholder="買家付運費(代收)" value={shippingIncome} onChange={e => setShippingIncome(e.target.value)} />
                         </div>
                         
-                        {/* 完美對齊的贈品區塊 (強制鎖定高度 h-[48px]) */}
+                        {/* 完美對齊的贈品區塊 */}
                         <div className="grid grid-cols-2 gap-3 mb-4">
                             <button 
                                 className={`w-full h-[48px] rounded-xl border text-[15px] transition-colors font-wawa font-bold flex items-center justify-center ${hasGift ? 'border-[#bc9f8b] bg-[#fdfaf7] text-[#bc9f8b]' : 'border-[#f0e6e0] bg-[#fdfdfd] text-[#a89689]'}`} 
@@ -351,7 +351,6 @@
                             <Input type="number" placeholder="過路費 (選填)" value={toll} onChange={e => setToll(e.target.value)} />
                         </div>
                         
-                        {/* 完美對齊的贈品區塊 (強制鎖定高度 h-[48px]) */}
                         <div className="grid grid-cols-2 gap-3 mb-4">
                             <button 
                                 className={`w-full h-[48px] rounded-xl border text-[15px] transition-colors font-wawa font-bold flex items-center justify-center ${hasGift ? 'border-[#bc9f8b] bg-[#fdfaf7] text-[#bc9f8b]' : 'border-[#f0e6e0] bg-[#fdfdfd] text-[#a89689]'}`} 
@@ -429,7 +428,7 @@
             );
         };
 
-        // --- 分頁 3：全新支出紀錄 (進貨/生財器具) ---
+        // --- 分頁 3：支出紀錄 ---
         const ExpenseTab = ({ expenses, setExpenses, setConfirmDialog }) => {
             const [editingId, setEditingId] = useState(null);
             const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -531,7 +530,7 @@
             );
         }
 
-        // --- 分頁 4：報表 (方案A: 跨月累積資產版) ---
+        // --- 分頁 4：報表 ---
         const ReportTab = ({ deliveries, marketSales, expenses, settings, setSettings }) => {
             const [reportMonth, setReportMonth] = useState(() => {
                 const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -550,29 +549,19 @@
                 }
             };
 
-            // ---- 計算歷史累積 (上月結轉) ----
-            // 找出所有日期「小於」目前查看月份的第一天的紀錄
             const pastDeliveries = deliveries.filter(d => d.date.substring(0, 7) < reportMonth && d.status === 'shipped');
             const pastMarket = marketSales.filter(m => m.date.substring(0, 7) < reportMonth);
             const pastExpenses = expenses.filter(e => e.date.substring(0, 7) < reportMonth);
 
-            let carryover = 0; // 上月結轉金額
-            pastDeliveries.forEach(d => {
-                carryover += (d.revenue || 0) + (d.shippingIncome || 0) - (d.shippingExpense || 0);
-            });
-            pastMarket.forEach(m => {
-                carryover += (m.revenue || 0) - (m.rent || 0) - ((m.electricity||0) + (m.cleaning||0) + (m.gas||0) + (m.toll||0) + (m.otherExpenses||0));
-            });
-            pastExpenses.forEach(e => {
-                carryover -= (e.amount || 0);
-            });
+            let carryover = 0;
+            pastDeliveries.forEach(d => { carryover += (d.revenue || 0) + (d.shippingIncome || 0) - (d.shippingExpense || 0); });
+            pastMarket.forEach(m => { carryover += (m.revenue || 0) - (m.rent || 0) - ((m.electricity||0) + (m.cleaning||0) + (m.gas||0) + (m.toll||0)); });
+            pastExpenses.forEach(e => { carryover -= (e.amount || 0); });
 
-            // ---- 計算當月資料 ----
             const currentDeliveries = deliveries.filter(d => d.date.startsWith(reportMonth) && d.status === 'shipped');
             const currentMarket = marketSales.filter(m => m.date.startsWith(reportMonth));
             const currentExpenses = expenses.filter(e => e.date.startsWith(reportMonth));
 
-            // 1. 超商當月
             const storeCount = currentDeliveries.length;
             const storeRevenue = currentDeliveries.reduce((sum, d) => sum + (d.revenue || 0), 0);
             const storeShippingIn = currentDeliveries.reduce((sum, d) => sum + (d.shippingIncome || 0), 0);
@@ -581,7 +570,6 @@
             const storeSubtotal = storeRevenue + storeShippingProfit; 
             const storeGifts = currentDeliveries.reduce((sum, d) => sum + (d.giftCount || 0), 0);
 
-            // 2. 市場當月
             const marketRevenue = currentMarket.reduce((sum, m) => sum + (m.revenue || 0), 0);
             const marketRent = currentMarket.reduce((sum, m) => sum + (m.rent || 0), 0);
             const marketMisc = currentMarket.reduce((sum, m) => sum + (m.electricity || 0) + (m.cleaning || 0) + (m.gas || 0) + (m.toll || 0), 0);
@@ -589,17 +577,15 @@
             const marketGifts = currentMarket.reduce((sum, m) => sum + (m.giftCount || 0), 0);
             const accTotal = currentMarket.reduce((sum, m) => sum + (m.accessories?.necklace||0) + (m.accessories?.hat||0) + (m.accessories?.bag||0) + (m.accessories?.other||0), 0);
 
-            // 3. 專屬支出當月
             const wholesaleTotal = currentExpenses.filter(e => e.type === 'wholesale').reduce((sum, e) => sum + e.amount, 0);
             const supplyTotal = currentExpenses.filter(e => e.type === 'supply').reduce((sum, e) => sum + e.amount, 0);
             const customExpenseTotal = wholesaleTotal + supplyTotal;
 
-            // 4. 當月結算與累積總資產
             const totalRevenue = storeRevenue + marketRevenue;
             const totalOperationsCost = marketRent + marketMisc + customExpenseTotal; 
-            const currentMonthProfit = storeSubtotal + marketSubtotal - customExpenseTotal; // 本月單月實賺
+            const currentMonthProfit = storeSubtotal + marketSubtotal - customExpenseTotal; 
             
-            const accumulatedProfit = carryover + currentMonthProfit; // 目前累積總實賺 (方案A核心)
+            const accumulatedProfit = carryover + currentMonthProfit; 
 
             const progressPercent = Math.min(100, Math.round((currentMonthProfit / settings.monthlyGoal) * 100)) || 0;
             const giftTotal = storeGifts + marketGifts;
@@ -619,7 +605,6 @@
                         <button onClick={() => changeMonth(1)} className="p-2 text-[#a89689]"><Icon name="chevron_right" /></button>
                     </div>
 
-                    {/* 方案 A: 累積總資產看板 */}
                     <Card className="bg-[#bc9f8b] bg-opacity-10 border-none mb-4">
                         <div className="text-center mb-3 pt-2">
                             <div className="text-sm text-[#7a6453] font-bold mb-1"><Icon name="account_balance" className="align-middle text-[18px] mr-1"/>目前累積總資產 (實賺)</div>
@@ -641,7 +626,6 @@
                         </div>
                     </Card>
 
-                    {/* 當月單月進度 */}
                     <Card>
                         <div className="flex justify-between items-center mb-3">
                             <div className="flex items-center font-bold text-[#7a6453] text-lg"><Icon name="track_changes" className="mr-2 text-[#e57373]" /> 單月利潤進度</div>
@@ -698,13 +682,22 @@
             );
         };
 
-        // --- 分頁 5：留貨 ---
-        const ReserveTab = ({ reservations, setReservations, setConfirmDialog }) => {
+        // --- 分頁 5：留貨 (全新功能：一鍵轉單) ---
+        const ReserveTab = ({ reservations, setReservations, setDeliveries, setConfirmDialog }) => {
             const [editingId, setEditingId] = useState(null);
             const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
             const [customerName, setCustomerName] = useState('');
             const [itemsCount, setItemsCount] = useState('');
             const [note, setNote] = useState('');
+
+            // 轉單功能狀態
+            const [transferRecord, setTransferRecord] = useState(null);
+            const [tDate, setTDate] = useState('');
+            const [tRevenue, setTRevenue] = useState('');
+            const [tShippingExpense, setTShippingExpense] = useState('');
+            const [tShippingIncome, setTShippingIncome] = useState('');
+            const [tHasGift, setTHasGift] = useState(false);
+            const [tGiftCount, setTGiftCount] = useState('');
 
             const resetForm = () => {
                 setEditingId(null); setDate(new Date().toISOString().split('T')[0]);
@@ -731,6 +724,39 @@
                 scrollToTop();
             };
 
+            // 打開轉單彈窗
+            const openTransferModal = (record) => {
+                setTransferRecord(record);
+                setTDate(new Date().toISOString().split('T')[0]);
+                setTRevenue(''); setTShippingExpense(''); setTShippingIncome('');
+                setTHasGift(false); setTGiftCount('');
+            };
+
+            // 確認轉單
+            const handleTransferSubmit = () => {
+                if (!transferRecord) return;
+                
+                // 1. 新增到超商寄件 (未寄出)
+                const newDelivery = {
+                    id: Date.now().toString(),
+                    date: tDate,
+                    customerName: transferRecord.customerName,
+                    revenue: Number(tRevenue) || 0,
+                    shippingExpense: Number(tShippingExpense) || 0,
+                    shippingIncome: Number(tShippingIncome) || 0,
+                    hasGift: tHasGift,
+                    giftCount: tHasGift ? (Number(tGiftCount) || 0) : 0,
+                    status: 'pending' 
+                };
+                setDeliveries(prev => [newDelivery, ...prev].sort((a,b)=>new Date(b.date)-new Date(a.date)));
+                
+                // 2. 從留貨清單刪除
+                setReservations(prev => prev.filter(r => r.id !== transferRecord.id));
+                
+                // 3. 關閉彈窗
+                setTransferRecord(null);
+            };
+
             return (
                 <div className="animate-fade-in pb-20">
                     <Card className={editingId ? 'border-2 border-[#64b5f6]' : ''}>
@@ -754,21 +780,67 @@
                             </Button>
                         </div>
                     </Card>
+
                     {reservations.length === 0 ? <div className="text-center text-[#c4b5aa] text-sm py-8 mt-4">目前沒有留貨清單！</div> : (
                         <div className="mt-4">
                         {reservations.map(r => (
-                            <div key={r.id} className="bg-white rounded-xl p-4 mb-3 shadow-sm border border-[#e3f2fd] flex justify-between items-start">
+                            <div key={r.id} className="bg-white rounded-xl p-4 mb-3 shadow-sm border border-[#e3f2fd] relative">
+                                <div className="absolute top-4 right-4 flex gap-1">
+                                    <button onClick={() => handleEditClick(r)} className="p-1.5 text-[#64b5f6] bg-[#f5f9ff] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
+                                    <button onClick={() => setConfirmDialog({isOpen: true, id: r.id, collection: 'reservations'})} className="p-1.5 text-[#e57373] bg-[#fdf2f2] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
+                                </div>
                                 <div>
                                     <div className="font-bold text-[#5c4d43] text-lg">{r.customerName} <span className="text-sm font-normal text-[#64b5f6] ml-2">{r.itemsCount}件</span></div>
                                     <div className="text-xs text-[#a89689] mt-1">留貨日期: {r.date}</div>
                                     {r.note && <div className="text-sm text-[#7a6453] mt-2 bg-[#f5f9ff] p-2 rounded-lg">{r.note}</div>}
                                 </div>
-                                <div className="flex gap-1">
-                                    <button onClick={() => handleEditClick(r)} className="p-2 text-[#64b5f6] bg-[#f5f9ff] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
-                                    <button onClick={() => setConfirmDialog({isOpen: true, id: r.id, collection: 'reservations'})} className="p-2 text-[#e57373] bg-[#fdf2f2] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
-                                </div>
+                                
+                                {/* 一鍵轉單按鈕 */}
+                                <button onClick={() => openTransferModal(r)} className="w-full mt-4 py-2.5 bg-[#e8f5e9] text-[#4caf50] rounded-xl font-bold flex justify-center items-center text-sm shadow-sm transition-colors active:bg-[#c8e6c9]">
+                                    <Icon name="local_shipping" className="mr-1 text-[18px]" /> 客人已確認，結單轉寄件
+                                </button>
                             </div>
                         ))}
+                        </div>
+                    )}
+
+                    {/* 轉單專用彈出視窗 */}
+                    {transferRecord && (
+                        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 animate-fade-in px-4">
+                            <div className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+                                <div className="text-center text-[#5c4d43] font-bold mb-4 text-lg border-b border-[#f2e7df] pb-3">
+                                    <Icon name="local_shipping" className="align-middle mr-1 text-[#4caf50]"/> 轉單出貨：{transferRecord.customerName}
+                                </div>
+                                
+                                <Input type="date" value={tDate} onChange={e => setTDate(e.target.value)} />
+                                
+                                <div className="mb-3">
+                                    <div className="flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 h-[48px] focus-within:border-[#bc9f8b] transition-colors">
+                                        <input type="number" value={tRevenue} onChange={e => setTRevenue(e.target.value)} placeholder="商品售價(營業額)" className="bg-transparent w-full h-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <Input type="number" placeholder="賣家付運費" value={tShippingExpense} onChange={e => setTShippingExpense(e.target.value)} />
+                                    <Input type="number" placeholder="買家付運費" value={tShippingIncome} onChange={e => setTShippingIncome(e.target.value)} />
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-3 mb-2">
+                                    <button 
+                                        className={`w-full h-[48px] rounded-xl border text-[15px] transition-colors font-wawa font-bold flex items-center justify-center ${tHasGift ? 'border-[#bc9f8b] bg-[#fdfaf7] text-[#bc9f8b]' : 'border-[#f0e6e0] bg-[#fdfdfd] text-[#a89689]'}`} 
+                                        onClick={(e) => { e.preventDefault(); setTHasGift(!tHasGift); }}>
+                                        🎁 {tHasGift ? '有贈品' : '無贈品'}
+                                    </button>
+                                    <div className={`flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 h-[48px] focus-within:border-[#bc9f8b] transition-colors ${!tHasGift ? 'opacity-60 bg-[#f9f9f9]' : ''}`}>
+                                        <input type="number" placeholder="贈品數量" value={tGiftCount} onChange={e => setTGiftCount(e.target.value)} disabled={!tHasGift} className="bg-transparent w-full h-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
+                                    </div>
+                                </div>
+                                
+                                <div className="flex gap-3 mt-5">
+                                    <button onClick={() => setTransferRecord(null)} className="flex-1 py-3.5 rounded-xl bg-[#f2e7df] text-[#7a6453] font-bold font-wawa">取消</button>
+                                    <button onClick={handleTransferSubmit} className="flex-[2] py-3.5 rounded-xl bg-[#4caf50] text-white font-bold font-wawa shadow-sm">確定轉入超商</button>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -811,7 +883,7 @@
                         {activeTab === 'market' && <MarketTab marketSales={marketSales} setMarketSales={setMarketSales} setConfirmDialog={setConfirmDialog} />}
                         {activeTab === 'expense' && <ExpenseTab expenses={expenses} setExpenses={setExpenses} setConfirmDialog={setConfirmDialog} />}
                         {activeTab === 'report' && <ReportTab deliveries={deliveries} marketSales={marketSales} expenses={expenses} settings={settings} setSettings={setSettings} />}
-                        {activeTab === 'reserve' && <ReserveTab reservations={reservations} setReservations={setReservations} setConfirmDialog={setConfirmDialog} />}
+                        {activeTab === 'reserve' && <ReserveTab reservations={reservations} setReservations={setReservations} setDeliveries={setDeliveries} setConfirmDialog={setConfirmDialog} />}
                     </main>
 
                     <nav className="bg-white border-t border-[#f2e7df] flex justify-around pb-safe pt-2 fixed bottom-0 w-full max-w-lg z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] px-1">
