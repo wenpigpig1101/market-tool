@@ -47,7 +47,7 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
-        // --- 自訂 Hook：本機儲存 (防崩潰版) ---
+        // --- 自訂 Hook：本機儲存 ---
         const useLocalStorage = (key, initialValue) => {
             const [value, setValue] = useState(() => {
                 try {
@@ -57,7 +57,7 @@
             });
 
             useEffect(() => {
-                try { window.localStorage.setItem(key, JSON.stringify(value)); } catch (error) { console.warn("寫入儲存空間失敗", error); }
+                try { window.localStorage.setItem(key, JSON.stringify(value)); } catch (error) { console.warn("寫入失敗", error); }
             }, [key, value]);
 
             return [value, setValue];
@@ -108,21 +108,20 @@
             return num.toString();
         };
 
-        // --- 分頁 1：超商 (保留詳細件數) ---
+        // --- 分頁 1：超商 ---
         const StoreTab = ({ deliveries, setDeliveries, setConfirmDialog }) => {
             const [editingId, setEditingId] = useState(null);
             const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
             const [customerName, setCustomerName] = useState('');
             const [revenue, setRevenue] = useState('');
-            const [soldQty, setSoldQty] = useState(''); // 寄件保留件數
+            const [soldQty, setSoldQty] = useState(''); 
             const [shippingExpense, setShippingExpense] = useState('');
             const [shippingIncome, setShippingIncome] = useState('');
             const [hasGift, setHasGift] = useState(false);
             const [giftCount, setGiftCount] = useState('');
 
             const resetForm = () => {
-                setEditingId(null);
-                setDate(new Date().toISOString().split('T')[0]);
+                setEditingId(null); setDate(new Date().toISOString().split('T')[0]);
                 setCustomerName(''); setRevenue(''); setSoldQty(''); setShippingExpense(''); setShippingIncome(''); setGiftCount(''); setHasGift(false);
             };
 
@@ -131,7 +130,7 @@
                 const recordData = {
                     date, customerName, 
                     revenue: Number(revenue) || 0, 
-                    soldQty: Number(soldQty) || 1, // 預設 1 件
+                    soldQty: Number(soldQty) || 1, 
                     shippingExpense: Number(shippingExpense) || 0, shippingIncome: Number(shippingIncome) || 0,
                     hasGift, giftCount: hasGift ? (Number(giftCount) || 0) : 0, status: 'pending'
                 };
@@ -233,11 +232,10 @@
             );
         };
 
-        // --- 分頁 2：市場 (極簡版，移除售出件數) ---
+        // --- 分頁 2：市場 (無件數) ---
         const MarketTab = ({ marketSales, setMarketSales, setConfirmDialog }) => {
             const currentDate = new Date().toISOString().split('T')[0];
             const [editingId, setEditingId] = useState(null);
-            
             const [date, setDate] = useState(currentDate);
             const [location, setLocation] = useState('');
             const [revenue, setRevenue] = useState('');
@@ -271,9 +269,7 @@
             const handleAddMarket = () => {
                 if (!location) return;
                 const recordData = {
-                    date, location, 
-                    revenue: Number(revenue) || 0, // 移除 soldQty
-                    rent: Number(rent) || 0, note,
+                    date, location, revenue: Number(revenue) || 0, rent: Number(rent) || 0, note,
                     electricity: Number(electricity) || 0, cleaning: Number(cleaning) || 0,
                     gas: Number(gas) || 0, toll: Number(toll) || 0,
                     hasGift, giftCount: hasGift ? (Number(giftCount) || 0) : 0,
@@ -342,10 +338,10 @@
                         <Input type="date" value={date} onChange={e => { setDate(e.target.value); setSelectedDay(e.target.value); setViewMonthStr(e.target.value.substring(0,7)); }} />
                         <div className="grid grid-cols-2 gap-3">
                             <Input placeholder="地點" value={location} onChange={e => setLocation(e.target.value)} />
-                            <Input type="number" placeholder="當日總業績" value={revenue} onChange={e => setRevenue(e.target.value)} />
+                            <Input type="number" placeholder="當日業績" value={revenue} onChange={e => setRevenue(e.target.value)} />
                         </div>
                         <div className="grid grid-cols-2 gap-3">
-                            <Input type="number" placeholder="攤位租金" value={rent} onChange={e => setRent(e.target.value)} />
+                            <Input type="number" placeholder="位租" value={rent} onChange={e => setRent(e.target.value)} />
                             <Input placeholder="備註 (選填)" value={note} onChange={e => setNote(e.target.value)} />
                         </div>
                         <div className="grid grid-cols-2 gap-3">
@@ -425,7 +421,7 @@
                                 <div className="text-sm text-[#7a6453] grid grid-cols-2 gap-y-1.5 mt-3 pt-3 border-t border-[#fdfaf7] pl-4">
                                     <div>營業額: <span className="font-bold text-[#5c4d43]">${m.revenue}</span></div>
                                     <div>攤租雜支: <span className="font-medium">-${m.rent + dailyMisc}</span></div>
-                                    <div className="font-bold text-[#bc9f8b] col-span-2">未扣商品成本盈餘: ${operatingProfit}</div>
+                                    <div className="font-bold text-[#bc9f8b] col-span-2">未扣進貨盈餘: ${operatingProfit}</div>
                                 </div>
                             </div>
                         )
@@ -434,14 +430,14 @@
             );
         };
 
-        // --- 分頁 3：全新支出紀錄 (自動計算平均單價) ---
+        // --- 分頁 3：支出紀錄 (4大分類) ---
         const ExpenseTab = ({ expenses, setExpenses, setConfirmDialog }) => {
             const [editingId, setEditingId] = useState(null);
             const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
             const [type, setType] = useState('wholesale'); 
             const [name, setName] = useState('');
             const [amount, setAmount] = useState('');
-            const [qty, setQty] = useState(''); // 新增：進貨件數
+            const [qty, setQty] = useState('');
 
             const resetForm = () => {
                 setEditingId(null); setDate(new Date().toISOString().split('T')[0]);
@@ -580,14 +576,11 @@
             );
         }
 
-        // --- 分頁 4：報表 (專業財報與盤點邏輯) ---
-        const ReportTab = ({ deliveries, marketSales, expenses, settings, setSettings }) => {
+        // --- 分頁 4：報表 (含月底盤點模組) ---
+        const ReportTab = ({ deliveries, marketSales, expenses, settings, setSettings, marketSoldStats, setMarketSoldStats }) => {
             const [reportMonth, setReportMonth] = useState(() => {
                 const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
             });
-
-            // 市場銷量結算紀錄: { '2026-08': 150 }
-            const [marketSoldStats, setMarketSoldStats] = useLocalStorage('xq_market_sold', {});
             const [isCheckingInventory, setIsCheckingInventory] = useState(false);
             const [actualInv, setActualInv] = useState('');
 
@@ -604,7 +597,7 @@
                 if (newGoal && !isNaN(newGoal)) setSettings({ ...settings, monthlyGoal: Number(newGoal) });
             };
 
-            // ---- 1. 計算【全期平均進貨單價】與全期庫存 ----
+            // ---- 1. 計算【全期平均進貨單價】與庫存 ----
             const allWholesaleExpenses = expenses.filter(e => e.type === 'wholesale');
             const globalTotalWholesaleCost = allWholesaleExpenses.reduce((sum, e) => sum + e.amount, 0);
             const globalTotalWholesaleQty = allWholesaleExpenses.reduce((sum, e) => sum + (e.qty || 0), 0);
@@ -612,26 +605,25 @@
 
             const globalTotalStoreSoldQty = deliveries.filter(d=>d.status === 'shipped').reduce((sum, d) => sum + (d.soldQty || 1), 0);
             
-            // 計算其他月份已結算的市場銷量總和
+            // 其他月份已盤點售出的總數
             let otherMonthsMarketSold = 0;
             Object.keys(marketSoldStats).forEach(key => {
                 if (key !== reportMonth) otherMonthsMarketSold += marketSoldStats[key];
             });
 
-            // 本月市場銷量
+            // 本月市場盤點售出數
             const currentMonthMarketSold = marketSoldStats[reportMonth] || 0;
             const globalTotalMarketSoldQty = otherMonthsMarketSold + currentMonthMarketSold;
 
-            // 目前全期剩餘庫存
+            // 目前總庫存
             const currentInventoryQty = globalTotalWholesaleQty - globalTotalStoreSoldQty - globalTotalMarketSoldQty;
 
-            // 盤點用：推算如果本月市場賣0件時，帳面庫存是多少
+            // 用於盤點推算：目前歷史總進貨 - 網購總出貨 - 歷史其他月盤點
             const theoreticalInventory = globalTotalWholesaleQty - globalTotalStoreSoldQty - otherMonthsMarketSold;
 
             const saveInventoryCheck = () => {
                 const actual = Number(actualInv) || 0;
                 const calculatedSold = theoreticalInventory - actual;
-                // 不允許負數銷量
                 const finalSold = calculatedSold > 0 ? calculatedSold : 0;
                 setMarketSoldStats({ ...marketSoldStats, [reportMonth]: finalSold });
                 setIsCheckingInventory(false);
@@ -653,22 +645,19 @@
             const currentMarket = marketSales.filter(m => m.date.startsWith(reportMonth));
             const currentExpenses = expenses.filter(e => e.date.startsWith(reportMonth));
 
-            // 當月售出總件數 = 超商寄出 + 市場結算推算
+            // 當月總售出件數 = 寄出件數 + 盤點推算件數
             const currentMonthStoreSold = currentDeliveries.reduce((sum, d) => sum + (d.soldQty || 1), 0);
             const currentMonthSoldQty = currentMonthStoreSold + currentMonthMarketSold;
             
-            // 當月銷貨成本 (COGS) = 售出總件數 x 平均單價
+            // 當月銷貨成本
             const currentMonthCOGS = Math.round(currentMonthSoldQty * avgUnitCost);
 
-            // 營業收入
             const storeRevenue = currentDeliveries.reduce((sum, d) => sum + (d.revenue || 0), 0);
             const marketRevenue = currentMarket.reduce((sum, m) => sum + (m.revenue || 0), 0);
             const totalRevenue = storeRevenue + marketRevenue;
 
-            // 本月毛利
             const grossProfit = totalRevenue - currentMonthCOGS;
 
-            // 營業費用
             const storeShippingIn = currentDeliveries.reduce((sum, d) => sum + (d.shippingIncome || 0), 0);
             const storeShippingOut = currentDeliveries.reduce((sum, d) => sum + (d.shippingExpense || 0), 0);
             const storeShippingProfit = storeShippingIn - storeShippingOut; 
@@ -679,23 +668,23 @@
             const fixedTotal = currentExpenses.filter(e => e.type === 'fixed').reduce((sum, e) => sum + e.amount, 0);
             
             const totalOperationsCost = marketRent + marketMisc + supplyTotal + fixedTotal - storeShippingProfit; 
-            
-            // 營業淨利
             const operatingProfit = grossProfit - totalOperationsCost; 
 
-            // 老闆薪資與最終淨利
             const salaryTotal = currentExpenses.filter(e => e.type === 'salary').reduce((sum, e) => sum + e.amount, 0);
             const currentMonthNetProfit = operatingProfit - salaryTotal; 
             
             // ---- 4. 計算當月現金流 ----
             const wholesaleCashSpentThisMonth = currentExpenses.filter(e => e.type === 'wholesale').reduce((sum, e) => sum + e.amount, 0);
             const currentMonthCashflow = totalRevenue + storeShippingProfit - marketRent - marketMisc - supplyTotal - fixedTotal - salaryTotal - wholesaleCashSpentThisMonth;
-            
-            // 總累積現金
             const totalAccumulatedCash = pastCashflow + currentMonthCashflow; 
 
             const progressPercent = Math.min(100, Math.round((currentMonthNetProfit / settings.monthlyGoal) * 100)) || 0;
-            
+            const accTotal = currentMarket.reduce((sum, m) => sum + (m.accessories?.necklace||0) + (m.accessories?.hat||0) + (m.accessories?.bag||0) + (m.accessories?.other||0), 0);
+            const storeGifts = currentDeliveries.reduce((sum, d) => sum + (d.giftCount || 0), 0);
+            const marketGifts = currentMarket.reduce((sum, m) => sum + (m.giftCount || 0), 0);
+            const giftTotal = storeGifts + marketGifts;
+            const marketDays = currentMarket.length;
+
             return (
                 <div className="animate-fade-in pb-20">
                     <div className="flex justify-between items-center bg-white rounded-2xl p-3 shadow-sm border border-[#f2e7df] mb-4">
@@ -704,7 +693,7 @@
                         <button onClick={() => changeMonth(1)} className="p-2 text-[#a89689]"><Icon name="chevron_right" /></button>
                     </div>
 
-                    {/* 📦 庫存與成本概況 */}
+                    {/* 📦 庫存盤點模組 */}
                     <Card className="bg-[#e8f5e9] bg-opacity-40 border-none mb-4">
                         <div className="flex items-center text-[#4caf50] font-bold text-lg mb-3"><Icon name="inventory_2" className="mr-2" /> 服飾庫存與成本</div>
                         <div className="flex items-center justify-between mb-3">
@@ -726,7 +715,7 @@
                             </div>
                         </div>
 
-                        {/* 盤點區塊 */}
+                        {/* 盤點按鈕與輸入區塊 */}
                         <div className="mt-3 p-3 bg-white rounded-xl shadow-sm border border-[#c8e6c9]">
                             <div className="flex justify-between items-center mb-1">
                                 <span className="text-sm font-bold text-[#5c4d43]">本月市場售出結算</span>
@@ -757,7 +746,7 @@
                         </div>
                     </Card>
 
-                    {/* 📊 本月損益表 (P&L - 真實賺賠) */}
+                    {/* 📊 本月損益表 */}
                     <Card>
                         <div className="flex justify-between items-center mb-4 pb-2 border-b border-[#f2e7df]">
                             <div className="flex items-center font-bold text-[#7a6453] text-lg"><Icon name="request_quote" className="mr-2 text-[#e57373]" /> 本月損益表 <span className="text-xs text-[#a89689] font-normal ml-2">(真實利潤)</span></div>
@@ -765,23 +754,18 @@
                         </div>
                         
                         <div className="space-y-4 text-sm font-bold text-[#5c4d43]">
-                            {/* 1. 營收 */}
                             <div>
                                 <div className="flex justify-between text-base mb-1"><span>總營業額 (超商+市場)</span><span className="text-[#bc9f8b]">${totalRevenue.toLocaleString()}</span></div>
                             </div>
-                            {/* 2. 銷貨成本 */}
                             <div>
                                 <div className="flex justify-between items-center text-[#e57373]"><span className="flex items-center"><Icon name="remove" className="text-[14px] mr-1"/> 銷貨成本 <span className="text-[10px] text-[#a89689] font-normal ml-1">(本月售出 {currentMonthSoldQty} 件)</span></span><span>-${currentMonthCOGS.toLocaleString()}</span></div>
                             </div>
-                            
                             <div className="border-t border-dashed border-[#e0d6ce] pt-2"></div>
                             
-                            {/* = 毛利 */}
                             <div className="bg-[#fdfaf7] p-2 rounded-lg flex justify-between text-base">
                                 <span className="text-[#7a6453]">本月營業毛利</span><span className="text-[#bc9f8b]">${grossProfit.toLocaleString()}</span>
                             </div>
 
-                            {/* 3. 營運支出 */}
                             <div className="pl-4 border-l-2 border-[#f2e7df] space-y-2 mt-2">
                                 <div className="flex justify-between text-xs text-[#a89689]"><span>市場攤租與雜支</span><span>-${(marketRent + marketMisc).toLocaleString()}</span></div>
                                 <div className="flex justify-between text-xs text-[#a89689]"><span>生財包材 / 倉租水電</span><span>-${(supplyTotal + fixedTotal).toLocaleString()}</span></div>
@@ -791,19 +775,16 @@
                                 <div className="flex justify-between items-center text-[#e57373]"><span className="flex items-center"><Icon name="remove" className="text-[14px] mr-1"/> 本月營業費用 <span className="text-[10px] text-[#a89689] font-normal ml-1">(不含批貨)</span></span><span>-${totalOperationsCost.toLocaleString()}</span></div>
                             </div>
 
-                            {/* = 營業淨利 */}
                             <div className="bg-[#fdfaf7] p-2 rounded-lg flex justify-between text-base">
                                 <span className="text-[#7a6453]">營業淨利</span><span className="text-[#bc9f8b]">${operatingProfit.toLocaleString()}</span>
                             </div>
 
-                            {/* 4. 支薪 */}
                             <div>
                                 <div className="flex justify-between items-center text-[#fbc02d]"><span className="flex items-center"><Icon name="remove" className="text-[14px] mr-1"/> 老闆支薪</span><span>-${salaryTotal.toLocaleString()}</span></div>
                             </div>
 
                             <div className="border-t-2 border-[#bc9f8b] pt-3 mt-2"></div>
 
-                            {/* = 最終淨利 */}
                             <div className="flex justify-between items-end">
                                 <div className="flex flex-col">
                                     <span className="text-xs text-[#a89689] mb-1">目標達成: {progressPercent}%</span>
@@ -819,7 +800,7 @@
                         </div>
                     </Card>
 
-                    {/* 🏦 公司現金流 (銀行裡的錢) */}
+                    {/* 🏦 公司現金流 */}
                     <Card className="bg-[#bc9f8b] bg-opacity-10 border-none mb-4">
                         <div className="text-center mb-3 pt-2">
                             <div className="text-sm text-[#7a6453] font-bold mb-1"><Icon name="account_balance_wallet" className="align-middle text-[18px] mr-1"/>目前公司總現金 (口袋實際結餘)</div>
@@ -841,7 +822,7 @@
                         </div>
                     </Card>
 
-                    {/* 👑 專屬老闆成就區塊 */}
+                    {/* 👑 老闆薪水 */}
                     <Card className="bg-gradient-to-r from-[#fdfbfb] to-[#fffde7] border-[#fff59d] mb-4 flex items-center justify-between">
                         <div className="flex items-center">
                             <div className="w-10 h-10 bg-[#fbc02d] rounded-full flex items-center justify-center text-white mr-3 shadow-sm"><Icon name="emoji_events" /></div>
@@ -850,7 +831,6 @@
                                 <div className="text-lg font-black text-[#fbc02d]">${salaryTotal.toLocaleString()}</div>
                             </div>
                         </div>
-                        <Icon name="arrow_forward_ios" className="text-gray-300 text-sm" />
                     </Card>
                 </div>
             );
@@ -864,11 +844,10 @@
             const [itemsCount, setItemsCount] = useState('');
             const [note, setNote] = useState('');
 
-            // 轉單狀態
             const [transferRecord, setTransferRecord] = useState(null);
             const [tDate, setTDate] = useState('');
             const [tRevenue, setTRevenue] = useState('');
-            const [tSoldQty, setTSoldQty] = useState(''); // 轉單也需要售出件數
+            const [tSoldQty, setTSoldQty] = useState('');
             const [tShippingExpense, setTShippingExpense] = useState('');
             const [tShippingIncome, setTShippingIncome] = useState('');
             const [tHasGift, setTHasGift] = useState(false);
@@ -901,7 +880,7 @@
 
             const openTransferModal = (record) => {
                 setTransferRecord(record); setTDate(new Date().toISOString().split('T')[0]);
-                setTRevenue(''); setTSoldQty(record.itemsCount); // 自動帶入留貨件數
+                setTRevenue(''); setTSoldQty(record.itemsCount); 
                 setTShippingExpense(''); setTShippingIncome(''); setTHasGift(false); setTGiftCount('');
             };
 
@@ -1003,11 +982,13 @@
         const App = () => {
             const [activeTab, setActiveTab] = useState('store');
             
+            // 使用本機儲存 Hook 管理所有資料
             const [deliveries, setDeliveries] = useLocalStorage('xq_deliveries', []);
             const [marketSales, setMarketSales] = useLocalStorage('xq_marketSales', []);
             const [expenses, setExpenses] = useLocalStorage('xq_expenses', []);
             const [reservations, setReservations] = useLocalStorage('xq_reservations', []);
             const [settings, setSettings] = useLocalStorage('xq_settings', { monthlyGoal: 100000 });
+            const [marketSoldStats, setMarketSoldStats] = useLocalStorage('xq_market_sold', {});
             
             const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, id: null, collection: '' });
 
@@ -1033,7 +1014,7 @@
                         {activeTab === 'store' && <StoreTab deliveries={deliveries} setDeliveries={setDeliveries} setConfirmDialog={setConfirmDialog} />}
                         {activeTab === 'market' && <MarketTab marketSales={marketSales} setMarketSales={setMarketSales} setConfirmDialog={setConfirmDialog} />}
                         {activeTab === 'expense' && <ExpenseTab expenses={expenses} setExpenses={setExpenses} setConfirmDialog={setConfirmDialog} />}
-                        {activeTab === 'report' && <ReportTab deliveries={deliveries} marketSales={marketSales} expenses={expenses} settings={settings} setSettings={setSettings} />}
+                        {activeTab === 'report' && <ReportTab deliveries={deliveries} marketSales={marketSales} expenses={expenses} settings={settings} setSettings={setSettings} marketSoldStats={marketSoldStats} setMarketSoldStats={setMarketSoldStats} />}
                         {activeTab === 'reserve' && <ReserveTab reservations={reservations} setReservations={setReservations} setDeliveries={setDeliveries} setConfirmDialog={setConfirmDialog} />}
                     </main>
 
