@@ -233,7 +233,7 @@
             );
         };
 
-        // --- 分頁 2：市場 ---
+        // --- 分頁 2：市場 (無件數) ---
         const MarketTab = ({ marketSales, setMarketSales, setConfirmDialog }) => {
             const currentDate = new Date().toISOString().split('T')[0];
             const [editingId, setEditingId] = useState(null);
@@ -411,7 +411,6 @@
                         <div className="bg-white rounded-2xl border border-dashed border-[#e0d6ce] text-center text-[#c4b5aa] text-sm py-8 mx-2 mt-4">這天沒有擺攤，是休息日喔 ☕</div>
                     ) : filteredSales.map(m => {
                         const dailyMisc = (m.electricity || 0) + (m.cleaning || 0) + (m.gas || 0) + (m.toll || 0);
-                        const operatingProfit = m.revenue - m.rent - dailyMisc; 
                         return (
                             <div key={m.id} className="bg-white rounded-xl p-4 mb-3 shadow-sm border border-[#f2e7df] relative mx-1">
                                 <div className="absolute top-4 right-4 flex gap-1">
@@ -423,7 +422,6 @@
                                 <div className="text-sm text-[#7a6453] grid grid-cols-2 gap-y-1.5 mt-3 pt-3 border-t border-[#fdfaf7] pl-4">
                                     <div>營業額: <span className="font-bold text-[#5c4d43]">${m.revenue}</span></div>
                                     <div>攤租雜支: <span className="font-medium">-${m.rent + dailyMisc}</span></div>
-                                    <div className="font-bold text-[#bc9f8b] col-span-2">未扣進貨盈餘: ${operatingProfit}</div>
                                 </div>
                             </div>
                         )
@@ -432,14 +430,14 @@
             );
         };
 
-        // --- 分頁 3：支出紀錄 ---
+        // --- 分頁 3：支出紀錄 (4大分類) ---
         const ExpenseTab = ({ expenses, setExpenses, setConfirmDialog }) => {
             const [editingId, setEditingId] = useState(null);
             const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
             const [type, setType] = useState('wholesale'); 
             const [name, setName] = useState('');
             const [amount, setAmount] = useState('');
-            const [qty, setQty] = useState('');
+            const [qty, setQty] = useState(''); 
 
             const resetForm = () => {
                 setEditingId(null); setDate(new Date().toISOString().split('T')[0]);
@@ -578,7 +576,7 @@
             );
         }
 
-        // --- 分頁 4：報表 (庫存精準切算版) ---
+        // --- 分頁 4：報表 (企業級分層財報與盤點邏輯) ---
         const ReportTab = ({ deliveries, marketSales, expenses, settings, setSettings, marketSoldStats, setMarketSoldStats }) => {
             const [reportMonth, setReportMonth] = useState(() => {
                 const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -600,7 +598,6 @@
             };
 
             // ---- 1. 計算【截至本月】平均單價與庫存 ----
-            // 只抓取「日期小於或等於」報表月份的批貨資料 (解決未來月份干擾盤點的問題)
             const wholesaleToMonth = expenses.filter(e => e.type === 'wholesale' && e.date.substring(0, 7) <= reportMonth);
             const accumulatedWholesaleCost = wholesaleToMonth.reduce((sum, e) => sum + e.amount, 0);
             const accumulatedWholesaleQty = wholesaleToMonth.reduce((sum, e) => sum + (e.qty || 0), 0);
@@ -622,7 +619,7 @@
             // 目前總庫存 (截至本月)
             const currentInventoryQty = accumulatedWholesaleQty - accumulatedStoreSoldQty - accumulatedMarketSoldQty;
 
-            // 盤點用：推算庫存 = 截至本月累積總進貨 - 截至本月累積網購總出貨 - 本月以前的市場結算
+            // 盤點推算基底 (扣除未來，只算以前)
             const theoreticalInventory = accumulatedWholesaleQty - accumulatedStoreSoldQty - marketSoldBeforeMonth;
 
             const saveInventoryCheck = () => {
@@ -634,31 +631,49 @@
                 setActualInv('');
             };
 
-            // ---- 2. 計算歷史累積現金流 (上月結轉) ----
+            // ---- 2. 計算歷史累積利潤 (真實財報) ----
             const pastDeliveries = deliveries.filter(d => d.date.substring(0, 7) < reportMonth && d.status === 'shipped');
             const pastMarket = marketSales.filter(m => m.date.substring(0, 7) < reportMonth);
             const pastExpenses = expenses.filter(e => e.date.substring(0, 7) < reportMonth);
 
-            let pastCashflow = 0; 
-            pastDeliveries.forEach(d => { pastCashflow += (d.revenue || 0) + (d.shippingIncome || 0) - (d.shippingExpense || 0); });
-            pastMarket.forEach(m => { pastCashflow += (m.revenue || 0) - (m.rent || 0) - ((m.electricity||0) + (m.cleaning||0) + (m.gas||0) + (m.toll||0)); });
-            pastExpenses.forEach(e => { pastCashflow -= (e.amount || 0); });
+            // 歷史銷貨成本 COGS (用當前平均單價概算歷史)
+            const pastStoreSoldQty = pastDeliveries.reduce((sum, d) => sum + (d.soldQty || 1), 0);
+            const pastTotalSoldQty = pastStoreSoldQty + marketSoldBeforeMonth;
+            const pastCOGS = Math.round(pastTotalSoldQty * avgUnitCost);
+
+            let pastRevenue = 0;
+            let pastFrontlineExp = 0;
+            pastDeliveries.forEach(d => { 
+                pastRevenue += (d.revenue || 0);
+                pastFrontlineExp += (d.shippingExpense || 0) - (d.shippingIncome || 0);
+            });
+            pastMarket.forEach(m => { 
+                pastRevenue += (m.revenue || 0);
+                pastFrontlineExp += (m.rent || 0) + ((m.electricity||0) + (m.cleaning||0) + (m.gas||0) + (m.toll||0)); 
+            });
+
+            let pastBackofficeExp = 0;
+            pastExpenses.forEach(e => { 
+                if (e.type !== 'wholesale') { // 不算批貨，因為已被 COGS 取代
+                    pastBackofficeExp += (e.amount || 0); 
+                }
+            });
+
+            const carryoverProfit = pastRevenue - pastCOGS - pastFrontlineExp - pastBackofficeExp;
 
             // ---- 3. 計算當月 P&L 資料 ----
             const currentDeliveries = deliveries.filter(d => d.date.startsWith(reportMonth) && d.status === 'shipped');
             const currentMarket = marketSales.filter(m => m.date.startsWith(reportMonth));
             const currentExpenses = expenses.filter(e => e.date.startsWith(reportMonth));
 
+            // 當月售出總件數
             const currentMonthStoreSold = currentDeliveries.reduce((sum, d) => sum + (d.soldQty || 1), 0);
             const currentMonthSoldQty = currentMonthStoreSold + currentMonthMarketSold;
-            
             const currentMonthCOGS = Math.round(currentMonthSoldQty * avgUnitCost);
 
             const storeRevenue = currentDeliveries.reduce((sum, d) => sum + (d.revenue || 0), 0);
             const marketRevenue = currentMarket.reduce((sum, m) => sum + (m.revenue || 0), 0);
             const totalRevenue = storeRevenue + marketRevenue;
-
-            const grossProfit = totalRevenue - currentMonthCOGS;
 
             const storeShippingIn = currentDeliveries.reduce((sum, d) => sum + (d.shippingIncome || 0), 0);
             const storeShippingOut = currentDeliveries.reduce((sum, d) => sum + (d.shippingExpense || 0), 0);
@@ -666,19 +681,17 @@
 
             const marketRent = currentMarket.reduce((sum, m) => sum + (m.rent || 0), 0);
             const marketMisc = currentMarket.reduce((sum, m) => sum + (m.electricity || 0) + (m.cleaning || 0) + (m.gas || 0) + (m.toll || 0), 0);
+            
+            // ★ 前線通路毛利
+            const frontlineProfit = totalRevenue - currentMonthCOGS - marketRent - marketMisc + storeShippingProfit;
+
             const supplyTotal = currentExpenses.filter(e => e.type === 'supply').reduce((sum, e) => sum + e.amount, 0);
             const fixedTotal = currentExpenses.filter(e => e.type === 'fixed').reduce((sum, e) => sum + e.amount, 0);
-            
-            const totalOperationsCost = marketRent + marketMisc + supplyTotal + fixedTotal - storeShippingProfit; 
-            const operatingProfit = grossProfit - totalOperationsCost; 
-
             const salaryTotal = currentExpenses.filter(e => e.type === 'salary').reduce((sum, e) => sum + e.amount, 0);
-            const currentMonthNetProfit = operatingProfit - salaryTotal; 
             
-            // ---- 4. 計算當月現金流 ----
-            const wholesaleCashSpentThisMonth = currentExpenses.filter(e => e.type === 'wholesale').reduce((sum, e) => sum + e.amount, 0);
-            const currentMonthCashflow = totalRevenue + storeShippingProfit - marketRent - marketMisc - supplyTotal - fixedTotal - salaryTotal - wholesaleCashSpentThisMonth;
-            const totalAccumulatedCash = pastCashflow + currentMonthCashflow; 
+            // ★ 最終淨利
+            const currentMonthNetProfit = frontlineProfit - supplyTotal - fixedTotal - salaryTotal; 
+            const accumulatedProfit = carryoverProfit + currentMonthNetProfit; 
 
             const progressPercent = Math.min(100, Math.round((currentMonthNetProfit / settings.monthlyGoal) * 100)) || 0;
             const accTotal = currentMarket.reduce((sum, m) => sum + (m.accessories?.necklace||0) + (m.accessories?.hat||0) + (m.accessories?.bag||0) + (m.accessories?.other||0), 0);
@@ -748,49 +761,72 @@
                         </div>
                     </Card>
 
-                    {/* 📊 本月損益表 */}
+                    {/* 公司總資產看板 */}
+                    <Card className="bg-[#bc9f8b] bg-opacity-10 border-none mb-4">
+                        <div className="text-center mb-3 pt-2">
+                            <div className="text-sm text-[#7a6453] font-bold mb-1"><Icon name="account_balance" className="align-middle text-[18px] mr-1"/>目前公司總資產 (淨利)</div>
+                            <div className={`text-4xl font-black ${accumulatedProfit < 0 ? 'text-red-500' : 'text-[#bc9f8b]'}`}>
+                                {accumulatedProfit < 0 ? '-' : ''}${Math.abs(accumulatedProfit).toLocaleString()}
+                            </div>
+                        </div>
+                        <div className="flex justify-between text-sm border-t border-[#e0d6ce] pt-3 pb-1">
+                            <div className="text-center flex-1 border-r border-[#e0d6ce]">
+                                <div className="text-xs text-[#a89689] mb-1">上月結轉淨利</div>
+                                <div className={`font-bold ${carryoverProfit < 0 ? 'text-red-400' : 'text-[#7a6453]'}`}>${carryoverProfit.toLocaleString()}</div>
+                            </div>
+                            <div className="text-center flex-1">
+                                <div className="text-xs text-[#a89689] mb-1">本月單月淨利</div>
+                                <div className={`font-bold ${currentMonthNetProfit < 0 ? 'text-red-500' : 'text-[#bc9f8b]'}`}>
+                                    ${currentMonthNetProfit.toLocaleString()}
+                                </div>
+                            </div>
+                        </div>
+                    </Card>
+
+                    {/* 📊 本月損益表 (P&L 分層版) */}
                     <Card>
                         <div className="flex justify-between items-center mb-4 pb-2 border-b border-[#f2e7df]">
-                            <div className="flex items-center font-bold text-[#7a6453] text-lg"><Icon name="request_quote" className="mr-2 text-[#e57373]" /> 本月損益表 <span className="text-xs text-[#a89689] font-normal ml-2">(真實利潤)</span></div>
+                            <div className="flex items-center font-bold text-[#7a6453] text-lg"><Icon name="request_quote" className="mr-2 text-[#e57373]" /> 企業級損益表</div>
                             <button onClick={handleGoalChange} className="text-xs bg-[#fdfaf7] border border-[#e0d6ce] px-2 py-1 rounded-lg text-[#a89689] font-wawa shadow-sm">淨利目標</button>
                         </div>
                         
-                        <div className="space-y-4 text-sm font-bold text-[#5c4d43]">
-                            <div>
-                                <div className="flex justify-between text-base mb-1"><span>總營業額 (超商+市場)</span><span className="text-[#bc9f8b]">${totalRevenue.toLocaleString()}</span></div>
-                            </div>
-                            <div>
-                                <div className="flex justify-between items-center text-[#e57373]"><span className="flex items-center"><Icon name="remove" className="text-[14px] mr-1"/> 銷貨成本 <span className="text-[10px] text-[#a89689] font-normal ml-1">(本月售出 {currentMonthSoldQty} 件)</span></span><span>-${currentMonthCOGS.toLocaleString()}</span></div>
-                            </div>
-                            <div className="border-t border-dashed border-[#e0d6ce] pt-2"></div>
+                        <div className="space-y-3 text-sm font-bold text-[#5c4d43]">
                             
-                            <div className="bg-[#fdfaf7] p-2 rounded-lg flex justify-between text-base">
-                                <span className="text-[#7a6453]">本月營業毛利</span><span className="text-[#bc9f8b]">${grossProfit.toLocaleString()}</span>
+                            {/* --- 第一階段：前線 --- */}
+                            <div className="bg-[#e8f5e9] bg-opacity-40 p-2 rounded-lg -mx-2 px-4 mb-2">
+                                <div className="text-[#4caf50] flex items-center mb-1"><Icon name="storefront" className="text-[16px] mr-1" /> 【前線作戰】通路實賺</div>
+                            </div>
+                            
+                            <div className="flex justify-between text-base mb-1"><span>總營業額 (超商+市場)</span><span className="text-[#bc9f8b]">${totalRevenue.toLocaleString()}</span></div>
+                            <div className="flex justify-between items-center text-[#e57373]"><span className="flex items-center"><Icon name="remove" className="text-[14px] mr-1"/> 銷貨成本 <span className="text-[10px] text-[#a89689] font-normal ml-1">(本月售出 {currentMonthSoldQty} 件)</span></span><span>-${currentMonthCOGS.toLocaleString()}</span></div>
+                            
+                            <div className="pl-4 border-l-2 border-[#f2e7df] space-y-2 mt-2">
+                                <div className="flex justify-between text-xs text-[#a89689]"><span>市場攤租與雜支</span><span>-${(marketRent + marketMisc).toLocaleString()}</span></div>
+                                <div className="flex justify-between text-xs text-[#a89689]"><span>超商運費盈虧</span><span className={storeShippingProfit >= 0 ? 'text-[#4caf50]' : 'text-[#e57373]'}>{storeShippingProfit >= 0 ? '+' : ''}{storeShippingProfit.toLocaleString()}</span></div>
+                            </div>
+
+                            <div className="bg-[#fdfaf7] p-2 rounded-lg flex justify-between text-base border border-[#f2e7df]">
+                                <span className="text-[#7a6453]">💰 通路營業毛利</span><span className="text-[#bc9f8b]">${frontlineProfit.toLocaleString()}</span>
+                            </div>
+
+                            {/* --- 第二階段：後勤 --- */}
+                            <div className="bg-[#e3f2fd] bg-opacity-40 p-2 rounded-lg -mx-2 px-4 mb-2 mt-5">
+                                <div className="text-[#64b5f6] flex items-center mb-1"><Icon name="domain" className="text-[16px] mr-1" /> 【後勤大本營】公司費用</div>
                             </div>
 
                             <div className="pl-4 border-l-2 border-[#f2e7df] space-y-2 mt-2">
-                                <div className="flex justify-between text-xs text-[#a89689]"><span>市場攤租與雜支</span><span>-${(marketRent + marketMisc).toLocaleString()}</span></div>
-                                <div className="flex justify-between text-xs text-[#a89689]"><span>生財包材 / 倉租水電</span><span>-${(supplyTotal + fixedTotal).toLocaleString()}</span></div>
-                                <div className="flex justify-between text-xs text-[#a89689]"><span>超商運費盈虧</span><span className={storeShippingProfit >= 0 ? 'text-[#4caf50]' : 'text-[#e57373]'}>{storeShippingProfit >= 0 ? '+' : ''}{storeShippingProfit.toLocaleString()}</span></div>
-                            </div>
-                            <div>
-                                <div className="flex justify-between items-center text-[#e57373]"><span className="flex items-center"><Icon name="remove" className="text-[14px] mr-1"/> 本月營業費用 <span className="text-[10px] text-[#a89689] font-normal ml-1">(不含批貨)</span></span><span>-${totalOperationsCost.toLocaleString()}</span></div>
-                            </div>
-
-                            <div className="bg-[#fdfaf7] p-2 rounded-lg flex justify-between text-base">
-                                <span className="text-[#7a6453]">營業淨利</span><span className="text-[#bc9f8b]">${operatingProfit.toLocaleString()}</span>
-                            </div>
-
-                            <div>
+                                <div className="flex justify-between items-center text-[#e57373]"><span className="flex items-center"><Icon name="remove" className="text-[14px] mr-1"/> 倉租與水電</span><span>-${fixedTotal.toLocaleString()}</span></div>
+                                <div className="flex justify-between items-center text-[#e57373]"><span className="flex items-center"><Icon name="remove" className="text-[14px] mr-1"/> 生財包材雜支</span><span>-${supplyTotal.toLocaleString()}</span></div>
                                 <div className="flex justify-between items-center text-[#fbc02d]"><span className="flex items-center"><Icon name="remove" className="text-[14px] mr-1"/> 老闆支薪</span><span>-${salaryTotal.toLocaleString()}</span></div>
                             </div>
 
-                            <div className="border-t-2 border-[#bc9f8b] pt-3 mt-2"></div>
+                            <div className="border-t-2 border-[#bc9f8b] pt-3 mt-4"></div>
 
-                            <div className="flex justify-between items-end">
+                            {/* --- 最終淨利 --- */}
+                            <div className="flex justify-between items-end mt-1">
                                 <div className="flex flex-col">
                                     <span className="text-xs text-[#a89689] mb-1">目標達成: {progressPercent}%</span>
-                                    <span className="text-lg text-[#bc9f8b]">本月公司淨利</span>
+                                    <span className="text-lg text-[#bc9f8b]">🏦 公司最終淨利</span>
                                 </div>
                                 <span className={`text-3xl font-black ${currentMonthNetProfit < 0 ? 'text-red-500' : 'text-[#bc9f8b]'}`}>
                                     ${currentMonthNetProfit.toLocaleString()}
@@ -802,29 +838,7 @@
                         </div>
                     </Card>
 
-                    {/* 🏦 公司現金流 */}
-                    <Card className="bg-[#bc9f8b] bg-opacity-10 border-none mb-4">
-                        <div className="text-center mb-3 pt-2">
-                            <div className="text-sm text-[#7a6453] font-bold mb-1"><Icon name="account_balance_wallet" className="align-middle text-[18px] mr-1"/>目前公司總現金 (口袋實際結餘)</div>
-                            <div className={`text-4xl font-black ${totalAccumulatedCash < 0 ? 'text-red-500' : 'text-[#bc9f8b]'}`}>
-                                {totalAccumulatedCash < 0 ? '-' : ''}${Math.abs(totalAccumulatedCash).toLocaleString()}
-                            </div>
-                        </div>
-                        <div className="flex justify-between text-sm border-t border-[#e0d6ce] pt-3 pb-1">
-                            <div className="text-center flex-1 border-r border-[#e0d6ce]">
-                                <div className="text-xs text-[#a89689] mb-1">上月結轉現金</div>
-                                <div className={`font-bold ${pastCashflow < 0 ? 'text-red-400' : 'text-[#7a6453]'}`}>${pastCashflow.toLocaleString()}</div>
-                            </div>
-                            <div className="text-center flex-1">
-                                <div className="text-xs text-[#a89689] mb-1">本月產生現金流</div>
-                                <div className={`font-bold ${currentMonthCashflow < 0 ? 'text-red-500' : 'text-[#bc9f8b]'}`}>
-                                    {currentMonthCashflow >= 0 ? '+' : ''}${currentMonthCashflow.toLocaleString()}
-                                </div>
-                            </div>
-                        </div>
-                    </Card>
-
-                    {/* 👑 老闆薪水 */}
+                    {/* 👑 專屬老闆成就區塊 */}
                     <Card className="bg-gradient-to-r from-[#fdfbfb] to-[#fffde7] border-[#fff59d] mb-4 flex items-center justify-between">
                         <div className="flex items-center">
                             <div className="w-10 h-10 bg-[#fbc02d] rounded-full flex items-center justify-center text-white mr-3 shadow-sm"><Icon name="emoji_events" /></div>
@@ -834,11 +848,14 @@
                             </div>
                         </div>
                     </Card>
+                    
+                    <Card><div className="flex justify-between items-center text-base font-bold text-[#5c4d43]"><span className="flex items-center"><Icon name="diamond" className="mr-2 text-[#64b5f6]"/>當月配飾販售</span><span className="text-[#64b5f6]">共 {accTotal} 件</span></div></Card>
+                    <Card><div className="flex justify-between items-center text-base font-bold text-[#5c4d43]"><span className="flex items-center">🎁 當月贈品統計</span><span className="text-[#e57373]">共 {giftTotal} 件</span></div></Card>
                 </div>
             );
         };
 
-        // --- 分頁 5：留貨 ---
+        // --- 分頁 5：留貨 (一鍵轉單) ---
         const ReserveTab = ({ reservations, setReservations, setDeliveries, setConfirmDialog }) => {
             const [editingId, setEditingId] = useState(null);
             const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -984,6 +1001,7 @@
         const App = () => {
             const [activeTab, setActiveTab] = useState('store');
             
+            // 使用本機儲存 Hook 管理所有資料
             const [deliveries, setDeliveries] = useLocalStorage('xq_deliveries', []);
             const [marketSales, setMarketSales] = useLocalStorage('xq_marketSales', []);
             const [expenses, setExpenses] = useLocalStorage('xq_expenses', []);
