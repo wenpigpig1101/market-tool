@@ -121,7 +121,8 @@
             const [giftCount, setGiftCount] = useState('');
 
             const resetForm = () => {
-                setEditingId(null); setDate(new Date().toISOString().split('T')[0]);
+                setEditingId(null);
+                setDate(new Date().toISOString().split('T')[0]);
                 setCustomerName(''); setRevenue(''); setSoldQty(''); setShippingExpense(''); setShippingIncome(''); setGiftCount(''); setHasGift(false);
             };
 
@@ -232,10 +233,11 @@
             );
         };
 
-        // --- 分頁 2：市場 (無件數) ---
+        // --- 分頁 2：市場 ---
         const MarketTab = ({ marketSales, setMarketSales, setConfirmDialog }) => {
             const currentDate = new Date().toISOString().split('T')[0];
             const [editingId, setEditingId] = useState(null);
+            
             const [date, setDate] = useState(currentDate);
             const [location, setLocation] = useState('');
             const [revenue, setRevenue] = useState('');
@@ -430,7 +432,7 @@
             );
         };
 
-        // --- 分頁 3：支出紀錄 (4大分類) ---
+        // --- 分頁 3：支出紀錄 ---
         const ExpenseTab = ({ expenses, setExpenses, setConfirmDialog }) => {
             const [editingId, setEditingId] = useState(null);
             const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -576,7 +578,7 @@
             );
         }
 
-        // --- 分頁 4：報表 (含月底盤點模組) ---
+        // --- 分頁 4：報表 (庫存精準切算版) ---
         const ReportTab = ({ deliveries, marketSales, expenses, settings, setSettings, marketSoldStats, setMarketSoldStats }) => {
             const [reportMonth, setReportMonth] = useState(() => {
                 const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -597,29 +599,31 @@
                 if (newGoal && !isNaN(newGoal)) setSettings({ ...settings, monthlyGoal: Number(newGoal) });
             };
 
-            // ---- 1. 計算【全期平均進貨單價】與庫存 ----
-            const allWholesaleExpenses = expenses.filter(e => e.type === 'wholesale');
-            const globalTotalWholesaleCost = allWholesaleExpenses.reduce((sum, e) => sum + e.amount, 0);
-            const globalTotalWholesaleQty = allWholesaleExpenses.reduce((sum, e) => sum + (e.qty || 0), 0);
-            const avgUnitCost = globalTotalWholesaleQty > 0 ? (globalTotalWholesaleCost / globalTotalWholesaleQty) : 0;
+            // ---- 1. 計算【截至本月】平均單價與庫存 ----
+            // 只抓取「日期小於或等於」報表月份的批貨資料 (解決未來月份干擾盤點的問題)
+            const wholesaleToMonth = expenses.filter(e => e.type === 'wholesale' && e.date.substring(0, 7) <= reportMonth);
+            const accumulatedWholesaleCost = wholesaleToMonth.reduce((sum, e) => sum + e.amount, 0);
+            const accumulatedWholesaleQty = wholesaleToMonth.reduce((sum, e) => sum + (e.qty || 0), 0);
+            const avgUnitCost = accumulatedWholesaleQty > 0 ? (accumulatedWholesaleCost / accumulatedWholesaleQty) : 0;
 
-            const globalTotalStoreSoldQty = deliveries.filter(d=>d.status === 'shipped').reduce((sum, d) => sum + (d.soldQty || 1), 0);
+            const storeSoldToMonth = deliveries.filter(d => d.status === 'shipped' && d.date.substring(0, 7) <= reportMonth);
+            const accumulatedStoreSoldQty = storeSoldToMonth.reduce((sum, d) => sum + (d.soldQty || 1), 0);
             
-            // 其他月份已盤點售出的總數
-            let otherMonthsMarketSold = 0;
+            // 歷史其他月盤點 (嚴格小於本月)
+            let marketSoldBeforeMonth = 0;
             Object.keys(marketSoldStats).forEach(key => {
-                if (key !== reportMonth) otherMonthsMarketSold += marketSoldStats[key];
+                if (key < reportMonth) marketSoldBeforeMonth += marketSoldStats[key];
             });
 
             // 本月市場盤點售出數
             const currentMonthMarketSold = marketSoldStats[reportMonth] || 0;
-            const globalTotalMarketSoldQty = otherMonthsMarketSold + currentMonthMarketSold;
+            const accumulatedMarketSoldQty = marketSoldBeforeMonth + currentMonthMarketSold;
 
-            // 目前總庫存
-            const currentInventoryQty = globalTotalWholesaleQty - globalTotalStoreSoldQty - globalTotalMarketSoldQty;
+            // 目前總庫存 (截至本月)
+            const currentInventoryQty = accumulatedWholesaleQty - accumulatedStoreSoldQty - accumulatedMarketSoldQty;
 
-            // 用於盤點推算：目前歷史總進貨 - 網購總出貨 - 歷史其他月盤點
-            const theoreticalInventory = globalTotalWholesaleQty - globalTotalStoreSoldQty - otherMonthsMarketSold;
+            // 盤點用：推算庫存 = 截至本月累積總進貨 - 截至本月累積網購總出貨 - 本月以前的市場結算
+            const theoreticalInventory = accumulatedWholesaleQty - accumulatedStoreSoldQty - marketSoldBeforeMonth;
 
             const saveInventoryCheck = () => {
                 const actual = Number(actualInv) || 0;
@@ -645,11 +649,9 @@
             const currentMarket = marketSales.filter(m => m.date.startsWith(reportMonth));
             const currentExpenses = expenses.filter(e => e.date.startsWith(reportMonth));
 
-            // 當月總售出件數 = 寄出件數 + 盤點推算件數
             const currentMonthStoreSold = currentDeliveries.reduce((sum, d) => sum + (d.soldQty || 1), 0);
             const currentMonthSoldQty = currentMonthStoreSold + currentMonthMarketSold;
             
-            // 當月銷貨成本
             const currentMonthCOGS = Math.round(currentMonthSoldQty * avgUnitCost);
 
             const storeRevenue = currentDeliveries.reduce((sum, d) => sum + (d.revenue || 0), 0);
@@ -697,17 +699,17 @@
                     <Card className="bg-[#e8f5e9] bg-opacity-40 border-none mb-4">
                         <div className="flex items-center text-[#4caf50] font-bold text-lg mb-3"><Icon name="inventory_2" className="mr-2" /> 服飾庫存與成本</div>
                         <div className="flex items-center justify-between mb-3">
-                            <span className="text-[#5c4d43] font-bold">全期平均進貨單價</span>
+                            <span className="text-[#5c4d43] font-bold">平均進貨單價 <span className="text-xs font-normal ml-1">(截至本月)</span></span>
                             <span className="text-2xl font-black text-[#4caf50]">${avgUnitCost.toFixed(1)} <span className="text-xs text-[#a89689]">/件</span></span>
                         </div>
                         <div className="grid grid-cols-3 gap-2 border-t border-[#c8e6c9] pt-3 pb-2">
                             <div className="text-center">
-                                <div className="text-[10px] text-[#7a6453] font-bold">歷史總進貨</div>
-                                <div className="font-black text-[#5c4d43]">{globalTotalWholesaleQty}</div>
+                                <div className="text-[10px] text-[#7a6453] font-bold">累積總進貨</div>
+                                <div className="font-black text-[#5c4d43]">{accumulatedWholesaleQty}</div>
                             </div>
                             <div className="text-center border-x border-[#c8e6c9]">
-                                <div className="text-[10px] text-[#7a6453] font-bold">歷史總售出</div>
-                                <div className="font-black text-[#5c4d43]">{globalTotalStoreSoldQty + globalTotalMarketSoldQty}</div>
+                                <div className="text-[10px] text-[#7a6453] font-bold">累積總售出</div>
+                                <div className="font-black text-[#5c4d43]">{accumulatedStoreSoldQty + accumulatedMarketSoldQty}</div>
                             </div>
                             <div className="text-center">
                                 <div className="text-[10px] text-[#7a6453] font-bold">目前剩餘庫存</div>
@@ -836,7 +838,7 @@
             );
         };
 
-        // --- 分頁 5：留貨 (一鍵轉單) ---
+        // --- 分頁 5：留貨 ---
         const ReserveTab = ({ reservations, setReservations, setDeliveries, setConfirmDialog }) => {
             const [editingId, setEditingId] = useState(null);
             const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -982,7 +984,6 @@
         const App = () => {
             const [activeTab, setActiveTab] = useState('store');
             
-            // 使用本機儲存 Hook 管理所有資料
             const [deliveries, setDeliveries] = useLocalStorage('xq_deliveries', []);
             const [marketSales, setMarketSales] = useLocalStorage('xq_marketSales', []);
             const [expenses, setExpenses] = useLocalStorage('xq_expenses', []);
