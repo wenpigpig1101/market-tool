@@ -233,7 +233,7 @@
             );
         };
 
-        // --- 分頁 2：市場 ---
+        // --- 分頁 2：市場 (日曆地點與業績顯示) ---
         const MarketTab = ({ marketSales, setMarketSales, setConfirmDialog }) => {
             const currentDate = new Date().toISOString().split('T')[0];
             const [editingId, setEditingId] = useState(null);
@@ -254,12 +254,19 @@
             const [viewMonthStr, setViewMonthStr] = useState(currentDate.substring(0, 7));
             const [selectedDay, setSelectedDay] = useState(currentDate);
 
-            const dailyRevenues = useMemo(() => {
-                const revs = {};
+            // 彙整日曆所需的資料 (包含業績與地點)
+            const dailyStats = useMemo(() => {
+                const stats = {};
                 marketSales.forEach(m => {
-                    if (m.date.startsWith(viewMonthStr)) revs[m.date] = (revs[m.date] || 0) + (Number(m.revenue) || 0);
+                    if (m.date.startsWith(viewMonthStr)) {
+                        if (!stats[m.date]) stats[m.date] = { revenue: 0, locations: [] };
+                        stats[m.date].revenue += (Number(m.revenue) || 0);
+                        if (m.location && !stats[m.date].locations.includes(m.location)) {
+                            stats[m.date].locations.push(m.location);
+                        }
+                    }
                 });
-                return revs;
+                return stats;
             }, [marketSales, viewMonthStr]);
 
             const resetForm = () => {
@@ -312,16 +319,25 @@
                 const daysInMonth = new Date(y, m + 1, 0).getDate();
                 const startDayOfWeek = new Date(y, m, 1).getDay();
                 const days = [];
-                for (let i = 0; i < startDayOfWeek; i++) days.push(<div key={`empty-${i}`} className="h-14"></div>);
+                for (let i = 0; i < startDayOfWeek; i++) days.push(<div key={`empty-${i}`} className="h-[4.5rem]"></div>);
                 for (let i = 1; i <= daysInMonth; i++) {
                     const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
                     const isSelected = dateStr === selectedDay;
-                    const rev = dailyRevenues[dateStr] || 0;
-                    const hasRev = rev > 0;
+                    const stat = dailyStats[dateStr];
+                    const hasData = !!stat;
+                    const rev = hasData ? stat.revenue : 0;
+                    const locStr = hasData ? stat.locations.join(', ') : '';
+
                     days.push(
-                        <div key={dateStr} onClick={() => {setSelectedDay(dateStr); setDate(dateStr);}} className={`h-14 flex flex-col items-center justify-center rounded-xl cursor-pointer transition-all ${isSelected ? 'bg-[#bc9f8b] text-white shadow-md' : hasRev ? 'border border-[#bc9f8b] bg-[#fdfaf7] text-[#5c4d43]' : 'text-[#7a6453] hover:bg-[#f2e7df]'}`}>
-                            <span className={`text-base font-bold ${isSelected ? 'text-white' : ''}`}>{i}</span>
-                            {hasRev && <span className={`text-[10px] leading-tight ${isSelected ? 'text-[#f0e6e0]' : 'text-[#4caf50]'}`}>{formatRevenueStr(rev)}</span>}
+                        <div key={dateStr} onClick={() => {setSelectedDay(dateStr); setDate(dateStr);}} 
+                             className={`h-[4.5rem] py-1 flex flex-col items-center justify-start rounded-xl cursor-pointer transition-all overflow-hidden ${isSelected ? 'bg-[#bc9f8b] text-white shadow-md' : hasData ? 'border border-[#bc9f8b] bg-[#fdfaf7] text-[#5c4d43]' : 'text-[#7a6453] hover:bg-[#f2e7df]'}`}>
+                            <span className={`text-sm font-bold ${isSelected ? 'text-white' : ''} leading-tight mb-0.5`}>{i}</span>
+                            {hasData && (
+                                <div className="flex flex-col items-center w-full px-0.5">
+                                    {locStr && <span className={`text-[9px] w-full truncate text-center mb-0.5 ${isSelected ? 'text-[#f0e6e0]' : 'text-[#a89689]'}`}>{locStr}</span>}
+                                    <span className={`text-[11px] font-black leading-none ${isSelected ? 'text-white' : 'text-[#4caf50]'}`}>{formatRevenueStr(rev)}</span>
+                                </div>
+                            )}
                         </div>
                     );
                 }
@@ -423,7 +439,7 @@
                                 <div className="text-sm text-[#7a6453] grid grid-cols-2 gap-y-1.5 mt-3 pt-3 border-t border-[#fdfaf7] pl-4">
                                     <div>營業額: <span className="font-bold text-[#5c4d43]">${m.revenue}</span></div>
                                     <div>攤租雜支: <span className="font-medium">-${m.rent + dailyMisc}</span></div>
-                                    <div className="font-bold text-[#bc9f8b] col-span-2">未扣商品成本毛利: ${operatingProfit}</div>
+                                    <div className="font-bold text-[#bc9f8b] col-span-2">未扣進貨盈餘: ${operatingProfit}</div>
                                 </div>
                             </div>
                         )
@@ -608,15 +624,20 @@
             const storeSoldToMonth = deliveries.filter(d => d.status === 'shipped' && d.date.substring(0, 7) <= reportMonth);
             const accumulatedStoreSoldQty = storeSoldToMonth.reduce((sum, d) => sum + (d.soldQty || 1), 0);
             
+            // 歷史其他月盤點 (嚴格小於本月)
             let marketSoldBeforeMonth = 0;
             Object.keys(marketSoldStats).forEach(key => {
                 if (key < reportMonth) marketSoldBeforeMonth += marketSoldStats[key];
             });
 
+            // 本月市場盤點售出數
             const currentMonthMarketSold = marketSoldStats[reportMonth] || 0;
             const accumulatedMarketSoldQty = marketSoldBeforeMonth + currentMonthMarketSold;
 
+            // 目前總庫存 (截至本月)
             const currentInventoryQty = accumulatedWholesaleQty - accumulatedStoreSoldQty - accumulatedMarketSoldQty;
+
+            // 盤點推算基底 (扣除未來，只算以前)
             const theoreticalInventory = accumulatedWholesaleQty - accumulatedStoreSoldQty - marketSoldBeforeMonth;
 
             const saveInventoryCheck = () => {
@@ -633,6 +654,7 @@
             const pastMarket = marketSales.filter(m => m.date.substring(0, 7) < reportMonth);
             const pastExpenses = expenses.filter(e => e.date.substring(0, 7) < reportMonth);
 
+            // 歷史銷貨成本 COGS (用當前平均單價概算歷史)
             const pastStoreSoldQty = pastDeliveries.reduce((sum, d) => sum + (d.soldQty || 1), 0);
             const pastTotalSoldQty = pastStoreSoldQty + marketSoldBeforeMonth;
             const pastCOGS = Math.round(pastTotalSoldQty * avgUnitCost);
@@ -650,7 +672,7 @@
 
             let pastBackofficeExp = 0;
             pastExpenses.forEach(e => { 
-                if (e.type !== 'wholesale') { 
+                if (e.type !== 'wholesale') { // 不算批貨，因為已被 COGS 取代
                     pastBackofficeExp += (e.amount || 0); 
                 }
             });
@@ -662,6 +684,7 @@
             const currentMarket = marketSales.filter(m => m.date.startsWith(reportMonth));
             const currentExpenses = expenses.filter(e => e.date.startsWith(reportMonth));
 
+            // 當月售出總件數
             const currentMonthStoreSold = currentDeliveries.reduce((sum, d) => sum + (d.soldQty || 1), 0);
             const currentMonthSoldQty = currentMonthStoreSold + currentMonthMarketSold;
             const currentMonthCOGS = Math.round(currentMonthSoldQty * avgUnitCost);
@@ -682,12 +705,14 @@
             const marketToll = currentMarket.reduce((sum, m) => sum + (m.toll || 0), 0);
             const marketMisc = marketElec + marketClean + marketGas + marketToll;
             
+            // ★ 前線通路毛利
             const frontlineProfit = totalRevenue - currentMonthCOGS - marketRent - marketMisc + storeShippingProfit;
 
             const supplyTotal = currentExpenses.filter(e => e.type === 'supply').reduce((sum, e) => sum + e.amount, 0);
             const fixedTotal = currentExpenses.filter(e => e.type === 'fixed').reduce((sum, e) => sum + e.amount, 0);
             const salaryTotal = currentExpenses.filter(e => e.type === 'salary').reduce((sum, e) => sum + e.amount, 0);
             
+            // ★ 最終淨利
             const currentMonthNetProfit = frontlineProfit - supplyTotal - fixedTotal - salaryTotal; 
             const accumulatedProfit = carryoverProfit + currentMonthNetProfit; 
 
@@ -896,7 +921,7 @@
             const [transferRecord, setTransferRecord] = useState(null);
             const [tDate, setTDate] = useState('');
             const [tRevenue, setTRevenue] = useState('');
-            const [tSoldQty, setTSoldQty] = useState(''); 
+            const [tSoldQty, setTSoldQty] = useState(''); // 轉單也需要售出件數
             const [tShippingExpense, setTShippingExpense] = useState('');
             const [tShippingIncome, setTShippingIncome] = useState('');
             const [tHasGift, setTHasGift] = useState(false);
@@ -929,7 +954,7 @@
 
             const openTransferModal = (record) => {
                 setTransferRecord(record); setTDate(new Date().toISOString().split('T')[0]);
-                setTRevenue(''); setTSoldQty(record.itemsCount); 
+                setTRevenue(''); setTSoldQty(record.itemsCount); // 自動帶入留貨件數
                 setTShippingExpense(''); setTShippingIncome(''); setTHasGift(false); setTGiftCount('');
             };
 
@@ -1031,6 +1056,7 @@
         const App = () => {
             const [activeTab, setActiveTab] = useState('store');
             
+            // 使用本機儲存 Hook 管理所有資料
             const [deliveries, setDeliveries] = useLocalStorage('xq_deliveries', []);
             const [marketSales, setMarketSales] = useLocalStorage('xq_marketSales', []);
             const [expenses, setExpenses] = useLocalStorage('xq_expenses', []);
