@@ -221,7 +221,7 @@
                     <div className="mt-6 mb-2 flex items-center text-[#4caf50] font-bold px-2 text-lg"><Icon name="check_box" className="mr-1 text-[20px]" /> 已寄出 <span className="ml-2 bg-[#a5d6a7] text-white text-xs px-2 py-0.5 rounded-full">{shipped.length}</span></div>
                     {shipped.length === 0 ? <div className="text-center text-[#c4b5aa] text-sm py-4">尚無紀錄</div> : shipped.slice(0,10).map(d => (
                         <div key={d.id} className="bg-[#fafafa] rounded-xl p-3 mb-2 border border-[#f0f0f0] flex justify-between items-center px-4 opacity-70">
-                            <div><div className="font-bold text-[#7a6453] line-through text-base">{d.customerName}</div><div className="text-xs text-[#a89689] mt-0.5">{d.date} <span className="ml-1 bg-[#f0f0f0] text-[#a89689] px-1 rounded">{d.soldQty || 1}件</span></div></div>
+                            <div><div className="font-bold text-[#7a6453] line-through text-base">{d.customerName}</div><div className="text-xs text-[#a89689] mt-0.5">{d.date}</div></div>
                             <div className="flex gap-2">
                                 <button onClick={() => toggleStatus(d.id, d.status)} className="p-2 text-[#a89689]"><Icon name="undo" /></button>
                                 <button onClick={() => handleEditClick(d)} className="p-2 text-[#bc9f8b]"><Icon name="edit" className="text-[18px]" /></button>
@@ -233,7 +233,7 @@
             );
         };
 
-        // --- 分頁 2：市場 (支援自動換算件數) ---
+        // --- 分頁 2：市場 ---
         const MarketTab = ({ marketSales, setMarketSales, setConfirmDialog }) => {
             const currentDate = new Date().toISOString().split('T')[0];
             const [editingId, setEditingId] = useState(null);
@@ -241,7 +241,7 @@
             const [date, setDate] = useState(currentDate);
             const [location, setLocation] = useState('');
             const [revenue, setRevenue] = useState('');
-            const [soldQty, setSoldQty] = useState(''); // 新增：支援即時推算件數
+            const [soldQty, setSoldQty] = useState(''); 
             const [rent, setRent] = useState('');
             const [note, setNote] = useState('');
             const [electricity, setElectricity] = useState('');
@@ -276,7 +276,6 @@
                 setAcc({ necklace: '', hat: '', bag: '', other: '' });
             };
 
-            // 自動估算件數邏輯
             const handleRevenueChange = (e) => {
                 const val = e.target.value;
                 setRevenue(val);
@@ -473,7 +472,7 @@
             );
         };
 
-        // --- 分頁 3：支出紀錄 ---
+        // --- 分頁 3：支出紀錄 (新增在途狀態) ---
         const ExpenseTab = ({ expenses, setExpenses, setConfirmDialog }) => {
             const [editingId, setEditingId] = useState(null);
             const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -481,10 +480,11 @@
             const [name, setName] = useState('');
             const [amount, setAmount] = useState('');
             const [qty, setQty] = useState(''); 
+            const [isArrived, setIsArrived] = useState(true); // 新增：是否已入庫
 
             const resetForm = () => {
                 setEditingId(null); setDate(new Date().toISOString().split('T')[0]);
-                setType('wholesale'); setName(''); setAmount(''); setQty('');
+                setType('wholesale'); setName(''); setAmount(''); setQty(''); setIsArrived(true);
             };
 
             const handleAddExpense = () => {
@@ -492,7 +492,8 @@
                 const recordData = { 
                     date, type, name, 
                     amount: Number(amount),
-                    qty: type === 'wholesale' ? (Number(qty) || 0) : 0
+                    qty: type === 'wholesale' ? (Number(qty) || 0) : 0,
+                    isArrived: type === 'wholesale' ? isArrived : true // 只有批貨才有在途狀態
                 };
 
                 if (editingId) {
@@ -507,10 +508,17 @@
             const handleEditClick = (record) => {
                 setEditingId(record.id);
                 setDate(record.date); setType(record.type); setName(record.name); setAmount(record.amount); setQty(record.qty || '');
+                setIsArrived(record.isArrived !== false); // 舊資料預設為 true
                 scrollToTop();
             };
 
+            const toggleArriveStatus = (id) => {
+                setExpenses(prev => prev.map(e => e.id === id ? { ...e, isArrived: true } : e));
+            };
+
             const wholesaleTotal = expenses.filter(e => e.type === 'wholesale').reduce((sum, e) => sum + e.amount, 0);
+            const inTransitTotal = expenses.filter(e => e.type === 'wholesale' && e.isArrived === false).reduce((sum, e) => sum + e.amount, 0);
+            
             const supplyTotal = expenses.filter(e => e.type === 'supply').reduce((sum, e) => sum + e.amount, 0);
             const fixedTotal = expenses.filter(e => e.type === 'fixed').reduce((sum, e) => sum + e.amount, 0);
             const salaryTotal = expenses.filter(e => e.type === 'salary').reduce((sum, e) => sum + e.amount, 0);
@@ -534,7 +542,7 @@
                             {Object.keys(typeConfig).map(tKey => (
                                 <button 
                                     key={tKey}
-                                    onClick={() => { setType(tKey); setQty(''); }} 
+                                    onClick={() => { setType(tKey); setQty(''); setIsArrived(true); }} 
                                     className={`py-2.5 rounded-xl text-sm font-bold transition-all border ${type === tKey ? `${typeConfig[tKey].color} text-white border-transparent shadow-md` : 'bg-white border-[#f0e6e0] text-[#a89689]'}`}>
                                     {typeConfig[tKey].label}
                                 </button>
@@ -545,10 +553,20 @@
                         <Input placeholder={typeConfig[type].placeholder} value={name} onChange={e => setName(e.target.value)} />
                         
                         {type === 'wholesale' ? (
-                            <div className="grid grid-cols-2 gap-3 mb-2">
-                                <Input type="number" placeholder="支出總金額" value={amount} onChange={e => setAmount(e.target.value)} />
-                                <Input type="number" placeholder="進貨總件數" value={qty} onChange={e => setQty(e.target.value)} />
-                            </div>
+                            <React.Fragment>
+                                <div className="grid grid-cols-2 gap-3 mb-3">
+                                    <Input type="number" placeholder="支出總金額" value={amount} onChange={e => setAmount(e.target.value)} />
+                                    <Input type="number" placeholder="進貨總件數" value={qty} onChange={e => setQty(e.target.value)} />
+                                </div>
+                                <div className="flex items-center gap-3 mb-4">
+                                    <button
+                                        className={`flex-1 h-[48px] rounded-xl border text-[14px] transition-colors font-wawa font-bold flex items-center justify-center shadow-sm ${isArrived ? 'border-[#4caf50] bg-[#f0f9f0] text-[#4caf50]' : 'border-[#ffb300] bg-[#fffde7] text-[#f57f17]'}`}
+                                        onClick={(e) => { e.preventDefault(); setIsArrived(!isArrived); }}
+                                    >
+                                        {isArrived ? '📦 已到貨 (算入庫存)' : '🚚 貨在途 (暫不入庫)'}
+                                    </button>
+                                </div>
+                            </React.Fragment>
                         ) : (
                             <Input type="number" placeholder="支出總金額" value={amount} onChange={e => setAmount(e.target.value)} />
                         )}
@@ -571,8 +589,9 @@
 
                     <div className="grid grid-cols-2 gap-3 mb-6">
                         <div className="bg-white rounded-xl p-3 shadow-sm border border-[#f2e7df] text-center">
-                            <div className="text-[11px] text-[#a89689] font-bold mb-1">累積批貨成本</div>
+                            <div className="text-[11px] text-[#a89689] font-bold mb-1">累積批貨支出</div>
                             <div className="text-lg font-black text-[#e57373]">${wholesaleTotal.toLocaleString()}</div>
+                            {inTransitTotal > 0 && <div className="text-[9px] text-[#f57f17] font-bold mt-0.5">含在途未入庫 ${inTransitTotal.toLocaleString()}</div>}
                         </div>
                         <div className="bg-white rounded-xl p-3 shadow-sm border border-[#f2e7df] text-center">
                             <div className="text-[11px] text-[#a89689] font-bold mb-1">累積生財/包材</div>
@@ -595,19 +614,27 @@
                         <div className="mt-4 space-y-3 mx-1">
                         {expenses.map(e => (
                             <div key={e.id} className="bg-white rounded-xl p-4 shadow-sm border border-[#f2e7df] flex justify-between items-center">
-                                <div className="flex flex-col">
+                                <div className="flex flex-col flex-1">
                                     <div className="flex items-center gap-2 mb-1">
-                                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${typeConfig[e.type].bgLight} ${typeConfig[e.type].text}`}>
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${typeConfig[e.type].bgLight} ${typeConfig[e.type].text} shrink-0`}>
                                             {typeConfig[e.type].label.split('/')[0]}
                                         </span>
-                                        <span className="font-bold text-[#5c4d43] text-base">{e.name}</span>
+                                        <span className="font-bold text-[#5c4d43] text-base truncate max-w-[120px]">{e.name}</span>
+                                        {e.type === 'wholesale' && e.isArrived === false && (
+                                            <button onClick={() => toggleArriveStatus(e.id)} className="shrink-0 text-[10px] bg-[#fffde7] text-[#f57f17] border border-[#ffe082] px-2 py-0.5 rounded shadow-sm hover:bg-[#fff9c4] transition-colors">
+                                                點擊入庫
+                                            </button>
+                                        )}
+                                        {e.type === 'wholesale' && e.isArrived !== false && (
+                                            <span className="shrink-0 text-[10px] bg-[#f0f9f0] text-[#4caf50] px-1.5 py-0.5 rounded">已入庫</span>
+                                        )}
                                     </div>
                                     <div className="text-xs text-[#a89689]">
                                         {e.date} {e.type === 'wholesale' && e.qty > 0 && <span className="ml-1 text-[#e57373]">({e.qty}件)</span>}
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <div className={`font-black text-lg mr-2 ${typeConfig[e.type].text}`}>-${e.amount}</div>
+                                <div className="flex items-center gap-1.5 shrink-0 pl-2">
+                                    <div className={`font-black text-lg mr-1 ${typeConfig[e.type].text}`}>-${e.amount}</div>
                                     <button onClick={() => handleEditClick(e)} className="p-1.5 bg-[#fdfaf7] text-[#bc9f8b] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
                                     <button onClick={() => setConfirmDialog({isOpen: true, id: e.id, collection: 'expenses'})} className="p-1.5 bg-[#fdf2f2] text-[#e57373] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
                                 </div>
@@ -619,8 +646,8 @@
             );
         }
 
-        // --- 分頁 4：報表 (庫存盤點與誤差校正) ---
-        const ReportTab = ({ deliveries, marketSales, expenses, settings, setSettings, invAdjustments, setInvAdjustments }) => {
+        // --- 分頁 4：報表 (庫存精準切算與盤點) ---
+        const ReportTab = ({ deliveries, marketSales, expenses, settings, setSettings, marketSoldStats, setMarketSoldStats }) => {
             const [reportMonth, setReportMonth] = useState(() => {
                 const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
             });
@@ -640,40 +667,32 @@
                 if (newGoal && !isNaN(newGoal)) setSettings({ ...settings, monthlyGoal: Number(newGoal) });
             };
 
-            // ---- 1. 計算【截至本月】平均單價與庫存 ----
-            const wholesaleToMonth = expenses.filter(e => e.type === 'wholesale' && e.date.substring(0, 7) <= reportMonth);
+            // ---- 1. 計算【截至本月】平均單價與庫存 (嚴格排除在途) ----
+            // 只有「已入庫」的批貨才會算進庫存與平均單價
+            const wholesaleToMonth = expenses.filter(e => e.type === 'wholesale' && e.date.substring(0, 7) <= reportMonth && e.isArrived !== false);
             const accumulatedWholesaleCost = wholesaleToMonth.reduce((sum, e) => sum + e.amount, 0);
             const accumulatedWholesaleQty = wholesaleToMonth.reduce((sum, e) => sum + (e.qty || 0), 0);
             const avgUnitCost = accumulatedWholesaleQty > 0 ? (accumulatedWholesaleCost / accumulatedWholesaleQty) : 0;
 
-            // 截至本月的總銷出
             const storeSoldToMonth = deliveries.filter(d => d.status === 'shipped' && d.date.substring(0, 7) <= reportMonth);
             const accumulatedStoreSoldQty = storeSoldToMonth.reduce((sum, d) => sum + (d.soldQty || 1), 0);
             
-            const marketSoldToMonth = marketSales.filter(m => m.date.substring(0, 7) <= reportMonth);
-            const accumulatedMarketSoldQty = marketSoldToMonth.reduce((sum, m) => sum + (m.soldQty || 0), 0);
-
-            // 歷史盤點產生的「盤差」(只算小於本月的)
-            let pastAdjustments = 0;
-            Object.keys(invAdjustments).forEach(key => {
-                if (key < reportMonth) pastAdjustments += invAdjustments[key];
+            let marketSoldBeforeMonth = 0;
+            Object.keys(marketSoldStats).forEach(key => {
+                if (key < reportMonth) marketSoldBeforeMonth += marketSoldStats[key];
             });
 
-            // 本月的盤差
-            const currentMonthAdj = invAdjustments[reportMonth] || 0;
+            const currentMonthMarketSold = marketSoldStats[reportMonth] || 0;
+            const accumulatedMarketSoldQty = marketSoldBeforeMonth + currentMonthMarketSold;
 
-            // 目前總庫存 (截至本月) = 總進貨 - 總寄出 - 市場估算總售出 - 所有歷史與本月盤差
-            const accumulatedTotalSold = accumulatedStoreSoldQty + accumulatedMarketSoldQty + pastAdjustments + currentMonthAdj;
-            const currentInventoryQty = accumulatedWholesaleQty - accumulatedTotalSold;
-
-            // 盤點時的推算基礎 (不含當月盤差，讓老闆跟這數字對比)
-            const theoreticalInventory = accumulatedWholesaleQty - accumulatedStoreSoldQty - accumulatedMarketSoldQty - pastAdjustments;
+            const currentInventoryQty = accumulatedWholesaleQty - accumulatedStoreSoldQty - accumulatedMarketSoldQty;
+            const theoreticalInventory = accumulatedWholesaleQty - accumulatedStoreSoldQty - marketSoldBeforeMonth;
 
             const saveInventoryCheck = () => {
                 const actual = Number(actualInv) || 0;
-                // 盤差 = 系統原本以為剩的 - 老闆實際點出來的。 例如以為剩500，老闆點出495，盤差=5(表示多賣/弄丟了5件)
-                const diff = theoreticalInventory - actual;
-                setInvAdjustments({ ...invAdjustments, [reportMonth]: diff });
+                const calculatedSold = theoreticalInventory - actual;
+                const finalSold = calculatedSold > 0 ? calculatedSold : 0;
+                setMarketSoldStats({ ...marketSoldStats, [reportMonth]: finalSold });
                 setIsCheckingInventory(false);
                 setActualInv('');
             };
@@ -681,12 +700,15 @@
             // ---- 2. 計算歷史累積利潤 (真實財報) ----
             const pastDeliveries = deliveries.filter(d => d.date.substring(0, 7) < reportMonth && d.status === 'shipped');
             const pastMarket = marketSales.filter(m => m.date.substring(0, 7) < reportMonth);
+            // 注意：費用(含未入庫)依然會影響歷史利潤與現金嗎？
+            // 會計上：未入庫是「預付貨款(資產)」，不影響 P&L，只影響現金。
+            // 但為求小規模記帳簡便，P&L 扣除的是 COGS (銷貨成本)。
+            // 只要買衣服的錢被轉成「庫存」，它就不會直接扣利潤，直到衣服被「賣掉」！
             const pastExpenses = expenses.filter(e => e.date.substring(0, 7) < reportMonth);
 
             const pastStoreSoldQty = pastDeliveries.reduce((sum, d) => sum + (d.soldQty || 1), 0);
-            const pastMarketSoldQty = pastMarket.reduce((sum, m) => sum + (m.soldQty || 0), 0);
-            const pastTotalSoldQty = pastStoreSoldQty + pastMarketSoldQty + pastAdjustments;
-            const pastCOGS = Math.round(pastTotalSoldQty * avgUnitCost);
+            const pastTotalSoldQty = pastStoreSoldQty + marketSoldBeforeMonth;
+            const pastCOGS = Math.round(pastTotalSoldQty * avgUnitCost); // 歷史銷貨成本
 
             let pastRevenue = 0;
             let pastFrontlineExp = 0;
@@ -701,7 +723,9 @@
 
             let pastBackofficeExp = 0;
             pastExpenses.forEach(e => { 
-                if (e.type !== 'wholesale') pastBackofficeExp += (e.amount || 0); 
+                if (e.type !== 'wholesale') { 
+                    pastBackofficeExp += (e.amount || 0); 
+                }
             });
 
             const carryoverProfit = pastRevenue - pastCOGS - pastFrontlineExp - pastBackofficeExp;
@@ -711,13 +735,9 @@
             const currentMarket = marketSales.filter(m => m.date.startsWith(reportMonth));
             const currentExpenses = expenses.filter(e => e.date.startsWith(reportMonth));
 
-            // 當月售出總件數 = 寄出 + 市場估算
             const currentMonthStoreSold = currentDeliveries.reduce((sum, d) => sum + (d.soldQty || 1), 0);
-            const currentMonthMarketSold = currentMarket.reduce((sum, m) => sum + (m.soldQty || 0), 0);
-            
-            // 包含盤差的當月總結算件數
-            const currentMonthTotalSold = currentMonthStoreSold + currentMonthMarketSold + currentMonthAdj;
-            const currentMonthCOGS = Math.round(currentMonthTotalSold * avgUnitCost);
+            const currentMonthSoldQty = currentMonthStoreSold + currentMonthMarketSold;
+            const currentMonthCOGS = Math.round(currentMonthSoldQty * avgUnitCost);
 
             const storeRevenue = currentDeliveries.reduce((sum, d) => sum + (d.revenue || 0), 0);
             const marketRevenue = currentMarket.reduce((sum, m) => sum + (m.revenue || 0), 0);
@@ -736,23 +756,30 @@
             const marketParking = currentMarket.reduce((sum, m) => sum + (m.parking || 0), 0);
             const marketMisc = marketElec + marketClean + marketGas + marketToll + marketParking;
             
-            // ★ 前線通路毛利
             const frontlineProfit = totalRevenue - currentMonthCOGS - marketRent - marketMisc + storeShippingProfit;
 
             const supplyTotal = currentExpenses.filter(e => e.type === 'supply').reduce((sum, e) => sum + e.amount, 0);
             const fixedTotal = currentExpenses.filter(e => e.type === 'fixed').reduce((sum, e) => sum + e.amount, 0);
             const salaryTotal = currentExpenses.filter(e => e.type === 'salary').reduce((sum, e) => sum + e.amount, 0);
             
-            // ★ 最終淨利
             const currentMonthNetProfit = frontlineProfit - supplyTotal - fixedTotal - salaryTotal; 
             const accumulatedProfit = carryoverProfit + currentMonthNetProfit; 
+
+            // ---- 4. 計算現金流 (現金會直接受到所有支出影響，包括未入庫的在途預付) ----
+            let pastCashflow = 0; 
+            deliveries.filter(d => d.date.substring(0, 7) < reportMonth && d.status === 'shipped').forEach(d => { pastCashflow += (d.revenue || 0) + (d.shippingIncome || 0) - (d.shippingExpense || 0); });
+            marketSales.filter(m => m.date.substring(0, 7) < reportMonth).forEach(m => { pastCashflow += (m.revenue || 0) - (m.rent || 0) - ((m.electricity||0) + (m.cleaning||0) + (m.gas||0) + (m.toll||0) + (m.parking||0)); });
+            expenses.filter(e => e.date.substring(0, 7) < reportMonth).forEach(e => { pastCashflow -= (e.amount || 0); }); // 所有過去支出都扣現金
+
+            const wholesaleCashSpentThisMonth = currentExpenses.filter(e => e.type === 'wholesale').reduce((sum, e) => sum + e.amount, 0);
+            const currentMonthCashflow = totalRevenue + storeShippingProfit - marketRent - marketMisc - supplyTotal - fixedTotal - salaryTotal - wholesaleCashSpentThisMonth;
+            const totalAccumulatedCash = pastCashflow + currentMonthCashflow; 
 
             const progressPercent = Math.min(100, Math.round((currentMonthNetProfit / settings.monthlyGoal) * 100)) || 0;
             const accTotal = currentMarket.reduce((sum, m) => sum + (m.accessories?.necklace||0) + (m.accessories?.hat||0) + (m.accessories?.bag||0) + (m.accessories?.other||0), 0);
             const storeGifts = currentDeliveries.reduce((sum, d) => sum + (d.giftCount || 0), 0);
             const marketGifts = currentMarket.reduce((sum, m) => sum + (m.giftCount || 0), 0);
             const giftTotal = storeGifts + marketGifts;
-            const marketDays = currentMarket.length;
 
             return (
                 <div className="animate-fade-in pb-20">
@@ -766,17 +793,17 @@
                     <Card className="bg-[#e8f5e9] bg-opacity-40 border-none mb-4">
                         <div className="flex items-center text-[#4caf50] font-bold text-lg mb-3"><Icon name="inventory_2" className="mr-2" /> 服飾庫存與成本</div>
                         <div className="flex items-center justify-between mb-3">
-                            <span className="text-[#5c4d43] font-bold">平均進貨單價 <span className="text-xs font-normal ml-1">(截至本月)</span></span>
+                            <span className="text-[#5c4d43] font-bold">平均進貨單價 <span className="text-xs font-normal ml-1">(不含在途)</span></span>
                             <span className="text-2xl font-black text-[#4caf50]">${avgUnitCost.toFixed(1)} <span className="text-xs text-[#a89689]">/件</span></span>
                         </div>
                         <div className="grid grid-cols-3 gap-2 border-t border-[#c8e6c9] pt-3 pb-2">
                             <div className="text-center">
-                                <div className="text-[10px] text-[#7a6453] font-bold">累積總進貨</div>
+                                <div className="text-[10px] text-[#7a6453] font-bold">累積已入庫</div>
                                 <div className="font-black text-[#5c4d43]">{accumulatedWholesaleQty}</div>
                             </div>
                             <div className="text-center border-x border-[#c8e6c9]">
                                 <div className="text-[10px] text-[#7a6453] font-bold">累積總售出</div>
-                                <div className="font-black text-[#5c4d43]">{accumulatedTotalSold}</div>
+                                <div className="font-black text-[#5c4d43]">{accumulatedStoreSoldQty + accumulatedMarketSoldQty}</div>
                             </div>
                             <div className="text-center">
                                 <div className="text-[10px] text-[#7a6453] font-bold">目前剩餘庫存</div>
@@ -787,26 +814,19 @@
                         {/* 盤點按鈕與輸入區塊 */}
                         <div className="mt-3 p-3 bg-white rounded-xl shadow-sm border border-[#c8e6c9]">
                             <div className="flex justify-between items-center mb-1">
-                                <span className="text-sm font-bold text-[#5c4d43]">本月市場自動估算售出</span>
-                                <span className="text-sm font-black text-[#5c4d43]">{currentMonthMarketSold} 件</span>
+                                <span className="text-sm font-bold text-[#5c4d43]">本月市場售出結算</span>
+                                <span className="text-sm font-black text-[#e57373]">{currentMonthMarketSold} 件</span>
                             </div>
-                            {currentMonthAdj !== 0 && (
-                                <div className="flex justify-between items-center mb-1">
-                                    <span className="text-sm font-bold text-[#e57373]">盤點盤差 (校正數量)</span>
-                                    <span className="text-sm font-black text-[#e57373]">{currentMonthAdj > 0 ? '+' : ''}{currentMonthAdj} 件</span>
-                                </div>
-                            )}
-
                             {isCheckingInventory ? (
-                                <div className="pt-3 mt-2 border-t border-[#c8e6c9] animate-fade-in">
+                                <div className="pt-3 mt-2 border-t border-[#f2e7df] animate-fade-in">
                                     <div className="text-xs text-[#a89689] mb-3 leading-relaxed">
-                                        輸入月底盤點數量，系統會將差異（可能被偷、沒記到、或單價有異）自動列入本月的「盤差」並修正銷貨成本。
+                                        輸入月底庫存後，系統會自動扣除網購寄出的件數，幫您精準算出這個月在市場賣了幾件。
                                     </div>
-                                    <div className="text-xs text-[#a89689] mb-1 font-bold">目前系統帳面庫存：{theoreticalInventory} 件</div>
+                                    <div className="text-xs text-[#a89689] mb-1 font-bold">如果市場沒賣出，目前帳面庫存: {theoreticalInventory} 件</div>
                                     <div className="flex items-center gap-2 mb-3">
-                                        <input type="number" placeholder="請輸入您盤點實際剩下幾件" value={actualInv} onChange={e=>setActualInv(e.target.value)} className="flex-[2] bg-[#fdfdfd] border border-[#c8e6c9] rounded-lg px-3 h-[40px] text-sm outline-none focus:border-[#4caf50] font-wawa"/>
+                                        <input type="number" placeholder="請輸入您盤點實際剩下幾件" value={actualInv} onChange={e=>setActualInv(e.target.value)} className="flex-[2] bg-[#fdfdfd] border border-[#f0e6e0] rounded-lg px-3 h-[40px] text-sm outline-none focus:border-[#4caf50] font-wawa"/>
                                         <div className="flex-1 text-xs font-bold text-[#4caf50] text-right">
-                                            推算盤差<br/><span className="text-lg">{(theoreticalInventory - (Number(actualInv)||0))}</span> 件
+                                            推算賣出<br/><span className="text-lg">{(theoreticalInventory - (Number(actualInv)||0)) > 0 ? (theoreticalInventory - (Number(actualInv)||0)) : 0}</span> 件
                                         </div>
                                     </div>
                                     <div className="flex gap-2">
@@ -816,7 +836,7 @@
                                 </div>
                             ) : (
                                 <button onClick={()=>{setActualInv(''); setIsCheckingInventory(true);}} className="w-full h-[36px] bg-[#f0f9f0] text-[#4caf50] rounded-lg text-sm font-bold mt-2 border border-[#c8e6c9] font-wawa transition-colors active:bg-[#e8f5e9]">
-                                    ✏️ 輸入月底盤點，修正本月成本
+                                    ✏️ 輸入月底盤點，結算市場銷量
                                 </button>
                             )}
                         </div>
@@ -862,7 +882,7 @@
                             <div className="flex justify-between items-center text-[#e57373]">
                                 <span className="flex items-center">
                                     <Icon name="remove" className="text-[14px] mr-1"/> 銷貨成本 
-                                    <span className="text-[10px] text-[#a89689] font-normal ml-1">(紀錄 {currentMonthStoreSold + currentMonthMarketSold} 件 {currentMonthAdj !== 0 ? `| 盤差 ${currentMonthAdj} 件` : ''})</span>
+                                    <span className="text-[10px] text-[#a89689] font-normal ml-1">(本月售出 {currentMonthSoldQty} 件)</span>
                                 </span>
                                 <span>-${currentMonthCOGS.toLocaleString()}</span>
                             </div>
@@ -937,6 +957,28 @@
                         </div>
                     </Card>
 
+                    {/* 🏦 公司現金流 */}
+                    <Card className="bg-[#f0f4c3] bg-opacity-30 border-none mb-4">
+                        <div className="text-center mb-3 pt-2">
+                            <div className="text-sm text-[#7a6453] font-bold mb-1"><Icon name="account_balance_wallet" className="align-middle text-[18px] mr-1"/>公司總現金餘額 (含在途支出)</div>
+                            <div className={`text-4xl font-black ${totalAccumulatedCash < 0 ? 'text-red-500' : 'text-[#827717]'}`}>
+                                {totalAccumulatedCash < 0 ? '-' : ''}${Math.abs(totalAccumulatedCash).toLocaleString()}
+                            </div>
+                        </div>
+                        <div className="flex justify-between text-sm border-t border-[#e6ee9c] pt-3 pb-1">
+                            <div className="text-center flex-1 border-r border-[#e6ee9c]">
+                                <div className="text-xs text-[#a89689] mb-1">上月結轉現金</div>
+                                <div className={`font-bold ${pastCashflow < 0 ? 'text-red-400' : 'text-[#7a6453]'}`}>${pastCashflow.toLocaleString()}</div>
+                            </div>
+                            <div className="text-center flex-1">
+                                <div className="text-xs text-[#a89689] mb-1">本月現金流動</div>
+                                <div className={`font-bold ${currentMonthCashflow < 0 ? 'text-red-500' : 'text-[#827717]'}`}>
+                                    {currentMonthCashflow >= 0 ? '+' : ''}${currentMonthCashflow.toLocaleString()}
+                                </div>
+                            </div>
+                        </div>
+                    </Card>
+
                     {/* 👑 專屬老闆成就區塊 */}
                     <Card className="bg-gradient-to-r from-[#fdfbfb] to-[#fffde7] border-[#fff59d] mb-4 flex items-center justify-between">
                         <div className="flex items-center">
@@ -947,9 +989,6 @@
                             </div>
                         </div>
                     </Card>
-                    
-                    <Card><div className="flex justify-between items-center text-base font-bold text-[#5c4d43]"><span className="flex items-center"><Icon name="diamond" className="mr-2 text-[#64b5f6]"/>當月配飾販售</span><span className="text-[#64b5f6]">共 {accTotal} 件</span></div></Card>
-                    <Card><div className="flex justify-between items-center text-base font-bold text-[#5c4d43]"><span className="flex items-center">🎁 當月贈品統計</span><span className="text-[#e57373]">共 {giftTotal} 件</span></div></Card>
                 </div>
             );
         };
@@ -1107,8 +1146,7 @@
             const [expenses, setExpenses] = useLocalStorage('xq_expenses', []);
             const [reservations, setReservations] = useLocalStorage('xq_reservations', []);
             const [settings, setSettings] = useLocalStorage('xq_settings', { monthlyGoal: 100000 });
-            // 將 market_sold 改為儲存每月的「盤差(調整數)」，以支援自動估算與精準校正
-            const [invAdjustments, setInvAdjustments] = useLocalStorage('xq_inv_adj', {});
+            const [marketSoldStats, setMarketSoldStats] = useLocalStorage('xq_market_sold', {});
             
             const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, id: null, collection: '' });
 
@@ -1134,7 +1172,7 @@
                         {activeTab === 'store' && <StoreTab deliveries={deliveries} setDeliveries={setDeliveries} setConfirmDialog={setConfirmDialog} />}
                         {activeTab === 'market' && <MarketTab marketSales={marketSales} setMarketSales={setMarketSales} setConfirmDialog={setConfirmDialog} />}
                         {activeTab === 'expense' && <ExpenseTab expenses={expenses} setExpenses={setExpenses} setConfirmDialog={setConfirmDialog} />}
-                        {activeTab === 'report' && <ReportTab deliveries={deliveries} marketSales={marketSales} expenses={expenses} settings={settings} setSettings={setSettings} invAdjustments={invAdjustments} setInvAdjustments={setInvAdjustments} />}
+                        {activeTab === 'report' && <ReportTab deliveries={deliveries} marketSales={marketSales} expenses={expenses} settings={settings} setSettings={setSettings} marketSoldStats={marketSoldStats} setMarketSoldStats={setMarketSoldStats} />}
                         {activeTab === 'reserve' && <ReserveTab reservations={reservations} setReservations={setReservations} setDeliveries={setDeliveries} setConfirmDialog={setConfirmDialog} />}
                     </main>
 
