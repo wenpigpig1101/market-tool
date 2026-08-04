@@ -54,26 +54,44 @@
         const { useState, useEffect, useMemo, Component } = React;
         const safeStr = (str) => String(str || '');
 
+        // --- 企業級防護罩：修復毒蘋果紀錄 ---
         class ErrorBoundary extends Component {
             constructor(props) {
                 super(props);
-                this.state = { hasError: false, errorStr: '' };
+                this.state = { hasError: false };
             }
             static getDerivedStateFromError(error) {
-                return { hasError: true, errorStr: error.toString() };
+                return { hasError: true };
             }
             componentDidCatch(error, errorInfo) {
                 console.error("渲染錯誤：", error, errorInfo);
+            }
+            repairAndReload() {
+                const cleanArray = (key) => {
+                    try {
+                        const raw = JSON.parse(localStorage.getItem(key));
+                        if (Array.isArray(raw)) {
+                            // 嚴格過濾掉 null 或 undefined 的毒蘋果紀錄
+                            const clean = raw.filter(i => i && typeof i === 'object');
+                            localStorage.setItem(key, JSON.stringify(clean));
+                        }
+                    } catch(e) {}
+                };
+                cleanArray('xq_deliveries');
+                cleanArray('xq_marketSales');
+                cleanArray('xq_expenses');
+                cleanArray('xq_reservations');
+                window.location.reload();
             }
             render() {
                 if (this.state.hasError) {
                     return (
                         <div className="flex flex-col h-screen p-8 text-center text-[#e57373] bg-[#fdfaf7] justify-center">
                             <div className="text-5xl mb-4">🛡️</div>
-                            <h2 className="text-xl font-bold mb-2">資料結構修復中</h2>
-                            <p className="text-sm text-[#a89689] mb-6 leading-relaxed">偵測到部分舊資料格式衝突。<br/>請點擊下方按鈕，系統將自動為您整理並重啟。</p>
-                            <button onClick={() => window.location.reload()} className="w-full py-4 bg-[#bc9f8b] text-white font-bold rounded-xl shadow-md">
-                                重新整理並修復
+                            <h2 className="text-xl font-bold mb-2">已攔截損壞紀錄</h2>
+                            <p className="text-sm text-[#a89689] mb-6 leading-relaxed">我們在您的手機存檔中發現了一筆隱形的異常空白紀錄，導致帳目無法計算。<br/>請點擊下方按鈕，系統將自動為您清除壞軌並重啟。</p>
+                            <button onClick={() => this.repairAndReload()} className="w-full py-4 bg-[#bc9f8b] text-white font-bold rounded-xl shadow-md">
+                                一鍵清除壞軌並修復
                             </button>
                         </div>
                     );
@@ -181,10 +199,10 @@
                 };
 
                 if (editingId) {
-                    setDeliveries(prev => prev.map(d => d.id === editingId ? { ...d, ...recordData } : d).sort((a,b)=>new Date(b.date)-new Date(a.date)));
+                    setDeliveries(prev => prev.map(d => d.id === editingId ? { ...d, ...recordData } : d).sort((a,b)=>new Date(b.date||0).getTime() - new Date(a.date||0).getTime()));
                 } else {
                     const newRecord = { id: Date.now().toString(), ...recordData };
-                    setDeliveries(prev => [newRecord, ...prev].sort((a,b)=>new Date(b.date)-new Date(a.date)));
+                    setDeliveries(prev => [newRecord, ...prev].sort((a,b)=>new Date(b.date||0).getTime() - new Date(a.date||0).getTime()));
                 }
                 resetForm();
             };
@@ -346,10 +364,10 @@
                 };
                 
                 if (editingId) {
-                    setMarketSales(prev => prev.map(m => m.id === editingId ? { ...m, ...recordData } : m).sort((a,b)=>new Date(b.date)-new Date(a.date)));
+                    setMarketSales(prev => prev.map(m => m.id === editingId ? { ...m, ...recordData } : m).sort((a,b)=>new Date(b.date||0).getTime() - new Date(a.date||0).getTime()));
                 } else {
                     const newRecord = { id: Date.now().toString(), ...recordData };
-                    setMarketSales(prev => [newRecord, ...prev].sort((a,b)=>new Date(b.date)-new Date(a.date)));
+                    setMarketSales(prev => [newRecord, ...prev].sort((a,b)=>new Date(b.date||0).getTime() - new Date(a.date||0).getTime()));
                 }
                 resetForm();
             };
@@ -410,7 +428,7 @@
             };
 
             const searchedSales = searchTerm
-                ? marketSales.filter(m => safeStr(m.location).includes(searchTerm)).sort((a, b) => new Date(b.date) - new Date(a.date))
+                ? marketSales.filter(m => safeStr(m.location).includes(searchTerm)).sort((a, b) => new Date(b.date||0).getTime() - new Date(a.date||0).getTime())
                 : [];
 
             const renderSearchResults = () => {
@@ -619,10 +637,10 @@
                 };
 
                 if (editingId) {
-                    setExpenses(prev => prev.map(e => e.id === editingId ? { ...e, ...recordData } : e).sort((a,b)=>new Date(b.date)-new Date(a.date)));
+                    setExpenses(prev => prev.map(e => e.id === editingId ? { ...e, ...recordData } : e).sort((a,b)=>new Date(b.date||0).getTime() - new Date(a.date||0).getTime()));
                 } else {
                     const newRecord = { id: Date.now().toString(), ...recordData };
-                    setExpenses(prev => [newRecord, ...prev].sort((a,b)=>new Date(b.date)-new Date(a.date)));
+                    setExpenses(prev => [newRecord, ...prev].sort((a,b)=>new Date(b.date||0).getTime() - new Date(a.date||0).getTime()));
                 }
                 resetForm();
             };
@@ -774,7 +792,7 @@
             );
         }
 
-        // --- 分頁 4：報表 (極簡存摺與瀑布流 P&L 版) ---
+        // --- 分頁 4：報表 (極簡存摺版與瀑布流P&L) ---
         const ReportTab = ({ deliveries, marketSales, expenses, settings, setSettings, marketSoldStats, setMarketSoldStats }) => {
             const [reportMonth, setReportMonth] = useState(() => {
                 const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -799,41 +817,33 @@
                 if (newCapital && !isNaN(newCapital)) setSettings({ ...(settings || {}), startupCapital: Number(newCapital) });
             };
 
-            // ---- 1. 全期存摺加減法 (口袋真實現金) ----
-            // 收進來的錢 = 總業績 + 代收運費
+            // ---- 1. 極簡存摺法 (口袋真實現金) ----
             const allTimeRev = deliveries.reduce((sum, d) => sum + (Number(d.revenue)||0) + (Number(d.shippingIncome)||0), 0) +
                                marketSales.reduce((sum, m) => sum + (Number(m.revenue)||0), 0);
             
-            // 擺攤花掉的錢 = 租金 + 雜支 + 付出運費
             const allTimeMarketExp = deliveries.reduce((sum, d) => sum + (Number(d.shippingExpense)||0), 0) +
                                      marketSales.reduce((sum, m) => sum + (Number(m.rent)||0) + (Number(m.electricity)||0) + (Number(m.cleaning)||0) + (Number(m.gas)||0) + (Number(m.toll)||0) + (Number(m.parking)||0), 0);
             
-            // 批貨花掉的錢
             const allTimeWholesale = expenses.filter(e => e.type === 'wholesale').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
-            // 買包材/水電/老闆薪水
             const allTimeOtherExp = expenses.filter(e => e.type !== 'wholesale').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
 
-            // 超直白公式： 本金 + 收入 - 擺攤費 - 批貨費 - 包材費
+            // 本金 + 收入 - 擺攤費 - 批貨費 - 包材費
             const pocketCash = currentStartupCap + allTimeRev - allTimeMarketExp - allTimeWholesale - allTimeOtherExp;
-
 
             // ---- 2. 計算本月瀑布流損益 ----
             const currentDeliveries = deliveries.filter(d => safeStr(d.date).startsWith(reportMonth) && d.status === 'shipped');
             const currentMarket = marketSales.filter(m => safeStr(m.date).startsWith(reportMonth));
             const currentExpenses = expenses.filter(e => safeStr(e.date).startsWith(reportMonth));
 
-            // 本月業績
             const storeRevenue = currentDeliveries.reduce((sum, d) => sum + (Number(d.revenue) || 0), 0);
             const marketRevenue = currentMarket.reduce((sum, m) => sum + (Number(m.revenue) || 0), 0);
             const monthlyTotalRev = storeRevenue + marketRevenue;
 
-            // 本月擺攤花費 (租金雜支 + 超商實際倒貼的運費)
             const marketMiscAndRent = currentMarket.reduce((sum, m) => sum + (Number(m.rent)||0) + (Number(m.electricity)||0) + (Number(m.cleaning)||0) + (Number(m.gas)||0) + (Number(m.toll)||0) + (Number(m.parking)||0), 0);
             const storeShippingNetExp = currentDeliveries.reduce((sum, d) => sum + (Number(d.shippingExpense)||0) - (Number(d.shippingIncome)||0), 0);
             const monthlyMarketExp = marketMiscAndRent + (storeShippingNetExp > 0 ? storeShippingNetExp : 0);
             const monthlyShippingProfit = storeShippingNetExp < 0 ? Math.abs(storeShippingNetExp) : 0; 
             
-            // 帶回家的現金 (淨收入) = 業績 - 擺攤花費 + 運費多收的錢
             const frontlineNetIncome = monthlyTotalRev - monthlyMarketExp + monthlyShippingProfit;
 
             // ---- 3. 庫存與進貨成本 (包含盤點邏輯) ----
@@ -866,24 +876,23 @@
                 setActualInv('');
             };
 
-            // 本月賣出衣服的總成本
             const currentMonthStoreSold = currentDeliveries.reduce((sum, d) => sum + (Number(d.soldQty) || 1), 0);
             const currentMonthMarketDailySold = currentMarket.reduce((sum, m) => sum + (Number(m.soldQty) || 0), 0);
             const currentMonthTotalSoldQty = currentMonthStoreSold + currentMonthMarketDailySold + currentMonthAdj;
             
             const monthlyCOGS = Math.round(currentMonthTotalSoldQty * avgUnitCost);
 
-            // 真實毛利
             const grossProfit = frontlineNetIncome - monthlyCOGS;
 
-            // 本月公司後勤花費
             const monthlySupplyExp = currentExpenses.filter(e => e.type === 'supply' || e.type === 'fixed').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const monthlySalary = currentExpenses.filter(e => e.type === 'salary').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             
-            // 最終淨利
             const monthlyNetProfit = grossProfit - monthlySupplyExp - monthlySalary;
 
             const viewParts = safeStr(reportMonth).split('-');
+
+            const storeGifts = currentDeliveries.reduce((sum, d) => sum + (Number(d.giftCount) || 0), 0);
+            const marketGifts = currentMarket.reduce((sum, m) => sum + (Number(m.giftCount) || 0), 0);
 
             return (
                 <div className="animate-fade-in pb-20">
@@ -1090,10 +1099,10 @@
                 const recordData = { date, customerName, itemsCount: Number(itemsCount) || 1, note };
                 
                 if (editingId) {
-                    setReservations(prev => prev.map(r => r.id === editingId ? { ...r, ...recordData } : r).sort((a,b)=>new Date(b.date)-new Date(a.date)));
+                    setReservations(prev => prev.map(r => r.id === editingId ? { ...r, ...recordData } : r).sort((a,b)=>new Date(b.date||0).getTime() - new Date(a.date||0).getTime()));
                 } else {
                     const newRecord = { id: Date.now().toString(), ...recordData };
-                    setReservations(prev => [newRecord, ...prev].sort((a,b)=>new Date(b.date)-new Date(a.date)));
+                    setReservations(prev => [newRecord, ...prev].sort((a,b)=>new Date(b.date||0).getTime() - new Date(a.date||0).getTime()));
                 }
                 resetForm();
             };
@@ -1119,7 +1128,7 @@
                     shippingExpense: Number(tShippingExpense) || 0, shippingIncome: Number(tShippingIncome) || 0,
                     hasGift: tHasGift, giftCount: tHasGift ? (Number(tGiftCount) || 0) : 0, status: 'pending' 
                 };
-                setDeliveries(prev => [newDelivery, ...prev].sort((a,b)=>new Date(b.date)-new Date(a.date)));
+                setDeliveries(prev => [newDelivery, ...prev].sort((a,b)=>new Date(b.date||0).getTime() - new Date(a.date||0).getTime()));
                 setReservations(prev => prev.filter(r => r.id !== transferRecord.id));
                 setTransferRecord(null);
             };
@@ -1217,11 +1226,11 @@
             const [settingsRaw, setSettings] = useLocalStorage('xq_settings', { monthlyGoal: 100000, startupCapital: 36284 });
             const [marketSoldStatsRaw, setMarketSoldStats] = useLocalStorage('xq_market_sold', {});
 
-            // 強制清洗資料，避免舊版髒資料導致 map 或 filter 崩潰
-            const deliveries = Array.isArray(deliveriesRaw) ? deliveriesRaw : [];
-            const marketSales = Array.isArray(marketSalesRaw) ? marketSalesRaw : [];
-            const expenses = Array.isArray(expensesRaw) ? expensesRaw : [];
-            const reservations = Array.isArray(reservationsRaw) ? reservationsRaw : [];
+            // 👑 終極防護機制：強制清除任何可能的隱形錯誤或 null，確保每一次 map 和 filter 都能活著通過
+            const deliveries = (Array.isArray(deliveriesRaw) ? deliveriesRaw : []).filter(i => i && typeof i === 'object');
+            const marketSales = (Array.isArray(marketSalesRaw) ? marketSalesRaw : []).filter(i => i && typeof i === 'object');
+            const expenses = (Array.isArray(expensesRaw) ? expensesRaw : []).filter(i => i && typeof i === 'object');
+            const reservations = (Array.isArray(reservationsRaw) ? reservationsRaw : []).filter(i => i && typeof i === 'object');
             const settings = (typeof settingsRaw === 'object' && settingsRaw !== null) ? settingsRaw : { monthlyGoal: 100000, startupCapital: 36284 };
             const marketSoldStats = (typeof marketSoldStatsRaw === 'object' && marketSoldStatsRaw !== null) ? marketSoldStatsRaw : {};
             
