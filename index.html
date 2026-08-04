@@ -74,7 +74,10 @@
                             <div className="text-5xl mb-4">🛡️</div>
                             <h2 className="text-xl font-bold mb-2">資料結構修復中</h2>
                             <p className="text-sm text-[#a89689] mb-6 leading-relaxed">偵測到部分舊資料格式衝突。<br/>請點擊下方按鈕，系統將自動為您整理並重啟。</p>
-                            <button onClick={() => window.location.reload()} className="w-full py-4 bg-[#bc9f8b] text-white font-bold rounded-xl shadow-md">
+                            <button onClick={() => {
+                                localStorage.setItem('xq_deliveries', '[]');
+                                window.location.reload();
+                            }} className="w-full py-4 bg-[#bc9f8b] text-white font-bold rounded-xl shadow-md">
                                 重新整理並修復
                             </button>
                         </div>
@@ -776,7 +779,7 @@
             );
         }
 
-        // --- 分頁 4：報表 (折疊明細終極版) ---
+        // --- 分頁 4：報表 (極簡存摺版與瀑布流P&L) ---
         const ReportTab = ({ deliveries, marketSales, expenses, settings, setSettings, marketSoldStats, setMarketSoldStats }) => {
             const [reportMonth, setReportMonth] = useState(() => {
                 const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -784,7 +787,6 @@
             const [isCheckingInventory, setIsCheckingInventory] = useState(false);
             const [actualInv, setActualInv] = useState('');
 
-            // 折疊開關狀態
             const [expAllRev, setExpAllRev] = useState(false);
             const [expAllWhole, setExpAllWhole] = useState(false);
             const [expAllOther, setExpAllOther] = useState(false);
@@ -801,7 +803,6 @@
                 }
                 setIsCheckingInventory(false);
                 setActualInv('');
-                // 切換月份時收起所有折疊
                 setExpMoRev(false); setExpMoMarket(false); setExpMoOther(false);
             };
 
@@ -812,7 +813,7 @@
                 if (newCapital && !isNaN(newCapital)) setSettings({ ...(settings || {}), startupCapital: Number(newCapital) });
             };
 
-            // ---- 1. 歷史全期資金流向 ----
+            // ---- 1. 全期存摺加減法 (口袋真實現金) ----
             const allTimeMarketRev = marketSales.reduce((sum, m) => sum + (Number(m.revenue)||0), 0);
             const allTimeStoreRev = deliveries.reduce((sum, d) => sum + (Number(d.revenue)||0), 0);
             const allTimeStoreShipIn = deliveries.reduce((sum, d) => sum + (Number(d.shippingIncome)||0), 0);
@@ -903,6 +904,9 @@
 
             const viewParts = safeStr(reportMonth).split('-');
 
+            const storeGifts = currentDeliveries.reduce((sum, d) => sum + (Number(d.giftCount) || 0), 0);
+            const marketGifts = currentMarket.reduce((sum, m) => sum + (Number(m.giftCount) || 0), 0);
+
             return (
                 <div className="animate-fade-in pb-20">
                     <div className="flex justify-between items-center bg-white rounded-2xl p-3 shadow-sm border border-[#f2e7df] mb-4">
@@ -911,7 +915,7 @@
                         <button onClick={() => changeMonth(1)} className="p-2 text-[#a89689]"><Icon name="chevron_right" /></button>
                     </div>
 
-                    {/* 🎯 極簡口袋現金存摺 (加入折疊細項) */}
+                    {/* 🎯 極簡口袋現金存摺 */}
                     <Card className="bg-[#fffde7] border-[#fff59d] mb-4 shadow-md">
                         <div className="flex justify-between items-start mb-2">
                             <div className="flex items-center text-[#f57f17] font-bold text-lg">
@@ -1287,35 +1291,45 @@
             );
         };
 
-        // --- 應用程式主體 ---
+        // --- 應用程式主體 (V9 防彈過濾器) ---
         const App = () => {
             const [activeTab, setActiveTab] = useState('store');
             
             // 使用本機儲存 Hook 管理所有資料
-            const [deliveriesRaw, setDeliveries] = useLocalStorage('xq_deliveries', []);
-            const [marketSalesRaw, setMarketSales] = useLocalStorage('xq_marketSales', []);
-            const [expensesRaw, setExpenses] = useLocalStorage('xq_expenses', []);
-            const [reservationsRaw, setReservations] = useLocalStorage('xq_reservations', []);
-            const [settingsRaw, setSettings] = useLocalStorage('xq_settings', { monthlyGoal: 100000, startupCapital: 36284 });
-            const [marketSoldStatsRaw, setMarketSoldStats] = useLocalStorage('xq_market_sold', {});
+            const [deliveriesRaw, setDeliveriesRaw] = useLocalStorage('xq_deliveries', []);
+            const [marketSalesRaw, setMarketSalesRaw] = useLocalStorage('xq_marketSales', []);
+            const [expensesRaw, setExpensesRaw] = useLocalStorage('xq_expenses', []);
+            const [reservationsRaw, setReservationsRaw] = useLocalStorage('xq_reservations', []);
+            const [settingsRaw, setSettingsRaw] = useLocalStorage('xq_settings', { monthlyGoal: 100000, startupCapital: 36284 });
+            const [marketSoldStatsRaw, setMarketSoldStatsRaw] = useLocalStorage('xq_market_sold', {});
 
-            // 👑 終極防護機制：強制清除任何可能的隱形錯誤或 null，確保每一次 map 和 filter 都能活著通過
-            const deliveries = (Array.isArray(deliveriesRaw) ? deliveriesRaw : []).filter(i => i && typeof i === 'object');
-            const marketSales = (Array.isArray(marketSalesRaw) ? marketSalesRaw : []).filter(i => i && typeof i === 'object');
-            const expenses = (Array.isArray(expensesRaw) ? expensesRaw : []).filter(i => i && typeof i === 'object');
-            const reservations = (Array.isArray(reservationsRaw) ? reservationsRaw : []).filter(i => i && typeof i === 'object');
-            const settings = (typeof settingsRaw === 'object' && settingsRaw !== null) ? settingsRaw : { monthlyGoal: 100000, startupCapital: 36284 };
-            const marketSoldStats = (typeof marketSoldStatsRaw === 'object' && marketSoldStatsRaw !== null) ? marketSoldStatsRaw : {};
+            // 👑 絕對安全的資料提取器 (保證只回傳合法陣列)
+            const getSafeArr = (arr) => (Array.isArray(arr) ? arr : []).filter(i => i && typeof i === 'object' && !Array.isArray(i));
+
+            const deliveries = getSafeArr(deliveriesRaw);
+            const marketSales = getSafeArr(marketSalesRaw);
+            const expenses = getSafeArr(expensesRaw);
+            const reservations = getSafeArr(reservationsRaw);
+            const settings = (typeof settingsRaw === 'object' && settingsRaw !== null && !Array.isArray(settingsRaw)) ? settingsRaw : { monthlyGoal: 100000, startupCapital: 36284 };
+            const marketSoldStats = (typeof marketSoldStatsRaw === 'object' && marketSoldStatsRaw !== null && !Array.isArray(marketSoldStatsRaw)) ? marketSoldStatsRaw : {};
+
+            // 👑 安全 Setter (保證寫入時不會把 prev 變成奇奇怪怪的東西)
+            const setDeliveries = (updater) => setDeliveriesRaw(prev => typeof updater === 'function' ? updater(getSafeArr(prev)) : updater);
+            const setMarketSales = (updater) => setMarketSalesRaw(prev => typeof updater === 'function' ? updater(getSafeArr(prev)) : updater);
+            const setExpenses = (updater) => setExpensesRaw(prev => typeof updater === 'function' ? updater(getSafeArr(prev)) : updater);
+            const setReservations = (updater) => setReservationsRaw(prev => typeof updater === 'function' ? updater(getSafeArr(prev)) : updater);
+            const setSettings = (updater) => setSettingsRaw(prev => typeof updater === 'function' ? updater((typeof prev === 'object' && prev !== null && !Array.isArray(prev)) ? prev : { monthlyGoal: 100000, startupCapital: 36284 }) : updater);
+            const setMarketSoldStats = (updater) => setMarketSoldStatsRaw(prev => typeof updater === 'function' ? updater((typeof prev === 'object' && prev !== null && !Array.isArray(prev)) ? prev : {}) : updater);
             
             const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, id: null, collection: '' });
 
             const executeDelete = () => {
                 const { id, collection } = confirmDialog;
                 if(id && collection) {
-                    if (collection === 'deliveries') setDeliveries(prev => (Array.isArray(prev)?prev:[]).filter(d => d.id !== id));
-                    if (collection === 'market_sales') setMarketSales(prev => (Array.isArray(prev)?prev:[]).filter(m => m.id !== id));
-                    if (collection === 'expenses') setExpenses(prev => (Array.isArray(prev)?prev:[]).filter(e => e.id !== id));
-                    if (collection === 'reservations') setReservations(prev => (Array.isArray(prev)?prev:[]).filter(r => r.id !== id));
+                    if (collection === 'deliveries') setDeliveries(prev => prev.filter(d => d.id !== id));
+                    if (collection === 'market_sales') setMarketSales(prev => prev.filter(m => m.id !== id));
+                    if (collection === 'expenses') setExpenses(prev => prev.filter(e => e.id !== id));
+                    if (collection === 'reservations') setReservations(prev => prev.filter(r => r.id !== id));
                 }
                 setConfirmDialog({isOpen: false, id: null, collection: ''});
             };
