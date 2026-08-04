@@ -56,6 +56,13 @@
         const { useState, useEffect, useMemo, Component } = React;
         const safeStr = (str) => String(str || '');
 
+        // 🍏 蘋果專屬防當機時間解析器
+        const safeTime = (d) => {
+            if (!d) return 0;
+            const t = new Date(d).getTime();
+            return isNaN(t) ? 0 : t;
+        };
+
         class ErrorBoundary extends Component {
             constructor(props) {
                 super(props);
@@ -67,18 +74,56 @@
             componentDidCatch(error, errorInfo) {
                 console.error("渲染錯誤：", error, errorInfo);
             }
+            repairAndReload() {
+                // 深度醫療包：清洗所有的損壞陣列與不合法的日期
+                const cleanArray = (key) => {
+                    try {
+                        const raw = JSON.parse(localStorage.getItem(key));
+                        if (Array.isArray(raw)) {
+                            const today = new Date().toISOString().split('T')[0];
+                            const clean = raw
+                                .filter(i => i && typeof i === 'object' && !Array.isArray(i))
+                                .map(i => {
+                                    // 強制修復壞掉的日期
+                                    const t = new Date(i.date).getTime();
+                                    if (!i.date || isNaN(t)) {
+                                        return { ...i, date: today };
+                                    }
+                                    return i;
+                                });
+                            localStorage.setItem(key, JSON.stringify(clean));
+                        } else {
+                            localStorage.setItem(key, '[]');
+                        }
+                    } catch(e) {
+                        localStorage.setItem(key, '[]');
+                    }
+                };
+                
+                cleanArray('xq_deliveries');
+                cleanArray('xq_marketSales');
+                cleanArray('xq_expenses');
+                cleanArray('xq_reservations');
+
+                try {
+                    const stats = JSON.parse(localStorage.getItem('xq_market_sold'));
+                    if (!stats || typeof stats !== 'object' || Array.isArray(stats)) {
+                        localStorage.setItem('xq_market_sold', '{}');
+                    }
+                } catch(e) {}
+
+                window.location.reload();
+            }
             render() {
                 if (this.state.hasError) {
                     return (
                         <div className="flex flex-col h-screen p-8 text-center text-[#e57373] bg-[#fdfaf7] justify-center">
                             <div className="text-5xl mb-4">🛡️</div>
                             <h2 className="text-xl font-bold mb-2">資料結構修復中</h2>
-                            <p className="text-sm text-[#a89689] mb-6 leading-relaxed">偵測到部分舊資料格式衝突。<br/>請點擊下方按鈕，系統將自動為您整理並重啟。</p>
-                            <button onClick={() => {
-                                localStorage.setItem('xq_deliveries', '[]');
-                                window.location.reload();
-                            }} className="w-full py-4 bg-[#bc9f8b] text-white font-bold rounded-xl shadow-md">
-                                重新整理並修復
+                            <p className="text-sm text-[#a89689] mb-4 leading-relaxed">偵測到部分舊資料格式衝突。<br/>請點擊下方按鈕，系統將為您自動修復。</p>
+                            <textarea className="w-full h-16 p-2 text-[9px] bg-white border border-[#f2e7df] rounded-xl mb-6 custom-scrollbar opacity-60" readOnly value={this.state.errorStr}></textarea>
+                            <button onClick={() => this.repairAndReload()} className="w-full py-4 bg-[#bc9f8b] text-white font-bold rounded-xl shadow-md">
+                                一鍵修復並重新整理
                             </button>
                         </div>
                     );
@@ -186,10 +231,10 @@
                 };
 
                 if (editingId) {
-                    setDeliveries(prev => prev.map(d => d.id === editingId ? { ...d, ...recordData } : d).sort((a,b)=>new Date(b.date||0).getTime() - new Date(a.date||0).getTime()));
+                    setDeliveries(prev => prev.map(d => d.id === editingId ? { ...d, ...recordData } : d).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
                 } else {
                     const newRecord = { id: Date.now().toString(), ...recordData };
-                    setDeliveries(prev => [newRecord, ...prev].sort((a,b)=>new Date(b.date||0).getTime() - new Date(a.date||0).getTime()));
+                    setDeliveries(prev => [newRecord, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
                 }
                 resetForm();
             };
@@ -351,10 +396,10 @@
                 };
                 
                 if (editingId) {
-                    setMarketSales(prev => prev.map(m => m.id === editingId ? { ...m, ...recordData } : m).sort((a,b)=>new Date(b.date||0).getTime() - new Date(a.date||0).getTime()));
+                    setMarketSales(prev => prev.map(m => m.id === editingId ? { ...m, ...recordData } : m).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
                 } else {
                     const newRecord = { id: Date.now().toString(), ...recordData };
-                    setMarketSales(prev => [newRecord, ...prev].sort((a,b)=>new Date(b.date||0).getTime() - new Date(a.date||0).getTime()));
+                    setMarketSales(prev => [newRecord, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
                 }
                 resetForm();
             };
@@ -415,7 +460,7 @@
             };
 
             const searchedSales = searchTerm
-                ? marketSales.filter(m => safeStr(m.location).includes(searchTerm)).sort((a, b) => new Date(b.date||0).getTime() - new Date(a.date||0).getTime())
+                ? marketSales.filter(m => safeStr(m.location).includes(searchTerm)).sort((a, b) => safeTime(b.date) - safeTime(a.date))
                 : [];
 
             const renderSearchResults = () => {
@@ -624,10 +669,10 @@
                 };
 
                 if (editingId) {
-                    setExpenses(prev => prev.map(e => e.id === editingId ? { ...e, ...recordData } : e).sort((a,b)=>new Date(b.date||0).getTime() - new Date(a.date||0).getTime()));
+                    setExpenses(prev => prev.map(e => e.id === editingId ? { ...e, ...recordData } : e).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
                 } else {
                     const newRecord = { id: Date.now().toString(), ...recordData };
-                    setExpenses(prev => [newRecord, ...prev].sort((a,b)=>new Date(b.date||0).getTime() - new Date(a.date||0).getTime()));
+                    setExpenses(prev => [newRecord, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
                 }
                 resetForm();
             };
@@ -893,6 +938,7 @@
             const currentMonthTotalSoldQty = currentMonthStoreSold + currentMonthMarketDailySold + currentMonthAdj;
             
             const monthlyCOGS = Math.round(currentMonthTotalSoldQty * avgUnitCost);
+
             const grossProfit = frontlineNetIncome - monthlyCOGS;
 
             const monthlySupplyExp = currentExpenses.filter(e => e.type === 'supply').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
@@ -1176,10 +1222,10 @@
                 const recordData = { date, customerName, itemsCount: Number(itemsCount) || 1, note };
                 
                 if (editingId) {
-                    setReservations(prev => prev.map(r => r.id === editingId ? { ...r, ...recordData } : r).sort((a,b)=>new Date(b.date||0).getTime() - new Date(a.date||0).getTime()));
+                    setReservations(prev => prev.map(r => r.id === editingId ? { ...r, ...recordData } : r).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
                 } else {
                     const newRecord = { id: Date.now().toString(), ...recordData };
-                    setReservations(prev => [newRecord, ...prev].sort((a,b)=>new Date(b.date||0).getTime() - new Date(a.date||0).getTime()));
+                    setReservations(prev => [newRecord, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
                 }
                 resetForm();
             };
@@ -1205,7 +1251,7 @@
                     shippingExpense: Number(tShippingExpense) || 0, shippingIncome: Number(tShippingIncome) || 0,
                     hasGift: tHasGift, giftCount: tHasGift ? (Number(tGiftCount) || 0) : 0, status: 'pending' 
                 };
-                setDeliveries(prev => [newDelivery, ...prev].sort((a,b)=>new Date(b.date||0).getTime() - new Date(a.date||0).getTime()));
+                setDeliveries(prev => [newDelivery, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
                 setReservations(prev => prev.filter(r => r.id !== transferRecord.id));
                 setTransferRecord(null);
             };
@@ -1291,20 +1337,22 @@
             );
         };
 
-        // --- 應用程式主體 (V9 防彈過濾器) ---
+        // --- 應用程式主體 (V10 終極防當機特仕版) ---
         const App = () => {
             const [activeTab, setActiveTab] = useState('store');
             
-            // 使用本機儲存 Hook 管理所有資料
+            // 基礎資料過濾器
+            const getSafeArr = (arr) => {
+                if (!Array.isArray(arr)) return [];
+                return arr.filter(i => i !== null && typeof i === 'object' && !Array.isArray(i));
+            };
+
             const [deliveriesRaw, setDeliveriesRaw] = useLocalStorage('xq_deliveries', []);
             const [marketSalesRaw, setMarketSalesRaw] = useLocalStorage('xq_marketSales', []);
             const [expensesRaw, setExpensesRaw] = useLocalStorage('xq_expenses', []);
             const [reservationsRaw, setReservationsRaw] = useLocalStorage('xq_reservations', []);
             const [settingsRaw, setSettingsRaw] = useLocalStorage('xq_settings', { monthlyGoal: 100000, startupCapital: 36284 });
             const [marketSoldStatsRaw, setMarketSoldStatsRaw] = useLocalStorage('xq_market_sold', {});
-
-            // 👑 絕對安全的資料提取器 (保證只回傳合法陣列)
-            const getSafeArr = (arr) => (Array.isArray(arr) ? arr : []).filter(i => i && typeof i === 'object' && !Array.isArray(i));
 
             const deliveries = getSafeArr(deliveriesRaw);
             const marketSales = getSafeArr(marketSalesRaw);
@@ -1313,7 +1361,6 @@
             const settings = (typeof settingsRaw === 'object' && settingsRaw !== null && !Array.isArray(settingsRaw)) ? settingsRaw : { monthlyGoal: 100000, startupCapital: 36284 };
             const marketSoldStats = (typeof marketSoldStatsRaw === 'object' && marketSoldStatsRaw !== null && !Array.isArray(marketSoldStatsRaw)) ? marketSoldStatsRaw : {};
 
-            // 👑 安全 Setter (保證寫入時不會把 prev 變成奇奇怪怪的東西)
             const setDeliveries = (updater) => setDeliveriesRaw(prev => typeof updater === 'function' ? updater(getSafeArr(prev)) : updater);
             const setMarketSales = (updater) => setMarketSalesRaw(prev => typeof updater === 'function' ? updater(getSafeArr(prev)) : updater);
             const setExpenses = (updater) => setExpensesRaw(prev => typeof updater === 'function' ? updater(getSafeArr(prev)) : updater);
