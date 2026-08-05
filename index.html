@@ -701,6 +701,16 @@
             const trafficTotal = expenses.filter(e => e.type === 'traffic').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const salaryTotal = expenses.filter(e => e.type === 'salary').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
 
+            // 當月累積計算
+            const currentMonth = safeStr(date).substring(0, 7);
+            const currentMonthExpenses = expenses.filter(e => safeStr(e.date).startsWith(currentMonth));
+            
+            const wholesaleMonthTotal = currentMonthExpenses.filter(e => e.type === 'wholesale').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
+            const supplyMonthTotal = currentMonthExpenses.filter(e => e.type === 'supply').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
+            const fixedMonthTotal = currentMonthExpenses.filter(e => e.type === 'fixed').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
+            const trafficMonthTotal = currentMonthExpenses.filter(e => e.type === 'traffic').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
+            const salaryMonthTotal = currentMonthExpenses.filter(e => e.type === 'salary').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
+
             const typeConfig = {
                 wholesale: { label: '批貨進貨', color: 'bg-[#e57373]', text: 'text-[#e57373]', bgLight: 'bg-[#ffebee]', placeholder: '批貨品名 / 廠商' },
                 supply: { label: '生財包材', color: 'bg-[#64b5f6]', text: 'text-[#64b5f6]', bgLight: 'bg-[#e0f7fa]', placeholder: '如: 品牌袋、衣架、文具' },
@@ -770,26 +780,51 @@
                     </Card>
 
                     <div className="grid grid-cols-2 gap-3 mb-6">
-                        <div className="bg-white rounded-xl p-3 shadow-sm border border-[#f2e7df] text-center">
-                            <div className="text-[11px] text-[#a89689] font-bold mb-1">累積批貨支出</div>
-                            <div className="text-lg font-black text-[#e57373]">${wholesaleTotal.toLocaleString()}</div>
-                            {inTransitTotal > 0 && <div className="text-[9px] text-[#f57f17] font-bold mt-0.5">含在途未入庫 ${inTransitTotal.toLocaleString()}</div>}
+                        <div className="bg-white rounded-xl p-3 shadow-sm border border-[#f2e7df] text-center flex flex-col justify-between">
+                            <div>
+                                <div className="text-[11px] text-[#a89689] font-bold mb-1">歷史總批貨支出</div>
+                                <div className="text-lg font-black text-[#e57373]">${wholesaleTotal.toLocaleString()}</div>
+                                {inTransitTotal > 0 && <div className="text-[9px] text-[#f57f17] font-bold mt-0.5">含在途未入庫 ${inTransitTotal.toLocaleString()}</div>}
+                            </div>
+                            <div className="text-[10px] text-[#7a6453] font-bold mt-1.5 pt-1.5 border-t border-[#fdfaf7] bg-[#fdfaf7] rounded -mx-1 -mb-1 pb-1">
+                                本月 ({parseInt(currentMonth.substring(5,7))}月): <span className="text-[#e57373]">${wholesaleMonthTotal.toLocaleString()}</span>
+                            </div>
                         </div>
-                        <div className="bg-white rounded-xl p-3 shadow-sm border border-[#f2e7df] text-center">
-                            <div className="text-[11px] text-[#a89689] font-bold mb-1">累積生財/包材</div>
-                            <div className="text-lg font-black text-[#64b5f6]">${supplyTotal.toLocaleString()}</div>
+                        <div className="bg-white rounded-xl p-3 shadow-sm border border-[#f2e7df] text-center flex flex-col justify-between">
+                            <div>
+                                <div className="text-[11px] text-[#a89689] font-bold mb-1">歷史總生財/包材</div>
+                                <div className="text-lg font-black text-[#64b5f6]">${supplyTotal.toLocaleString()}</div>
+                            </div>
+                            <div className="text-[10px] text-[#7a6453] font-bold mt-1.5 pt-1.5 border-t border-[#fdfaf7] bg-[#fdfaf7] rounded -mx-1 -mb-1 pb-1">
+                                本月 ({parseInt(currentMonth.substring(5,7))}月): <span className="text-[#64b5f6]">${supplyMonthTotal.toLocaleString()}</span>
+                            </div>
                         </div>
-                        <div className="bg-white rounded-xl p-3 shadow-sm border border-[#f2e7df] text-center">
-                            <div className="text-[11px] text-[#a89689] font-bold mb-1">累積倉租/水電</div>
-                            <div className="text-lg font-black text-[#81c784]">${fixedTotal.toLocaleString()}</div>
+                        <div className="bg-white rounded-xl p-3 shadow-sm border border-[#f2e7df] text-center flex flex-col justify-between">
+                            <div>
+                                <div className="text-[11px] text-[#a89689] font-bold mb-1">歷史總倉租/水電</div>
+                                <div className="text-lg font-black text-[#81c784]">${fixedTotal.toLocaleString()}</div>
+                            </div>
+                            <div className="text-[10px] text-[#7a6453] font-bold mt-1.5 pt-1.5 border-t border-[#fdfaf7] bg-[#fdfaf7] rounded -mx-1 -mb-1 pb-1">
+                                本月 ({parseInt(currentMonth.substring(5,7))}月): <span className="text-[#81c784]">${fixedMonthTotal.toLocaleString()}</span>
+                            </div>
                         </div>
-                        <div className="bg-white rounded-xl p-3 shadow-sm border border-[#f2e7df] text-center">
-                            <div className="text-[11px] text-[#a89689] font-bold mb-1">累積交通/油資</div>
-                            <div className="text-lg font-black text-[#ab47bc]">${trafficTotal.toLocaleString()}</div>
+                        <div className="bg-white rounded-xl p-3 shadow-sm border border-[#f2e7df] text-center flex flex-col justify-between">
+                            <div>
+                                <div className="text-[11px] text-[#a89689] font-bold mb-1">歷史總交通/油資</div>
+                                <div className="text-lg font-black text-[#ab47bc]">${trafficTotal.toLocaleString()}</div>
+                            </div>
+                            <div className="text-[10px] text-[#7a6453] font-bold mt-1.5 pt-1.5 border-t border-[#fdfaf7] bg-[#fdfaf7] rounded -mx-1 -mb-1 pb-1">
+                                本月 ({parseInt(currentMonth.substring(5,7))}月): <span className="text-[#ab47bc]">${trafficMonthTotal.toLocaleString()}</span>
+                            </div>
                         </div>
-                        <div className="bg-white rounded-xl p-3 shadow-sm border border-[#f2e7df] text-center col-span-2">
-                            <div className="text-[11px] text-[#a89689] font-bold mb-1">累積老闆支薪</div>
-                            <div className="text-lg font-black text-[#fbc02d]">${salaryTotal.toLocaleString()}</div>
+                        <div className="bg-white rounded-xl p-3 shadow-sm border border-[#f2e7df] text-center col-span-2 flex flex-col justify-between">
+                            <div>
+                                <div className="text-[11px] text-[#a89689] font-bold mb-1">歷史總老闆支薪</div>
+                                <div className="text-lg font-black text-[#fbc02d]">${salaryTotal.toLocaleString()}</div>
+                            </div>
+                            <div className="text-[10px] text-[#7a6453] font-bold mt-1.5 pt-1.5 border-t border-[#fdfaf7] bg-[#fdfaf7] rounded -mx-1 -mb-1 pb-1">
+                                本月 ({parseInt(currentMonth.substring(5,7))}月): <span className="text-[#fbc02d]">${salaryMonthTotal.toLocaleString()}</span>
+                            </div>
                         </div>
                     </div>
 
@@ -1430,5 +1465,4 @@
     </script>
 </body>
 </html>
-
 
