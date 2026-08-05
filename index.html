@@ -62,6 +62,11 @@
             return isNaN(t) ? 0 : t;
         };
 
+        const getSafeArr = (arr) => {
+            if (!Array.isArray(arr)) return [];
+            return arr.filter(i => i !== null && typeof i === 'object' && !Array.isArray(i));
+        };
+
         class ErrorBoundary extends Component {
             constructor(props) {
                 super(props);
@@ -324,7 +329,7 @@
             );
         };
 
-        // --- 分頁 2：市場 (移除油資欄位) ---
+        // --- 分頁 2：市場 ---
         const MarketTab = ({ marketSales, setMarketSales, setConfirmDialog }) => {
             const currentDate = new Date().toISOString().split('T')[0];
             const [editingId, setEditingId] = useState(null);
@@ -337,6 +342,7 @@
             const [note, setNote] = useState('');
             const [electricity, setElectricity] = useState('');
             const [cleaning, setCleaning] = useState('');
+            const [gas, setGas] = useState(''); // 這個欄位在 UI 隱藏，但保留 state 以防萬一
             const [toll, setToll] = useState('');
             const [parking, setParking] = useState('');
             const [hasGift, setHasGift] = useState(false);
@@ -387,6 +393,7 @@
                     rent: Number(rent) || 0, note,
                     electricity: Number(electricity) || 0, cleaning: Number(cleaning) || 0,
                     toll: Number(toll) || 0, parking: Number(parking) || 0,
+                    gas: 0, // 確保未來新增的紀錄 gas 都是 0
                     hasGift, giftCount: hasGift ? (Number(giftCount) || 0) : 0,
                     accessories: { necklace: Number(acc.necklace) || 0, hat: Number(acc.hat) || 0, bag: Number(acc.bag) || 0, other: Number(acc.other) || 0 }
                 };
@@ -879,11 +886,7 @@
 
             const allTimeSupply = expenses.filter(e => e.type === 'supply').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const allTimeFixed = expenses.filter(e => e.type === 'fixed').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
-            
-            // 將過去錯誤記在市場的油錢，合併計算到交通油資裡
-            const allTimeMarketGas = marketSales.reduce((sum, m) => sum + (Number(m.gas)||0), 0);
-            const allTimeTraffic = expenses.filter(e => e.type === 'traffic').reduce((sum, e) => sum + (Number(e.amount)||0), 0) + allTimeMarketGas;
-            
+            const allTimeTraffic = expenses.filter(e => e.type === 'traffic').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const allTimeSalary = expenses.filter(e => e.type === 'salary').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const allTimeOtherExp = allTimeSupply + allTimeFixed + allTimeTraffic + allTimeSalary;
 
@@ -903,7 +906,7 @@
             const marketClean = currentMarket.reduce((sum, m) => sum + (Number(m.cleaning)||0), 0);
             const marketToll = currentMarket.reduce((sum, m) => sum + (Number(m.toll)||0), 0);
             const marketParking = currentMarket.reduce((sum, m) => sum + (Number(m.parking)||0), 0);
-            const marketMiscOnly = marketElec + marketClean + marketToll + marketParking; // 沒有油錢
+            const marketMiscOnly = marketElec + marketClean + marketToll + marketParking;
             const marketMiscAndRent = marketRent + marketMiscOnly; 
 
             const storeShippingNetExp = currentDeliveries.reduce((sum, d) => sum + (Number(d.shippingExpense)||0) - (Number(d.shippingIncome)||0), 0);
@@ -951,18 +954,13 @@
 
             const monthlySupplyExp = currentExpenses.filter(e => e.type === 'supply').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const monthlyFixedExp = currentExpenses.filter(e => e.type === 'fixed').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
-            
-            // 本月油錢轉入後勤
-            const monthlyMarketGas = currentMarket.reduce((sum, m) => sum + (Number(m.gas)||0), 0);
-            const monthlyTrafficExp = currentExpenses.filter(e => e.type === 'traffic').reduce((sum, e) => sum + (Number(e.amount)||0), 0) + monthlyMarketGas;
-            
+            const monthlyTrafficExp = currentExpenses.filter(e => e.type === 'traffic').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const monthlySalary = currentExpenses.filter(e => e.type === 'salary').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const monthlyOtherTotal = monthlySupplyExp + monthlyFixedExp + monthlyTrafficExp;
             
             const monthlyNetProfit = grossProfit - monthlyOtherTotal - monthlySalary;
 
             const viewParts = safeStr(reportMonth).split('-');
-
             const storeGifts = currentDeliveries.reduce((sum, d) => sum + (Number(d.giftCount) || 0), 0);
             const marketGifts = currentMarket.reduce((sum, m) => sum + (Number(m.giftCount) || 0), 0);
 
@@ -1355,11 +1353,6 @@
         const App = () => {
             const [activeTab, setActiveTab] = useState('store');
             
-            const getSafeArr = (arr) => {
-                if (!Array.isArray(arr)) return [];
-                return arr.filter(i => i !== null && typeof i === 'object' && !Array.isArray(i));
-            };
-
             const [deliveriesRaw, setDeliveriesRaw] = useLocalStorage('xq_deliveries', []);
             const [marketSalesRaw, setMarketSalesRaw] = useLocalStorage('xq_marketSales', []);
             const [expensesRaw, setExpensesRaw] = useLocalStorage('xq_expenses', []);
