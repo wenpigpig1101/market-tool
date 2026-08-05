@@ -324,7 +324,7 @@
             );
         };
 
-        // --- 分頁 2：市場 ---
+        // --- 分頁 2：市場 (移除油資欄位) ---
         const MarketTab = ({ marketSales, setMarketSales, setConfirmDialog }) => {
             const currentDate = new Date().toISOString().split('T')[0];
             const [editingId, setEditingId] = useState(null);
@@ -337,7 +337,6 @@
             const [note, setNote] = useState('');
             const [electricity, setElectricity] = useState('');
             const [cleaning, setCleaning] = useState('');
-            const [gas, setGas] = useState('');
             const [toll, setToll] = useState('');
             const [parking, setParking] = useState('');
             const [hasGift, setHasGift] = useState(false);
@@ -366,7 +365,7 @@
 
             const resetForm = () => {
                 setEditingId(null); setDate(currentDate); setLocation(''); setRevenue(''); setSoldQty(''); setRent(''); setNote(''); 
-                setElectricity(''); setCleaning(''); setGas(''); setToll(''); setParking(''); setHasGift(false); setGiftCount(''); 
+                setElectricity(''); setCleaning(''); setToll(''); setParking(''); setHasGift(false); setGiftCount(''); 
                 setAcc({ necklace: '', hat: '', bag: '', other: '' });
                 setSearchTerm('');
             };
@@ -387,7 +386,7 @@
                     date, location, revenue: Number(revenue) || 0, soldQty: Number(soldQty) || 0,
                     rent: Number(rent) || 0, note,
                     electricity: Number(electricity) || 0, cleaning: Number(cleaning) || 0,
-                    gas: Number(gas) || 0, toll: Number(toll) || 0, parking: Number(parking) || 0,
+                    toll: Number(toll) || 0, parking: Number(parking) || 0,
                     hasGift, giftCount: hasGift ? (Number(giftCount) || 0) : 0,
                     accessories: { necklace: Number(acc.necklace) || 0, hat: Number(acc.hat) || 0, bag: Number(acc.bag) || 0, other: Number(acc.other) || 0 }
                 };
@@ -405,7 +404,7 @@
                 setEditingId(record.id);
                 setDate(record.date); setLocation(record.location); setRevenue(record.revenue || ''); setSoldQty(record.soldQty || '');
                 setRent(record.rent || ''); setNote(record.note || ''); setElectricity(record.electricity || '');
-                setCleaning(record.cleaning || ''); setGas(record.gas || ''); setToll(record.toll || ''); setParking(record.parking || '');
+                setCleaning(record.cleaning || ''); setToll(record.toll || ''); setParking(record.parking || '');
                 setHasGift(record.hasGift || false); setGiftCount(record.giftCount || '');
                 const rac = record.accessories || {};
                 setAcc({
@@ -467,7 +466,7 @@
                 const times = searchedSales.length;
                 const totalRev = searchedSales.reduce((sum, m) => sum + (Number(m.revenue) || 0), 0);
                 const totalProfit = searchedSales.reduce((sum, m) => {
-                    const dailyMisc = (Number(m.electricity) || 0) + (Number(m.cleaning) || 0) + (Number(m.gas) || 0) + (Number(m.toll) || 0) + (Number(m.parking) || 0);
+                    const dailyMisc = (Number(m.electricity) || 0) + (Number(m.cleaning) || 0) + (Number(m.toll) || 0) + (Number(m.parking) || 0);
                     return sum + (Number(m.revenue) || 0) - (Number(m.rent) || 0) - dailyMisc;
                 }, 0);
 
@@ -481,13 +480,13 @@
                                 <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">出攤次數</span><span className="font-black text-lg text-[#5c4d43]">{times} 次</span></div>
                                 <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">累積總業績</span><span className="font-black text-lg text-[#5c4d43]">${totalRev.toLocaleString()}</span></div>
                                 <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">平均單次業績</span><span className="font-black text-xl text-[#4caf50]">${Math.round(totalRev / times).toLocaleString()}</span></div>
-                                <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">平均單次收入 (扣租金雜支)</span><span className="font-black text-xl text-[#e57373]">${Math.round(totalProfit / times).toLocaleString()}</span></div>
+                                <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">單次淨利(扣攤租雜支)</span><span className="font-black text-xl text-[#e57373]">${Math.round(totalProfit / times).toLocaleString()}</span></div>
                             </div>
                         </Card>
                         
                         <div className="text-[#9b4949] font-bold px-2 text-lg mb-2"><Icon name="history" className="align-middle text-[20px] mr-1" /> 歷史足跡明細</div>
                         {searchedSales.map(m => {
-                            const dailyMisc = (Number(m.electricity) || 0) + (Number(m.cleaning) || 0) + (Number(m.gas) || 0) + (Number(m.toll) || 0) + (Number(m.parking) || 0);
+                            const dailyMisc = (Number(m.electricity) || 0) + (Number(m.cleaning) || 0) + (Number(m.toll) || 0) + (Number(m.parking) || 0);
                             const operatingProfit = (Number(m.revenue)||0) - (Number(m.rent)||0) - dailyMisc; 
                             return (
                                 <div key={m.id} className="bg-white rounded-xl p-4 mb-3 shadow-sm border border-[#f2e7df] relative mx-1">
@@ -542,11 +541,13 @@
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                             <Input type="number" placeholder="清潔費 (選填)" value={cleaning} onChange={e => setCleaning(e.target.value)} />
-                            <Input type="number" placeholder="油錢 (選填)" value={gas} onChange={e => setGas(e.target.value)} />
+                            <Input type="number" placeholder="過路費 (選填)" value={toll} onChange={e => setToll(e.target.value)} />
                         </div>
                         <div className="grid grid-cols-2 gap-3">
-                            <Input type="number" placeholder="過路費 (選填)" value={toll} onChange={e => setToll(e.target.value)} />
                             <Input type="number" placeholder="停車費 (選填)" value={parking} onChange={e => setParking(e.target.value)} />
+                            <div className="flex items-center justify-center text-[11px] text-[#a89689] bg-[#fdfaf7] rounded-xl border border-[#f2e7df] border-dashed">
+                                ※交通油資請至「支出」紀錄
+                            </div>
                         </div>
                         
                         <div className="grid grid-cols-2 gap-3 mb-4 mt-1">
@@ -585,43 +586,58 @@
                         </div>
                     </Card>
 
-                    <Card className="px-2 pt-2 pb-4">
-                        <div className="flex justify-between items-center px-2 mb-4 mt-2">
-                            <button onClick={() => changeMonth(-1)} className="p-1.5 text-[#a89689] bg-[#fdfaf7] rounded-full hover:bg-[#f2e7df]"><Icon name="chevron_left" /></button>
-                            <div className="font-bold text-[#7a6453] text-lg tracking-wider">{viewParts[0]||''}年 {parseInt(viewParts[1]||1, 10)}月</div>
-                            <button onClick={() => changeMonth(1)} className="p-1.5 text-[#a89689] bg-[#fdfaf7] rounded-full hover:bg-[#f2e7df]"><Icon name="chevron_right" /></button>
+                    {/* 地點績效搜尋器 */}
+                    <div className="mb-4 px-1">
+                        <div className={`flex items-center bg-white border ${searchTerm ? 'border-[#bc9f8b] shadow-sm' : 'border-[#e0d6ce]'} rounded-xl px-3 h-[48px] transition-colors`}>
+                            <Icon name="search" className={`mr-2 text-[20px] ${searchTerm ? 'text-[#bc9f8b]' : 'text-[#c4b5aa]'}`} />
+                            <input type="text" placeholder="🔍 搜尋地點 (例如: 果菜) 評估歷史績效" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="bg-transparent w-full h-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
+                            {searchTerm && <button onClick={() => setSearchTerm('')}><Icon name="close" className="text-[#c4b5aa] text-[18px]" /></button>}
                         </div>
-                        <div className="grid grid-cols-7 text-center text-xs font-bold text-[#a89689] mb-3">
-                            <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
-                        </div>
-                        <div className="grid grid-cols-7 gap-y-2 gap-x-1">{renderCalendarDays()}</div>
-                    </Card>
-
-                    <div className="mt-6 mb-2 flex items-center text-[#9b4949] font-bold px-2 text-lg">
-                        <Icon name="location_on" className="mr-1 text-[20px]" /> {parseInt(safeStr(selectedDay).split('-')[1]||0, 10)}/{parseInt(safeStr(selectedDay).split('-')[2]||0, 10)} 營業紀錄 
-                        <span className="ml-2 bg-[#f2e7df] text-[#7a6453] text-xs px-2.5 py-1 rounded-full font-bold">{filteredSales.length} 筆</span>
                     </div>
-                    {filteredSales.length === 0 ? (
-                        <div className="bg-white rounded-2xl border border-dashed border-[#e0d6ce] text-center text-[#c4b5aa] text-sm py-8 mx-2 mt-4">這天沒有擺攤，是休息日喔 ☕</div>
-                    ) : filteredSales.map(m => {
-                        const dailyMisc = (Number(m.electricity) || 0) + (Number(m.cleaning) || 0) + (Number(m.gas) || 0) + (Number(m.toll) || 0) + (Number(m.parking) || 0);
-                        const operatingProfit = (Number(m.revenue)||0) - (Number(m.rent)||0) - dailyMisc; 
-                        return (
-                            <div key={m.id} className="bg-white rounded-xl p-4 mb-3 shadow-sm border border-[#f2e7df] relative mx-1">
-                                <div className="absolute top-4 right-4 flex gap-1">
-                                    <button onClick={() => handleEditClick(m)} className="p-1.5 bg-[#fdfaf7] text-[#bc9f8b] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
-                                    <button onClick={() => setConfirmDialog({isOpen: true, id: m.id, collection: 'market_sales'})} className="p-1.5 bg-[#fdf2f2] text-[#e57373] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
+
+                    {!searchTerm ? (
+                        <React.Fragment>
+                            <Card className="px-2 pt-2 pb-4">
+                                <div className="flex justify-between items-center px-2 mb-4 mt-2">
+                                    <button onClick={() => changeMonth(-1)} className="p-1.5 text-[#a89689] bg-[#fdfaf7] rounded-full hover:bg-[#f2e7df]"><Icon name="chevron_left" /></button>
+                                    <div className="font-bold text-[#7a6453] text-lg tracking-wider">{viewParts[0]||''}年 {parseInt(viewParts[1]||1, 10)}月</div>
+                                    <button onClick={() => changeMonth(1)} className="p-1.5 text-[#a89689] bg-[#fdfaf7] rounded-full hover:bg-[#f2e7df]"><Icon name="chevron_right" /></button>
                                 </div>
-                                <div className="font-bold text-[#5c4d43] mb-1 text-base flex items-center"><span className="bg-[#bc9f8b] w-2 h-2 rounded-full mr-2"></span>{m.location}</div>
-                                {m.note && <div className="text-xs text-[#a89689] mb-2 pl-4">備註: {m.note}</div>}
-                                <div className="text-sm text-[#7a6453] grid grid-cols-2 gap-y-1.5 mt-3 pt-3 border-t border-[#fdfaf7] pl-4">
-                                    <div>營業額: <span className="font-bold text-[#5c4d43]">${m.revenue}</span> <span className="ml-1 bg-orange-50 text-[#bc9f8b] text-[10px] px-1 rounded">{m.soldQty||0}件</span></div>
-                                    <div>攤租雜支: <span className="font-medium">-${(Number(m.rent)||0) + dailyMisc}</span></div>
-                                    <div className="font-bold text-[#bc9f8b] col-span-2">單日淨收入 (未扣進貨): ${operatingProfit}</div>
+                                <div className="grid grid-cols-7 text-center text-xs font-bold text-[#a89689] mb-3">
+                                    <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
                                 </div>
+                                <div className="grid grid-cols-7 gap-y-2 gap-x-1">{renderCalendarDays()}</div>
+                            </Card>
+
+                            <div className="mt-6 mb-2 flex items-center text-[#9b4949] font-bold px-2 text-lg">
+                                <Icon name="location_on" className="mr-1 text-[20px]" /> {parseInt(safeStr(selectedDay).split('-')[1]||0, 10)}/{parseInt(safeStr(selectedDay).split('-')[2]||0, 10)} 營業紀錄 
+                                <span className="ml-2 bg-[#f2e7df] text-[#7a6453] text-xs px-2.5 py-1 rounded-full font-bold">{filteredSales.length} 筆</span>
                             </div>
-                        )
-                    })}
+                            {filteredSales.length === 0 ? (
+                                <div className="bg-white rounded-2xl border border-dashed border-[#e0d6ce] text-center text-[#c4b5aa] text-sm py-8 mx-2 mt-4">這天沒有擺攤，是休息日喔 ☕</div>
+                            ) : filteredSales.map(m => {
+                                const dailyMisc = (Number(m.electricity) || 0) + (Number(m.cleaning) || 0) + (Number(m.toll) || 0) + (Number(m.parking) || 0);
+                                const operatingProfit = (Number(m.revenue)||0) - (Number(m.rent)||0) - dailyMisc; 
+                                return (
+                                    <div key={m.id} className="bg-white rounded-xl p-4 mb-3 shadow-sm border border-[#f2e7df] relative mx-1">
+                                        <div className="absolute top-4 right-4 flex gap-1">
+                                            <button onClick={() => handleEditClick(m)} className="p-1.5 bg-[#fdfaf7] text-[#bc9f8b] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
+                                            <button onClick={() => setConfirmDialog({isOpen: true, id: m.id, collection: 'market_sales'})} className="p-1.5 bg-[#fdf2f2] text-[#e57373] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
+                                        </div>
+                                        <div className="font-bold text-[#5c4d43] mb-1 text-base flex items-center"><span className="bg-[#bc9f8b] w-2 h-2 rounded-full mr-2"></span>{m.location}</div>
+                                        {m.note && <div className="text-xs text-[#a89689] mb-2 pl-4">備註: {m.note}</div>}
+                                        <div className="text-sm text-[#7a6453] grid grid-cols-2 gap-y-1.5 mt-3 pt-3 border-t border-[#fdfaf7] pl-4">
+                                            <div>營業額: <span className="font-bold text-[#5c4d43]">${m.revenue}</span> <span className="ml-1 bg-orange-50 text-[#bc9f8b] text-[10px] px-1 rounded">{m.soldQty||0}件</span></div>
+                                            <div>攤租雜支: <span className="font-medium">-${(Number(m.rent)||0) + dailyMisc}</span></div>
+                                            <div className="font-bold text-[#bc9f8b] col-span-2">單日淨收入 (未扣進貨): ${operatingProfit}</div>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </React.Fragment>
+                    ) : (
+                        renderSearchResults()
+                    )}
                 </div>
             );
         };
@@ -675,12 +691,14 @@
             
             const supplyTotal = expenses.filter(e => e.type === 'supply').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const fixedTotal = expenses.filter(e => e.type === 'fixed').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
+            const trafficTotal = expenses.filter(e => e.type === 'traffic').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const salaryTotal = expenses.filter(e => e.type === 'salary').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
 
             const typeConfig = {
                 wholesale: { label: '批貨進貨', color: 'bg-[#e57373]', text: 'text-[#e57373]', bgLight: 'bg-[#ffebee]', placeholder: '批貨品名 / 廠商' },
-                supply: { label: '生財/包材', color: 'bg-[#64b5f6]', text: 'text-[#64b5f6]', bgLight: 'bg-[#e0f7fa]', placeholder: '如: 品牌袋、衣架、文具' },
-                fixed: { label: '倉租/水電', color: 'bg-[#81c784]', text: 'text-[#81c784]', bgLight: 'bg-[#e8f5e9]', placeholder: '如: 倉庫租金、水電網費' },
+                supply: { label: '生財包材', color: 'bg-[#64b5f6]', text: 'text-[#64b5f6]', bgLight: 'bg-[#e0f7fa]', placeholder: '如: 品牌袋、衣架、文具' },
+                fixed: { label: '倉租水電', color: 'bg-[#81c784]', text: 'text-[#81c784]', bgLight: 'bg-[#e8f5e9]', placeholder: '如: 倉庫租金、水電網費' },
+                traffic: { label: '交通油資', color: 'bg-[#ba68c8]', text: 'text-[#ab47bc]', bgLight: 'bg-[#f3e5f5]', placeholder: '如: 加油、高鐵、客運' },
                 salary: { label: '老闆支薪', color: 'bg-[#ffd54f]', text: 'text-[#fbc02d]', bgLight: 'bg-[#fffde7]', placeholder: '如: 8月老闆薪水' }
             };
 
@@ -699,7 +717,7 @@
                                     <button 
                                         key={tKey}
                                         onClick={() => { setType(tKey); setQty(''); setIsArrived(true); }} 
-                                        className={`py-2.5 rounded-xl text-sm font-bold transition-all border ${type === tKey ? `${tConf.color} text-white border-transparent shadow-md` : 'bg-white border-[#f0e6e0] text-[#a89689]'}`}>
+                                        className={`py-2.5 rounded-xl text-[13px] font-bold transition-all border ${type === tKey ? `${tConf.color} text-white border-transparent shadow-md` : 'bg-white border-[#f0e6e0] text-[#a89689]'} ${tKey === 'salary' ? 'col-span-2' : ''}`}>
                                         {tConf.label}
                                     </button>
                                 );
@@ -759,6 +777,10 @@
                             <div className="text-lg font-black text-[#81c784]">${fixedTotal.toLocaleString()}</div>
                         </div>
                         <div className="bg-white rounded-xl p-3 shadow-sm border border-[#f2e7df] text-center">
+                            <div className="text-[11px] text-[#a89689] font-bold mb-1">累積交通/油資</div>
+                            <div className="text-lg font-black text-[#ab47bc]">${trafficTotal.toLocaleString()}</div>
+                        </div>
+                        <div className="bg-white rounded-xl p-3 shadow-sm border border-[#f2e7df] text-center col-span-2">
                             <div className="text-[11px] text-[#a89689] font-bold mb-1">累積老闆支薪</div>
                             <div className="text-lg font-black text-[#fbc02d]">${salaryTotal.toLocaleString()}</div>
                         </div>
@@ -806,7 +828,7 @@
             );
         }
 
-        // --- 分頁 4：報表 (無敵防呆折疊版) ---
+        // --- 分頁 4：報表 ---
         const ReportTab = ({ deliveries, marketSales, expenses, settings, setSettings, marketSoldStats, setMarketSoldStats }) => {
             const [reportMonth, setReportMonth] = useState(() => {
                 const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -847,7 +869,7 @@
             const allTimeRev = allTimeMarketRev + allTimeStoreRev + allTimeStoreShipIn;
             
             const allTimeMarketRent = marketSales.reduce((sum, m) => sum + (Number(m.rent)||0), 0);
-            const allTimeMarketMisc = marketSales.reduce((sum, m) => sum + (Number(m.electricity)||0) + (Number(m.cleaning)||0) + (Number(m.gas)||0) + (Number(m.toll)||0) + (Number(m.parking)||0), 0);
+            const allTimeMarketMisc = marketSales.reduce((sum, m) => sum + (Number(m.electricity)||0) + (Number(m.cleaning)||0) + (Number(m.toll)||0) + (Number(m.parking)||0), 0);
             const allTimeStoreShipOut = deliveries.reduce((sum, d) => sum + (Number(d.shippingExpense)||0), 0);
             const allTimeMarketExp = allTimeMarketRent + allTimeMarketMisc + allTimeStoreShipOut;
             
@@ -857,8 +879,13 @@
 
             const allTimeSupply = expenses.filter(e => e.type === 'supply').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const allTimeFixed = expenses.filter(e => e.type === 'fixed').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
+            
+            // 將過去錯誤記在市場的油錢，合併計算到交通油資裡
+            const allTimeMarketGas = marketSales.reduce((sum, m) => sum + (Number(m.gas)||0), 0);
+            const allTimeTraffic = expenses.filter(e => e.type === 'traffic').reduce((sum, e) => sum + (Number(e.amount)||0), 0) + allTimeMarketGas;
+            
             const allTimeSalary = expenses.filter(e => e.type === 'salary').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
-            const allTimeOtherExp = allTimeSupply + allTimeFixed + allTimeSalary;
+            const allTimeOtherExp = allTimeSupply + allTimeFixed + allTimeTraffic + allTimeSalary;
 
             const pocketCash = currentStartupCap + allTimeRev - allTimeMarketExp - allTimeWholesale - allTimeOtherExp;
 
@@ -874,11 +901,10 @@
             const marketRent = currentMarket.reduce((sum, m) => sum + (Number(m.rent)||0), 0);
             const marketElec = currentMarket.reduce((sum, m) => sum + (Number(m.electricity)||0), 0);
             const marketClean = currentMarket.reduce((sum, m) => sum + (Number(m.cleaning)||0), 0);
-            const marketGas = currentMarket.reduce((sum, m) => sum + (Number(m.gas)||0), 0);
             const marketToll = currentMarket.reduce((sum, m) => sum + (Number(m.toll)||0), 0);
             const marketParking = currentMarket.reduce((sum, m) => sum + (Number(m.parking)||0), 0);
-            const marketMiscOnly = marketElec + marketClean + marketGas + marketToll + marketParking;
-            const marketMiscAndRent = marketRent + marketMiscOnly; // 這裡補上修正了！
+            const marketMiscOnly = marketElec + marketClean + marketToll + marketParking; // 沒有油錢
+            const marketMiscAndRent = marketRent + marketMiscOnly; 
 
             const storeShippingNetExp = currentDeliveries.reduce((sum, d) => sum + (Number(d.shippingExpense)||0) - (Number(d.shippingIncome)||0), 0);
             const monthlyMarketExp = marketMiscAndRent + (storeShippingNetExp > 0 ? storeShippingNetExp : 0);
@@ -925,12 +951,18 @@
 
             const monthlySupplyExp = currentExpenses.filter(e => e.type === 'supply').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const monthlyFixedExp = currentExpenses.filter(e => e.type === 'fixed').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
+            
+            // 本月油錢轉入後勤
+            const monthlyMarketGas = currentMarket.reduce((sum, m) => sum + (Number(m.gas)||0), 0);
+            const monthlyTrafficExp = currentExpenses.filter(e => e.type === 'traffic').reduce((sum, e) => sum + (Number(e.amount)||0), 0) + monthlyMarketGas;
+            
             const monthlySalary = currentExpenses.filter(e => e.type === 'salary').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
-            const monthlyOtherTotal = monthlySupplyExp + monthlyFixedExp;
+            const monthlyOtherTotal = monthlySupplyExp + monthlyFixedExp + monthlyTrafficExp;
             
             const monthlyNetProfit = grossProfit - monthlyOtherTotal - monthlySalary;
 
             const viewParts = safeStr(reportMonth).split('-');
+
             const storeGifts = currentDeliveries.reduce((sum, d) => sum + (Number(d.giftCount) || 0), 0);
             const marketGifts = currentMarket.reduce((sum, m) => sum + (Number(m.giftCount) || 0), 0);
 
@@ -999,13 +1031,14 @@
 
                             {/* 包材水電折疊 */}
                             <div className="flex justify-between items-center text-[#e57373] cursor-pointer mb-1.5" onClick={() => setExpAllOther(!expAllOther)}>
-                                <span className="flex items-center"><Icon name="remove" className="text-[16px] mr-1"/> 買包材/水電/薪水<Icon name={expAllOther ? "expand_less" : "expand_more"} className="text-[14px] ml-0.5 opacity-60"/></span>
+                                <span className="flex items-center"><Icon name="remove" className="text-[16px] mr-1"/> 公司後勤開銷<Icon name={expAllOther ? "expand_less" : "expand_more"} className="text-[14px] ml-0.5 opacity-60"/></span>
                                 <span>-$ {allTimeOtherExp.toLocaleString()}</span>
                             </div>
                             {expAllOther && (
                                 <div className="pl-6 pr-2 py-1 mb-2 space-y-1 bg-[#fafafa] rounded text-[11px] text-[#a89689] animate-expand">
                                     {allTimeSupply > 0 && <div className="flex justify-between"><span>└ 生財包材雜支</span><span>-${allTimeSupply.toLocaleString()}</span></div>}
                                     {allTimeFixed > 0 && <div className="flex justify-between"><span>└ 倉租與水電</span><span>-${allTimeFixed.toLocaleString()}</span></div>}
+                                    {allTimeTraffic > 0 && <div className="flex justify-between"><span>└ 交通與油資</span><span>-${allTimeTraffic.toLocaleString()}</span></div>}
                                     {allTimeSalary > 0 && <div className="flex justify-between"><span>└ 老闆支薪</span><span>-${allTimeSalary.toLocaleString()}</span></div>}
                                 </div>
                             )}
@@ -1018,7 +1051,7 @@
                             {expAllMarket && (
                                 <div className="pl-6 pr-2 py-1 mt-1 space-y-1 bg-[#fafafa] rounded text-[11px] text-[#a89689] animate-expand">
                                     {allTimeMarketRent > 0 && <div className="flex justify-between"><span>└ 市場攤位租金</span><span>-${allTimeMarketRent.toLocaleString()}</span></div>}
-                                    {allTimeMarketMisc > 0 && <div className="flex justify-between"><span>└ 市場雜支(油/電/停)</span><span>-${allTimeMarketMisc.toLocaleString()}</span></div>}
+                                    {allTimeMarketMisc > 0 && <div className="flex justify-between"><span>└ 市場雜支(電/清/停)</span><span>-${allTimeMarketMisc.toLocaleString()}</span></div>}
                                     {allTimeStoreShipOut > 0 && <div className="flex justify-between"><span>└ 超商運費支出</span><span>-${allTimeStoreShipOut.toLocaleString()}</span></div>}
                                 </div>
                             )}
@@ -1053,7 +1086,6 @@
                                     {marketRent > 0 && <div className="flex justify-between"><span>└ 攤位租金</span><span>-${marketRent.toLocaleString()}</span></div>}
                                     {marketElec > 0 && <div className="flex justify-between"><span>└ 電費</span><span>-${marketElec.toLocaleString()}</span></div>}
                                     {marketClean > 0 && <div className="flex justify-between"><span>└ 清潔費</span><span>-${marketClean.toLocaleString()}</span></div>}
-                                    {marketGas > 0 && <div className="flex justify-between"><span>└ 油錢</span><span>-${marketGas.toLocaleString()}</span></div>}
                                     {marketToll > 0 && <div className="flex justify-between"><span>└ 過路費</span><span>-${marketToll.toLocaleString()}</span></div>}
                                     {marketParking > 0 && <div className="flex justify-between"><span>└ 停車費</span><span>-${marketParking.toLocaleString()}</span></div>}
                                 </div>
@@ -1095,13 +1127,14 @@
                             <div className="h-2"></div>
 
                             <div className="flex justify-between items-center text-[#e57373] cursor-pointer" onClick={() => setExpMoOther(!expMoOther)}>
-                                <span className="flex items-center"><Icon name="remove" className="text-[14px] mr-1"/> 扣：買包材 / 倉租水電<Icon name={expMoOther ? "expand_less" : "expand_more"} className="text-[16px] ml-1 text-[#c4b5aa]"/></span>
+                                <span className="flex items-center"><Icon name="remove" className="text-[14px] mr-1"/> 扣：後勤開銷 (包材/水電/交通)<Icon name={expMoOther ? "expand_less" : "expand_more"} className="text-[16px] ml-1 text-[#c4b5aa]"/></span>
                                 <span>-${monthlyOtherTotal.toLocaleString()}</span>
                             </div>
                             {expMoOther && (
                                 <div className="pl-6 pr-2 py-1 -mt-1 mb-1 space-y-1 bg-[#fafafa] border border-[#f0e6e0] rounded text-[11px] text-[#a89689] animate-expand">
                                     {monthlySupplyExp > 0 && <div className="flex justify-between"><span>└ 生財包材雜支</span><span>-${monthlySupplyExp.toLocaleString()}</span></div>}
                                     {monthlyFixedExp > 0 && <div className="flex justify-between"><span>└ 倉租與水電</span><span>-${monthlyFixedExp.toLocaleString()}</span></div>}
+                                    {monthlyTrafficExp > 0 && <div className="flex justify-between"><span>└ 交通與油資</span><span>-${monthlyTrafficExp.toLocaleString()}</span></div>}
                                 </div>
                             )}
 
