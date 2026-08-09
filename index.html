@@ -224,6 +224,7 @@
             const [rDate, setRDate] = useState(new Date().toISOString().split('T')[0]);
             const [rCustomerName, setRCustomerName] = useState('');
             const [rItemsCount, setRItemsCount] = useState('');
+            const [rRevenue, setRRevenue] = useState(''); // 新增：預估金額
             const [rNote, setRNote] = useState('');
 
             // 轉單 Modal State
@@ -243,7 +244,7 @@
 
             const resetReserveForm = () => {
                 setEditingId(null); setRDate(new Date().toISOString().split('T')[0]);
-                setRCustomerName(''); setRItemsCount(''); setRNote('');
+                setRCustomerName(''); setRItemsCount(''); setRRevenue(''); setRNote('');
             };
 
             const handleAddDelivery = () => {
@@ -266,7 +267,13 @@
 
             const handleAddReserve = () => {
                 if (!rCustomerName) return;
-                const recordData = { date: rDate, customerName: rCustomerName, itemsCount: Number(rItemsCount) || 1, note: rNote };
+                const recordData = { 
+                    date: rDate, 
+                    customerName: rCustomerName, 
+                    itemsCount: Number(rItemsCount) || 1, 
+                    revenue: Number(rRevenue) || 0, // 儲存預估金額
+                    note: rNote 
+                };
                 
                 if (editingId && formMode === 'reserve') {
                     setReservations(prev => prev.map(r => r.id === editingId ? { ...r, ...recordData } : r).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
@@ -289,7 +296,7 @@
             const handleEditReserve = (record) => {
                 setFormMode('reserve'); setEditingId(record.id);
                 setRDate(record.date); setRCustomerName(record.customerName);
-                setRItemsCount(record.itemsCount); setRNote(record.note || '');
+                setRItemsCount(record.itemsCount); setRRevenue(record.revenue || ''); setRNote(record.note || '');
                 scrollToTop();
             };
 
@@ -300,7 +307,8 @@
 
             const openTransferModal = (record) => {
                 setTransferRecord(record); setTDate(new Date().toISOString().split('T')[0]);
-                setTRevenue(''); setTSoldQty(record.itemsCount); 
+                // 將留貨的預估金額與件數直接帶入
+                setTRevenue(record.revenue || ''); setTSoldQty(record.itemsCount); 
                 setTShippingExpense(''); setTShippingIncome(''); setTHasGift(false); setTGiftCount('');
             };
 
@@ -319,6 +327,10 @@
 
             const pending = deliveries.filter(d => d.status === 'pending');
             const shipped = deliveries.filter(d => d.status === 'shipped');
+            
+            // 計算未寄出總額與保留區總額
+            const pendingAmount = pending.reduce((sum, d) => sum + (Number(d.revenue) || 0), 0);
+            const reserveAmount = reservations.reduce((sum, r) => sum + (Number(r.revenue) || 0), 0);
 
             return (
                 <div className="animate-fade-in pb-20">
@@ -354,13 +366,16 @@
                                 {/* 運費快捷鍵 */}
                                 <div className="flex gap-2 mb-3 -mt-2 px-1 overflow-x-auto custom-scrollbar">
                                     <button type="button" onClick={() => {setDShippingExpense(38); setDShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">
-                                        ⚡ 賺價差 (本38/收60)
+                                        ⚡ 7-11本38收60
+                                    </button>
+                                    <button type="button" onClick={() => {setDShippingExpense(39); setDShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">
+                                        ⚡ 全家本39收60
                                     </button>
                                     <button type="button" onClick={() => {setDShippingExpense(38); setDShippingIncome(38);}} className="shrink-0 text-[11px] bg-[#fdfaf7] border border-[#d6ccc2] text-[#8d6e63] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#f2e7df] transition-colors">
-                                        7-11 (本38/收38)
+                                        7-11本38
                                     </button>
                                     <button type="button" onClick={() => {setDShippingExpense(39); setDShippingIncome(39);}} className="shrink-0 text-[11px] bg-[#fdfaf7] border border-[#d6ccc2] text-[#8d6e63] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#f2e7df] transition-colors">
-                                        全家 (本39/收39)
+                                        全家本39
                                     </button>
                                 </div>
 
@@ -384,10 +399,11 @@
                             <React.Fragment>
                                 <Input type="date" value={rDate} onChange={e => setRDate(e.target.value)} />
                                 <Input placeholder="訂購人姓名" value={rCustomerName} onChange={e => setRCustomerName(e.target.value)} />
-                                <div className="grid grid-cols-2 gap-3 mb-4">
-                                    <Input type="number" placeholder="件數" value={rItemsCount} onChange={e => setRItemsCount(e.target.value)} />
-                                    <Input placeholder="保留備註(選填)" value={rNote} onChange={e => setRNote(e.target.value)} />
+                                <div className="grid grid-cols-2 gap-3">
+                                    <Input type="number" placeholder="預估售價(總額)" value={rRevenue} onChange={e => setRRevenue(e.target.value)} />
+                                    <Input type="number" placeholder="保留件數" value={rItemsCount} onChange={e => setRItemsCount(e.target.value)} />
                                 </div>
+                                <Input placeholder="保留備註(選填)" value={rNote} onChange={e => setRNote(e.target.value)} />
                                 <div className="flex gap-3">
                                     {editingId && <Button onClick={resetReserveForm} className="flex-1 bg-[#e3f2fd] !text-[#1976d2]">取消</Button>}
                                     <Button onClick={handleAddReserve} className={editingId ? 'flex-[2] bg-[#64b5f6] text-white' : 'w-full bg-[#64b5f6] text-white'}>{editingId ? '儲存修改' : '加入現貨保留清單'}</Button>
@@ -399,7 +415,9 @@
                     {/* 清單 1：現貨保留區 (留貨) 永遠顯示標題 */}
                     <div className="mb-6 animate-fade-in">
                         <div className="flex items-center text-[#1976d2] font-bold px-2 text-lg mb-2">
-                            <Icon name="diamond" className="mr-1 text-[20px]" /> 現貨保留區 <span className="ml-2 bg-[#bbdefb] text-[#1565c0] text-xs px-2 py-0.5 rounded-full">{reservations.length}</span>
+                            <Icon name="diamond" className="mr-1 text-[20px]" /> 現貨保留區 
+                            <span className="ml-2 bg-[#bbdefb] text-[#1565c0] text-xs px-2 py-0.5 rounded-full">{reservations.length}筆</span>
+                            {reserveAmount > 0 && <span className="ml-auto text-sm text-[#64b5f6] font-black tracking-wide">總額 ${reserveAmount.toLocaleString()}</span>}
                         </div>
                         {reservations.length === 0 ? (
                             <div className="text-center text-[#90caf9] text-sm py-6 bg-white rounded-xl border border-dashed border-[#e3f2fd] mx-1">
@@ -411,7 +429,11 @@
                                 <div key={r.id} className="bg-white rounded-xl p-3 shadow-sm border-l-4 border-[#64b5f6] relative mx-1 px-4">
                                     <div className="flex justify-between items-start mb-2">
                                         <div>
-                                            <div className="font-bold text-[#5c4d43] text-base">{r.customerName} <span className="text-xs font-normal text-[#1976d2] ml-1 bg-[#e3f2fd] px-1.5 py-0.5 rounded">{r.itemsCount}件</span></div>
+                                            <div className="font-bold text-[#5c4d43] text-base">
+                                                {r.customerName} 
+                                                <span className="text-xs font-normal text-[#1976d2] ml-2 bg-[#e3f2fd] px-1.5 py-0.5 rounded">{r.itemsCount}件</span>
+                                                {Number(r.revenue) > 0 && <span className="text-xs font-bold text-[#1976d2] ml-1">${r.revenue}</span>}
+                                            </div>
                                             <div className="text-[11px] text-[#a89689] mt-0.5">{r.date}保留 {r.note && <span className="ml-1 text-[#7a6453]">({r.note})</span>}</div>
                                         </div>
                                         <div className="flex gap-1 shrink-0">
@@ -429,7 +451,11 @@
                     </div>
 
                     {/* 清單 2：未寄出 */}
-                    <div className="mt-6 mb-2 flex items-center text-[#9b4949] font-bold px-2 text-lg"><Icon name="push_pin" className="mr-1 text-[20px]" /> 未寄出 <span className="ml-2 bg-[#d6aba3] text-white text-xs px-2 py-0.5 rounded-full">{pending.length}</span></div>
+                    <div className="mt-6 mb-2 flex items-center text-[#9b4949] font-bold px-2 text-lg">
+                        <Icon name="push_pin" className="mr-1 text-[20px]" /> 未寄出 
+                        <span className="ml-2 bg-[#d6aba3] text-white text-xs px-2 py-0.5 rounded-full">{pending.length}筆</span>
+                        {pendingAmount > 0 && <span className="ml-auto text-sm text-[#e57373] font-black tracking-wide">待收 ${pendingAmount.toLocaleString()}</span>}
+                    </div>
                     {pending.length === 0 ? <div className="text-center text-[#c4b5aa] text-sm py-4">太棒了，目前沒有未寄出清單！</div> : pending.map(d => (
                         <div key={d.id} className="bg-white rounded-xl p-3 mb-2 shadow-sm border border-[#f2e7df] flex justify-between items-center px-4 mx-1">
                             <div>
@@ -474,16 +500,19 @@
                                     </div>
                                 </div>
                                 
-                                {/* 運費快捷鍵 */}
+                                {/* 運費快捷鍵 (轉單 Modal 內) */}
                                 <div className="flex gap-2 mb-3 -mt-2 px-1 overflow-x-auto custom-scrollbar">
                                     <button type="button" onClick={() => {setTShippingExpense(38); setTShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">
-                                        ⚡ 賺價差 (本38/收60)
+                                        ⚡ 7-11本38收60
+                                    </button>
+                                    <button type="button" onClick={() => {setTShippingExpense(39); setTShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">
+                                        ⚡ 全家本39收60
                                     </button>
                                     <button type="button" onClick={() => {setTShippingExpense(38); setTShippingIncome(38);}} className="shrink-0 text-[11px] bg-[#fdfaf7] border border-[#d6ccc2] text-[#8d6e63] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#f2e7df] transition-colors">
-                                        7-11 (本38/收38)
+                                        7-11本38
                                     </button>
                                     <button type="button" onClick={() => {setTShippingExpense(39); setTShippingIncome(39);}} className="shrink-0 text-[11px] bg-[#fdfaf7] border border-[#d6ccc2] text-[#8d6e63] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#f2e7df] transition-colors">
-                                        全家 (本39/收39)
+                                        全家本39
                                     </button>
                                 </div>
 
@@ -1601,7 +1630,7 @@
                 switch(status) {
                     case 'pending': return { text: '待叫貨', color: 'bg-gray-100 text-gray-600', nextBtn: '標記為已叫貨', nextStatus: 'ordered', nextColor: 'bg-[#ffb74d] text-white' };
                     case 'ordered': return { text: '已叫貨', color: 'bg-[#fff3e0] text-[#f57c00]', nextBtn: '標記為已到貨', nextStatus: 'arrived', nextColor: 'bg-[#64b5f6] text-white' };
-                    case 'arrived': return { text: '已到貨', color: 'bg-[#e3f2fd] text-[#1976d2]', nextBtn: '已結單/出貨', nextStatus: 'completed', nextColor: 'bg-[#4caf50] text-white' };
+                    case 'arrived': return { text: '已到貨', color: 'bg-[#e3f2fd] text-[#1976d2]', nextBtn: '已結算/出貨', nextStatus: 'completed', nextColor: 'bg-[#4caf50] text-white' };
                     case 'completed': return { text: '已出貨/結單', color: 'bg-[#e8f5e9] text-[#388e3c]' };
                     default: return { text: '不明', color: 'bg-gray-100 text-gray-600' };
                 }
