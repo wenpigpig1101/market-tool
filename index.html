@@ -237,6 +237,9 @@
             const [tHasGift, setTHasGift] = useState(false);
             const [tGiftCount, setTGiftCount] = useState('');
 
+            // 月份展開 State (針對已寄出清單)
+            const [expandedMonths, setExpandedMonths] = useState({});
+
             const resetDeliveryForm = () => {
                 setEditingId(null); setDDate(new Date().toISOString().split('T')[0]);
                 setDCustomerName(''); setDRevenue(''); setDSoldQty(''); setDShippingExpense(''); setDShippingIncome(''); setDGiftCount(''); setDHasGift(false);
@@ -327,6 +330,23 @@
 
             const pending = deliveries.filter(d => d.status === 'pending');
             const shipped = deliveries.filter(d => d.status === 'shipped');
+            
+            // 將已寄出的資料按月份分組
+            const groupedShipped = useMemo(() => {
+                const groups = {};
+                shipped.forEach(d => {
+                    const month = d.date ? d.date.substring(0, 7) : '未知日期';
+                    if (!groups[month]) groups[month] = [];
+                    groups[month].push(d);
+                });
+                return groups;
+            }, [shipped]);
+            // 按月份排序 (新到舊)
+            const sortedMonths = Object.keys(groupedShipped).sort((a, b) => b.localeCompare(a));
+
+            const toggleMonth = (month) => {
+                setExpandedMonths(prev => ({ ...prev, [month]: !prev[month] }));
+            };
             
             // 計算未寄出總額與保留區總額
             const pendingAmount = pending.reduce((sum, d) => sum + (Number(d.revenue) || 0), 0);
@@ -470,18 +490,58 @@
                         </div>
                     ))}
 
-                    {/* 清單 3：已寄出 */}
-                    <div className="mt-6 mb-2 flex items-center text-[#4caf50] font-bold px-2 text-lg"><Icon name="check_box" className="mr-1 text-[20px]" /> 已寄出 <span className="ml-2 bg-[#a5d6a7] text-white text-xs px-2 py-0.5 rounded-full">{shipped.length}</span></div>
-                    {shipped.length === 0 ? <div className="text-center text-[#c4b5aa] text-sm py-4">尚無紀錄</div> : shipped.slice(0,10).map(d => (
-                        <div key={d.id} className="bg-[#fafafa] rounded-xl p-3 mb-2 border border-[#f0f0f0] flex justify-between items-center px-4 mx-1 opacity-70">
-                            <div><div className="font-bold text-[#7a6453] line-through text-base">{d.customerName}</div><div className="text-xs text-[#a89689] mt-0.5">{d.date} <span className="ml-1 bg-[#f0f0f0] text-[#a89689] px-1 rounded">{d.soldQty || 1}件</span></div></div>
-                            <div className="flex gap-2">
-                                <button onClick={() => toggleDeliveryStatus(d.id, d.status)} className="p-2 text-[#a89689]"><Icon name="undo" /></button>
-                                <button onClick={() => handleEditDelivery(d)} className="p-2 text-[#bc9f8b]"><Icon name="edit" className="text-[18px]" /></button>
-                                <button onClick={() => setConfirmDialog({isOpen: true, id: d.id, collection: 'deliveries'})} className="p-2 text-[#e57373]"><Icon name="delete" className="text-[18px]" /></button>
-                            </div>
+                    {/* 清單 3：已寄出 (手風琴按月分組，含當月總額) */}
+                    <div className="mt-6 mb-2 flex items-center text-[#4caf50] font-bold px-2 text-lg">
+                        <Icon name="check_box" className="mr-1 text-[20px]" /> 已寄出紀錄 
+                        <span className="ml-2 bg-[#a5d6a7] text-white text-xs px-2 py-0.5 rounded-full">{shipped.length}筆</span>
+                    </div>
+                    {sortedMonths.length === 0 ? (
+                        <div className="text-center text-[#c4b5aa] text-sm py-4">尚無紀錄</div>
+                    ) : (
+                        <div className="space-y-3 px-1">
+                            {sortedMonths.map(month => {
+                                const monthItems = groupedShipped[month];
+                                const monthTotalRevenue = monthItems.reduce((sum, item) => sum + (Number(item.revenue) || 0), 0);
+                                
+                                return (
+                                    <div key={month} className="bg-white rounded-xl shadow-sm border border-[#e8f5e9] overflow-hidden">
+                                        <button 
+                                            onClick={() => toggleMonth(month)} 
+                                            className="w-full flex justify-between items-center p-3 bg-[#f0f9f0] text-[#2e7d32] transition-colors active:bg-[#e8f5e9]"
+                                        >
+                                            <div className="flex items-center font-bold">
+                                                <Icon name="calendar_month" className="mr-2 text-[18px] opacity-70" />
+                                                {month.replace('-', '年')}月
+                                            </div>
+                                            <div className="flex items-center">
+                                                <span className="text-sm font-black mr-2">${monthTotalRevenue.toLocaleString()}</span>
+                                                <span className="text-[11px] bg-[#c8e6c9] text-[#2e7d32] px-2 py-0.5 rounded-full mr-2 font-bold">{monthItems.length} 筆</span>
+                                                <Icon name={expandedMonths[month] ? "expand_less" : "expand_more"} className="text-[20px] opacity-70" />
+                                            </div>
+                                        </button>
+                                        
+                                        {expandedMonths[month] && (
+                                            <div className="p-2 bg-[#fafafa] space-y-2 animate-expand border-t border-[#e8f5e9]">
+                                                {monthItems.map(d => (
+                                                    <div key={d.id} className="bg-white rounded-lg p-3 border border-[#f0f0f0] flex justify-between items-center opacity-90 shadow-sm">
+                                                        <div>
+                                                            <div className="font-bold text-[#7a6453] text-base">{d.customerName}</div>
+                                                            <div className="text-xs text-[#a89689] mt-0.5">{d.date} <span className="ml-1 text-[#4caf50] font-bold">${d.revenue}</span> <span className="ml-1 bg-[#f0f0f0] text-[#a89689] px-1 rounded">{d.soldQty || 1}件</span></div>
+                                                        </div>
+                                                        <div className="flex gap-1">
+                                                            <button onClick={() => toggleDeliveryStatus(d.id, d.status)} className="p-2 text-[#a89689]"><Icon name="undo" /></button>
+                                                            <button onClick={() => handleEditDelivery(d)} className="p-2 text-[#bc9f8b]"><Icon name="edit" className="text-[18px]" /></button>
+                                                            <button onClick={() => setConfirmDialog({isOpen: true, id: d.id, collection: 'deliveries'})} className="p-2 text-[#e57373]"><Icon name="delete" className="text-[18px]" /></button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
-                    ))}
+                    )}
 
                     {/* 轉單專用 Modal */}
                     {transferRecord && (
