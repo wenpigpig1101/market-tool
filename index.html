@@ -350,10 +350,25 @@
                                     <Input type="number" placeholder="商品售價(總額)" value={dRevenue} onChange={e => setDRevenue(e.target.value)} />
                                     <Input type="number" placeholder="售出服飾件數" value={dSoldQty} onChange={e => setDSoldQty(e.target.value)} />
                                 </div>
+                                
+                                {/* 運費快捷鍵 */}
+                                <div className="flex gap-2 mb-3 -mt-2 px-1 overflow-x-auto custom-scrollbar">
+                                    <button type="button" onClick={() => {setDShippingExpense(38); setDShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">
+                                        ⚡ 賺價差 (本38/收60)
+                                    </button>
+                                    <button type="button" onClick={() => {setDShippingExpense(38); setDShippingIncome(38);}} className="shrink-0 text-[11px] bg-[#fdfaf7] border border-[#d6ccc2] text-[#8d6e63] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#f2e7df] transition-colors">
+                                        7-11 (本38/收38)
+                                    </button>
+                                    <button type="button" onClick={() => {setDShippingExpense(39); setDShippingIncome(39);}} className="shrink-0 text-[11px] bg-[#fdfaf7] border border-[#d6ccc2] text-[#8d6e63] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#f2e7df] transition-colors">
+                                        全家 (本39/收39)
+                                    </button>
+                                </div>
+
                                 <div className="grid grid-cols-2 gap-3">
                                     <Input type="number" placeholder="賣家付運費(成本)" value={dShippingExpense} onChange={e => setDShippingExpense(e.target.value)} />
                                     <Input type="number" placeholder="買家付運費(代收)" value={dShippingIncome} onChange={e => setDShippingIncome(e.target.value)} />
                                 </div>
+                                
                                 <div className="grid grid-cols-2 gap-3 mb-4">
                                     <button className={`w-full h-[48px] rounded-xl border text-[15px] transition-colors font-wawa font-bold flex items-center justify-center ${dHasGift ? 'border-[#bc9f8b] bg-[#fdfaf7] text-[#bc9f8b]' : 'border-[#f0e6e0] bg-[#fdfdfd] text-[#a89689]'}`} onClick={(e) => { e.preventDefault(); setDHasGift(!dHasGift); }}>🎁 {dHasGift ? '有贈品' : '無贈品'}</button>
                                     <div className={`flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 h-[48px] focus-within:border-[#bc9f8b] transition-colors ${!dHasGift ? 'opacity-60 bg-[#f9f9f9]' : ''}`}>
@@ -458,6 +473,20 @@
                                         <input type="number" value={tSoldQty} onChange={e => setTSoldQty(e.target.value)} placeholder="售出服飾件數" className="bg-transparent w-full h-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
                                     </div>
                                 </div>
+                                
+                                {/* 運費快捷鍵 */}
+                                <div className="flex gap-2 mb-3 -mt-2 px-1 overflow-x-auto custom-scrollbar">
+                                    <button type="button" onClick={() => {setTShippingExpense(38); setTShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">
+                                        ⚡ 賺價差 (本38/收60)
+                                    </button>
+                                    <button type="button" onClick={() => {setTShippingExpense(38); setTShippingIncome(38);}} className="shrink-0 text-[11px] bg-[#fdfaf7] border border-[#d6ccc2] text-[#8d6e63] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#f2e7df] transition-colors">
+                                        7-11 (本38/收38)
+                                    </button>
+                                    <button type="button" onClick={() => {setTShippingExpense(39); setTShippingIncome(39);}} className="shrink-0 text-[11px] bg-[#fdfaf7] border border-[#d6ccc2] text-[#8d6e63] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#f2e7df] transition-colors">
+                                        全家 (本39/收39)
+                                    </button>
+                                </div>
+
                                 <div className="grid grid-cols-2 gap-3">
                                     <Input type="number" placeholder="賣家付運費" value={tShippingExpense} onChange={e => setTShippingExpense(e.target.value)} />
                                     <Input type="number" placeholder="買家付運費" value={tShippingIncome} onChange={e => setTShippingIncome(e.target.value)} />
@@ -1572,7 +1601,7 @@
                 switch(status) {
                     case 'pending': return { text: '待叫貨', color: 'bg-gray-100 text-gray-600', nextBtn: '標記為已叫貨', nextStatus: 'ordered', nextColor: 'bg-[#ffb74d] text-white' };
                     case 'ordered': return { text: '已叫貨', color: 'bg-[#fff3e0] text-[#f57c00]', nextBtn: '標記為已到貨', nextStatus: 'arrived', nextColor: 'bg-[#64b5f6] text-white' };
-                    case 'arrived': return { text: '已到貨', color: 'bg-[#e3f2fd] text-[#1976d2]', nextBtn: '已結算/出貨', nextStatus: 'completed', nextColor: 'bg-[#4caf50] text-white' };
+                    case 'arrived': return { text: '已到貨', color: 'bg-[#e3f2fd] text-[#1976d2]', nextBtn: '已結單/出貨', nextStatus: 'completed', nextColor: 'bg-[#4caf50] text-white' };
                     case 'completed': return { text: '已出貨/結單', color: 'bg-[#e8f5e9] text-[#388e3c]' };
                     default: return { text: '不明', color: 'bg-gray-100 text-gray-600' };
                 }
