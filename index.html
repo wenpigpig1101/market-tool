@@ -92,6 +92,7 @@
                 safeParse('xq_expenses');
                 safeParse('xq_reservations');
                 safeParse('xq_preorders');
+                safeParse('xq_tab1_preorders'); // 第一分頁的預購獨立狀態
                 
                 try {
                     const stats = localStorage.getItem('xq_market_sold');
@@ -186,11 +187,10 @@
             return validNum.toString();
         };
 
-        // --- 分頁 1：超商 & 留貨 (加入預購捷徑) ---
-        const StoreTab = ({ deliveries, setDeliveries, reservations, setReservations, preorders, setPreorders, setConfirmDialog }) => {
+        // --- 分頁 1：超商 & 留貨 & 預購建單 ---
+        const StoreTab = ({ deliveries, setDeliveries, reservations, setReservations, tab1Preorders, setTab1Preorders, setConfirmDialog }) => {
             const [formMode, setFormMode] = useState('delivery'); 
             const [editingId, setEditingId] = useState(null);
-            const [showSuccess, setShowSuccess] = useState(false);
             
             // 寄件表單 State
             const [dDate, setDDate] = useState(new Date().toISOString().split('T')[0]);
@@ -209,7 +209,7 @@
             const [rRevenue, setRRevenue] = useState(''); 
             const [rNote, setRNote] = useState('');
 
-            // 預購單表單 State (捷徑用)
+            // 預購單表單 State (與留貨完全相同)
             const [pDate, setPDate] = useState(new Date().toISOString().split('T')[0]);
             const [pCustomerName, setPCustomerName] = useState('');
             const [pItemsCount, setPItemsCount] = useState('');
@@ -218,6 +218,7 @@
 
             // 轉單 Modal State
             const [transferRecord, setTransferRecord] = useState(null);
+            const [transferSource, setTransferSource] = useState(null); // 'reserve' 或 'tab1_preorder'
             const [tDate, setTDate] = useState('');
             const [tRevenue, setTRevenue] = useState('');
             const [tSoldQty, setTSoldQty] = useState(''); 
@@ -229,17 +230,17 @@
             const [expandedMonths, setExpandedMonths] = useState({});
 
             const resetDeliveryForm = () => {
-                setEditingId(null); setDDate(new Date().toISOString().split('T')[0]); setShowSuccess(false);
+                setEditingId(null); setDDate(new Date().toISOString().split('T')[0]);
                 setDCustomerName(''); setDRevenue(''); setDSoldQty(''); setDShippingExpense(''); setDShippingIncome(''); setDGiftCount(''); setDHasGift(false);
             };
 
             const resetReserveForm = () => {
-                setEditingId(null); setRDate(new Date().toISOString().split('T')[0]); setShowSuccess(false);
+                setEditingId(null); setRDate(new Date().toISOString().split('T')[0]);
                 setRCustomerName(''); setRItemsCount(''); setRRevenue(''); setRNote('');
             };
 
             const resetPreorderForm = () => {
-                setEditingId(null); setPDate(new Date().toISOString().split('T')[0]); setShowSuccess(false);
+                setEditingId(null); setPDate(new Date().toISOString().split('T')[0]);
                 setPCustomerName(''); setPItemsCount(''); setPRevenue(''); setPNote('');
             };
 
@@ -281,27 +282,26 @@
             };
 
             const handleAddPreorder = () => {
-                if (!pCustomerName || !pRevenue) return;
+                if (!pCustomerName) return;
                 const recordData = { 
                     date: pDate, 
                     customerName: pCustomerName, 
                     itemsCount: Number(pItemsCount) || 1, 
-                    wholesaleCost: 0, // 捷徑不填寫批價，預設為0
                     revenue: Number(pRevenue) || 0, 
-                    note: pNote, 
-                    status: 'pending' 
+                    note: pNote 
                 };
-                const newRecord = { id: Date.now().toString(), ...recordData };
-                setPreorders(prev => [newRecord, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
-                resetPreorderForm();
                 
-                // 顯示成功提示
-                setShowSuccess(true);
-                setTimeout(() => setShowSuccess(false), 3000);
+                if (editingId && formMode === 'preorder') {
+                    setTab1Preorders(prev => prev.map(p => p.id === editingId ? { ...p, ...recordData } : p).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
+                } else {
+                    const newRecord = { id: Date.now().toString(), ...recordData };
+                    setTab1Preorders(prev => [newRecord, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
+                }
+                resetPreorderForm();
             };
 
             const handleEditDelivery = (record) => {
-                setFormMode('delivery'); setEditingId(record.id); setShowSuccess(false);
+                setFormMode('delivery'); setEditingId(record.id);
                 setDDate(record.date); setDCustomerName(record.customerName); 
                 setDRevenue(record.revenue || ''); setDSoldQty(record.soldQty || '');
                 setDShippingExpense(record.shippingExpense || ''); setDShippingIncome(record.shippingIncome || '');
@@ -310,9 +310,16 @@
             };
 
             const handleEditReserve = (record) => {
-                setFormMode('reserve'); setEditingId(record.id); setShowSuccess(false);
+                setFormMode('reserve'); setEditingId(record.id);
                 setRDate(record.date); setRCustomerName(record.customerName);
                 setRItemsCount(record.itemsCount); setRRevenue(record.revenue || ''); setRNote(record.note || '');
+                scrollToTop();
+            };
+
+            const handleEditPreorder = (record) => {
+                setFormMode('preorder'); setEditingId(record.id);
+                setPDate(record.date); setPCustomerName(record.customerName);
+                setPItemsCount(record.itemsCount); setPRevenue(record.revenue || ''); setPNote(record.note || '');
                 scrollToTop();
             };
 
@@ -321,9 +328,12 @@
                 setDeliveries(prev => prev.map(d => d.id === id ? { ...d, status: newStatus } : d));
             };
 
-            const openTransferModal = (record) => {
-                setTransferRecord(record); setTDate(new Date().toISOString().split('T')[0]);
-                setTRevenue(record.revenue || ''); setTSoldQty(record.itemsCount); 
+            const openTransferModal = (record, source) => {
+                setTransferRecord(record); 
+                setTransferSource(source);
+                setTDate(new Date().toISOString().split('T')[0]);
+                setTRevenue(record.revenue || ''); 
+                setTSoldQty(record.itemsCount || 1); 
                 setTShippingExpense(''); setTShippingIncome(''); setTHasGift(false); setTGiftCount('');
             };
 
@@ -336,8 +346,14 @@
                     hasGift: tHasGift, giftCount: tHasGift ? (Number(tGiftCount) || 0) : 0, status: 'pending' 
                 };
                 setDeliveries(prev => [newDelivery, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
-                setReservations(prev => prev.filter(r => r.id !== transferRecord.id));
+                
+                if (transferSource === 'reserve') {
+                    setReservations(prev => prev.filter(r => r.id !== transferRecord.id));
+                } else if (transferSource === 'tab1_preorder') {
+                    setTab1Preorders(prev => prev.filter(p => p.id !== transferRecord.id));
+                }
                 setTransferRecord(null);
+                setTransferSource(null);
             };
 
             const pending = deliveries.filter(d => d.status === 'pending');
@@ -358,6 +374,7 @@
             
             const pendingAmount = pending.reduce((sum, d) => sum + (Number(d.revenue) || 0), 0);
             const reserveAmount = reservations.reduce((sum, r) => sum + (Number(r.revenue) || 0), 0);
+            const preorderAmount = tab1Preorders.reduce((sum, p) => sum + (Number(p.revenue) || 0), 0);
 
             return (
                 <div className="animate-fade-in pb-20">
@@ -374,13 +391,13 @@
                     )}
 
                     {editingId && (
-                        <div className={`flex items-center mb-4 font-bold text-lg ${formMode === 'reserve' ? 'text-[#1976d2]' : 'text-[#bc9f8b]'}`}>
+                        <div className={`flex items-center mb-4 font-bold text-lg ${formMode === 'reserve' ? 'text-[#1976d2]' : (formMode === 'preorder' ? 'text-[#5c6bc0]' : 'text-[#bc9f8b]')}`}>
                             <Icon name="edit" className="mr-2" />
-                            {formMode === 'reserve' ? '編輯現貨保留資料' : '編輯超商寄件資料'}
+                            {formMode === 'reserve' ? '編輯現貨保留資料' : (formMode === 'preorder' ? '編輯預購紀錄' : '編輯超商寄件資料')}
                         </div>
                     )}
 
-                    <Card className={editingId ? (formMode === 'reserve' ? 'border-2 border-[#64b5f6]' : 'border-2 border-[#bc9f8b]') : (formMode === 'preorder' ? 'border-2 border-[#5c6bc0]' : '')}>
+                    <Card className={editingId ? (formMode === 'reserve' ? 'border-2 border-[#64b5f6]' : (formMode === 'preorder' ? 'border-2 border-[#5c6bc0]' : 'border-2 border-[#bc9f8b]')) : (formMode === 'preorder' ? 'border border-[#c5cae9]' : '')}>
                         {formMode === 'delivery' ? (
                             <React.Fragment>
                                 <Input type="date" value={dDate} onChange={e => setDDate(e.target.value)} />
@@ -438,21 +455,56 @@
                             </React.Fragment>
                         ) : (
                             <React.Fragment>
-                                <div className="flex items-center mb-4 text-[#5c6bc0] font-bold text-lg"><Icon name="add_shopping_cart" className="mr-2" /> 快速建立預購單 (捷徑)</div>
                                 <Input type="date" value={pDate} onChange={e => setPDate(e.target.value)} />
-                                <Input placeholder="訂購人姓名" value={pCustomerName} onChange={e => setPCustomerName(e.target.value)} />
+                                <Input placeholder="預購人姓名" value={pCustomerName} onChange={e => setPCustomerName(e.target.value)} />
                                 <div className="grid grid-cols-2 gap-3">
                                     <Input type="number" placeholder="預估售價(總額)" value={pRevenue} onChange={e => setPRevenue(e.target.value)} />
                                     <Input type="number" placeholder="預購件數" value={pItemsCount} onChange={e => setPItemsCount(e.target.value)} />
                                 </div>
                                 <Input placeholder="預購備註(選填)" value={pNote} onChange={e => setPNote(e.target.value)} />
-                                <div className="flex flex-col gap-2 mt-1">
-                                    <Button onClick={handleAddPreorder} className="w-full bg-[#5c6bc0] text-white py-3">建立單筆預購 (代購)</Button>
-                                    {showSuccess && <div className="text-center text-sm font-bold text-[#4caf50] mt-1 animate-fade-in">✅ 建立成功！請至下方「代購」分頁查看</div>}
+                                <div className="flex gap-3 mt-1">
+                                    {editingId && <Button onClick={resetPreorderForm} className="flex-1 bg-[#e8eaf6] !text-[#5c6bc0]">取消</Button>}
+                                    <Button onClick={handleAddPreorder} className={editingId ? 'flex-[2] bg-[#5c6bc0] text-white' : 'w-full bg-[#5c6bc0] text-white'}>{editingId ? '儲存修改' : '加入預購清單'}</Button>
                                 </div>
                             </React.Fragment>
                         )}
                     </Card>
+
+                    {/* 預購清單區 (第一分頁專屬) */}
+                    <div className="mb-6 animate-fade-in">
+                        <div className="flex items-center text-[#3949ab] font-bold px-2 text-lg mb-2">
+                            <Icon name="shopping_cart" className="mr-1 text-[20px]" /> 預購清單區 
+                            <span className="ml-2 bg-[#e8eaf6] text-[#3949ab] text-xs px-2 py-0.5 rounded-full">{tab1Preorders.length}筆</span>
+                            {preorderAmount > 0 && <span className="ml-auto text-sm text-[#5c6bc0] font-black tracking-wide">總額 ${preorderAmount.toLocaleString()}</span>}
+                        </div>
+                        {tab1Preorders.length === 0 ? (
+                            <div className="text-center text-[#9fa8da] text-sm py-6 bg-white rounded-xl border border-dashed border-[#e8eaf6] mx-1">目前沒有預購清單喔！</div>
+                        ) : (
+                            <div className="space-y-2">
+                            {tab1Preorders.map(p => (
+                                <div key={p.id} className="bg-white rounded-xl p-3 shadow-sm border-l-4 border-[#5c6bc0] relative mx-1 px-4">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div>
+                                            <div className="font-bold text-[#5c4d43] text-base">
+                                                {p.customerName} 
+                                                <span className="text-xs font-normal text-[#5c6bc0] ml-2 bg-[#e8eaf6] px-1.5 py-0.5 rounded">{p.itemsCount}件</span>
+                                                {Number(p.revenue) > 0 && <span className="text-xs font-bold text-[#5c6bc0] ml-1">${p.revenue}</span>}
+                                            </div>
+                                            <div className="text-[11px] text-[#a89689] mt-0.5">{p.date}預購 {p.note && <span className="ml-1 text-[#7a6453]">({p.note})</span>}</div>
+                                        </div>
+                                        <div className="flex gap-1 shrink-0">
+                                            <button onClick={() => handleEditPreorder(p)} className="p-1.5 text-[#5c6bc0] bg-[#f5f6fa] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
+                                            <button onClick={() => setConfirmDialog({isOpen: true, id: p.id, collection: 'tab1_preorders', message: "確定要刪除這筆預購紀錄嗎？"})} className="p-1.5 text-[#e57373] bg-[#fdf2f2] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => openTransferModal(p, 'tab1_preorder')} className="w-full py-2 bg-[#e8eaf6] text-[#3949ab] rounded-lg font-bold flex justify-center items-center text-sm shadow-sm transition-colors active:bg-[#c5cae9]">
+                                        <Icon name="check_circle" className="mr-1 text-[16px]" /> 貨已到並結單，轉入準備寄件
+                                    </button>
+                                </div>
+                            ))}
+                            </div>
+                        )}
+                    </div>
 
                     {/* 現貨保留區 */}
                     <div className="mb-6 animate-fade-in">
@@ -481,7 +533,7 @@
                                             <button onClick={() => setConfirmDialog({isOpen: true, id: r.id, collection: 'reservations', message: "確定要刪除這筆保留紀錄嗎？"})} className="p-1.5 text-[#e57373] bg-[#fdf2f2] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
                                         </div>
                                     </div>
-                                    <button onClick={() => openTransferModal(r)} className="w-full py-2 bg-[#e8f5e9] text-[#2e7d32] rounded-lg font-bold flex justify-center items-center text-sm shadow-sm transition-colors active:bg-[#c8e6c9]">
+                                    <button onClick={() => openTransferModal(r, 'reserve')} className="w-full py-2 bg-[#e8f5e9] text-[#2e7d32] rounded-lg font-bold flex justify-center items-center text-sm shadow-sm transition-colors active:bg-[#c8e6c9]">
                                         <Icon name="check_circle" className="mr-1 text-[16px]" /> 客人已結單，轉入準備寄件
                                     </button>
                                 </div>
@@ -565,7 +617,7 @@
                         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-[80] animate-fade-in px-4">
                             <div className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-xl max-h-[90vh] overflow-y-auto custom-scrollbar">
                                 <div className="text-center text-[#5c4d43] font-bold mb-4 text-lg border-b border-[#f2e7df] pb-3">
-                                    <Icon name="local_shipping" className="align-middle mr-1 text-[#4caf50]"/> 留貨確認轉寄件：{transferRecord.customerName}
+                                    <Icon name="local_shipping" className="align-middle mr-1 text-[#4caf50]"/> 確認轉寄件：{transferRecord.customerName}
                                 </div>
                                 <Input type="date" value={tDate} onChange={e => setTDate(e.target.value)} />
                                 <div className="grid grid-cols-2 gap-3 mb-3">
@@ -592,7 +644,7 @@
                                     </div>
                                 </div>
                                 <div className="flex gap-3 mt-5">
-                                    <button onClick={() => setTransferRecord(null)} className="flex-1 py-3.5 rounded-xl bg-[#f2e7df] text-[#7a6453] font-bold font-wawa">取消</button>
+                                    <button onClick={() => { setTransferRecord(null); setTransferSource(null); }} className="flex-1 py-3.5 rounded-xl bg-[#f2e7df] text-[#7a6453] font-bold font-wawa">取消</button>
                                     <button onClick={handleTransferSubmit} className="flex-[2] py-3.5 rounded-xl bg-[#4caf50] text-white font-bold font-wawa shadow-sm">確定轉入超商寄出</button>
                                 </div>
                             </div>
@@ -1411,7 +1463,16 @@
         const SettingsModal = ({ isOpen, onClose }) => {
             if (!isOpen) return null;
             const handleExport = () => {
-                const data = { xq_deliveries: localStorage.getItem('xq_deliveries'), xq_marketSales: localStorage.getItem('xq_marketSales'), xq_expenses: localStorage.getItem('xq_expenses'), xq_reservations: localStorage.getItem('xq_reservations'), xq_preorders: localStorage.getItem('xq_preorders'), xq_settings: localStorage.getItem('xq_settings'), xq_market_sold: localStorage.getItem('xq_market_sold') };
+                const data = { 
+                    xq_deliveries: localStorage.getItem('xq_deliveries'), 
+                    xq_marketSales: localStorage.getItem('xq_marketSales'), 
+                    xq_expenses: localStorage.getItem('xq_expenses'), 
+                    xq_reservations: localStorage.getItem('xq_reservations'), 
+                    xq_preorders: localStorage.getItem('xq_preorders'), 
+                    xq_tab1_preorders: localStorage.getItem('xq_tab1_preorders'), // 加入新的狀態備份
+                    xq_settings: localStorage.getItem('xq_settings'), 
+                    xq_market_sold: localStorage.getItem('xq_market_sold') 
+                };
                 const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a'); a.href = url; a.download = `森衣好_資料備份_${new Date().toISOString().split('T')[0]}.json`; a.click(); URL.revokeObjectURL(url);
@@ -1426,6 +1487,7 @@
                         if(d.xq_expenses) localStorage.setItem('xq_expenses', d.xq_expenses);
                         if(d.xq_reservations) localStorage.setItem('xq_reservations', d.xq_reservations);
                         if(d.xq_preorders) localStorage.setItem('xq_preorders', d.xq_preorders);
+                        if(d.xq_tab1_preorders) localStorage.setItem('xq_tab1_preorders', d.xq_tab1_preorders); // 加入新的還原
                         if(d.xq_settings) localStorage.setItem('xq_settings', d.xq_settings);
                         if(d.xq_market_sold) localStorage.setItem('xq_market_sold', d.xq_market_sold);
                         alert('✅ 資料匯入成功！系統將為您重新整理畫面。'); window.location.reload();
@@ -1464,6 +1526,7 @@
             const [expensesRaw, setExpensesRaw] = useLocalStorage('xq_expenses', []);
             const [reservationsRaw, setReservationsRaw] = useLocalStorage('xq_reservations', []);
             const [preordersRaw, setPreordersRaw] = useLocalStorage('xq_preorders', []);
+            const [tab1PreordersRaw, setTab1PreordersRaw] = useLocalStorage('xq_tab1_preorders', []); // 第一分頁專屬的預購狀態
             const [settingsRaw, setSettingsRaw] = useLocalStorage('xq_settings', { monthlyGoal: 100000, startupCapital: 36284 });
             const [marketSoldStatsRaw, setMarketSoldStatsRaw] = useLocalStorage('xq_market_sold', {});
 
@@ -1472,6 +1535,7 @@
             const expenses = getSafeArr(expensesRaw);
             const reservations = getSafeArr(reservationsRaw);
             const preorders = getSafeArr(preordersRaw);
+            const tab1Preorders = getSafeArr(tab1PreordersRaw);
             const settings = (typeof settingsRaw === 'object' && settingsRaw !== null && !Array.isArray(settingsRaw)) ? settingsRaw : { monthlyGoal: 100000, startupCapital: 36284 };
             const marketSoldStats = (typeof marketSoldStatsRaw === 'object' && marketSoldStatsRaw !== null && !Array.isArray(marketSoldStatsRaw)) ? marketSoldStatsRaw : {};
 
@@ -1480,6 +1544,7 @@
             const setExpenses = (u) => setExpensesRaw(p => typeof u === 'function' ? u(getSafeArr(p)) : u);
             const setReservations = (u) => setReservationsRaw(p => typeof u === 'function' ? u(getSafeArr(p)) : u);
             const setPreorders = (u) => setPreordersRaw(p => typeof u === 'function' ? u(getSafeArr(p)) : u);
+            const setTab1Preorders = (u) => setTab1PreordersRaw(p => typeof u === 'function' ? u(getSafeArr(p)) : u);
             const setSettings = (u) => setSettingsRaw(p => typeof u === 'function' ? u(p) : u);
             const setMarketSoldStats = (u) => setMarketSoldStatsRaw(p => typeof u === 'function' ? u(p) : u);
             
@@ -1493,6 +1558,7 @@
                     if (collection === 'expenses') setExpenses(prev => prev.filter(e => e.id !== id));
                     if (collection === 'reservations') setReservations(prev => prev.filter(r => r.id !== id));
                     if (collection === 'preorders') setPreorders(prev => prev.filter(p => p.id !== id));
+                    if (collection === 'tab1_preorders') setTab1Preorders(prev => prev.filter(p => p.id !== id));
                 }
                 setConfirmDialog({isOpen: false, id: null, collection: '', message: ''});
             };
@@ -1508,7 +1574,7 @@
                         </header>
                         
                         <main id="main-content" className="flex-1 overflow-y-auto p-4 relative custom-scrollbar">
-                            {activeTab === 'store' && <StoreTab deliveries={deliveries} setDeliveries={setDeliveries} reservations={reservations} setReservations={setReservations} preorders={preorders} setPreorders={setPreorders} setConfirmDialog={setConfirmDialog} />}
+                            {activeTab === 'store' && <StoreTab deliveries={deliveries} setDeliveries={setDeliveries} reservations={reservations} setReservations={setReservations} tab1Preorders={tab1Preorders} setTab1Preorders={setTab1Preorders} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'market' && <MarketTab marketSales={marketSales} setMarketSales={setMarketSales} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'expense' && <ExpenseTab expenses={expenses} setExpenses={setExpenses} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'report' && <ReportTab deliveries={deliveries} marketSales={marketSales} expenses={expenses} preorders={preorders} settings={settings} setSettings={setSettings} marketSoldStats={marketSoldStats} setMarketSoldStats={setMarketSoldStats} setDialog={setConfirmDialog} />}
