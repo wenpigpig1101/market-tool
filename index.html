@@ -311,6 +311,7 @@
 
             const openTransferModal = (record) => {
                 setTransferRecord(record); setTDate(new Date().toISOString().split('T')[0]);
+                // 將留貨的預估金額與件數直接帶入
                 setTRevenue(record.revenue || ''); setTSoldQty(record.itemsCount); 
                 setTShippingExpense(''); setTShippingIncome(''); setTHasGift(false); setTGiftCount('');
             };
@@ -341,18 +342,21 @@
                 });
                 return groups;
             }, [shipped]);
-            
+            // 按月份排序 (新到舊)
             const sortedMonths = Object.keys(groupedShipped).sort((a, b) => b.localeCompare(a));
+
             const toggleMonth = (month) => {
                 setExpandedMonths(prev => ({ ...prev, [month]: !prev[month] }));
             };
             
+            // 計算未寄出總額與保留區總額
             const pendingAmount = pending.reduce((sum, d) => sum + (Number(d.revenue) || 0), 0);
             const reserveAmount = reservations.reduce((sum, r) => sum + (Number(r.revenue) || 0), 0);
 
             return (
                 <div className="animate-fade-in pb-20">
                     
+                    {/* 表單切換器 (只有在新增模式下顯示) */}
                     {!editingId && (
                         <div className="flex bg-[#fdfaf7] rounded-xl p-1.5 mb-4 border border-[#f2e7df] shadow-inner">
                             <button className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${formMode === 'delivery' ? 'bg-white shadow text-[#bc9f8b]' : 'text-[#c4b5aa]'}`} 
@@ -362,6 +366,7 @@
                         </div>
                     )}
 
+                    {/* 編輯模式標題 */}
                     {editingId && (
                         <div className={`flex items-center mb-4 font-bold text-lg ${formMode === 'reserve' ? 'text-[#1976d2]' : 'text-[#bc9f8b]'}`}>
                             <Icon name="edit" className="mr-2" />
@@ -428,7 +433,7 @@
                         )}
                     </Card>
 
-                    {/* 清單 1：現貨保留區 (留貨) */}
+                    {/* 清單 1：現貨保留區 (留貨) 永遠顯示標題 */}
                     <div className="mb-6 animate-fade-in">
                         <div className="flex items-center text-[#1976d2] font-bold px-2 text-lg mb-2">
                             <Icon name="diamond" className="mr-1 text-[20px]" /> 現貨保留區 
@@ -486,7 +491,7 @@
                         </div>
                     ))}
 
-                    {/* 清單 3：已寄出 (手風琴按月分組) */}
+                    {/* 清單 3：已寄出 (手風琴按月分組，含當月總額) */}
                     <div className="mt-6 mb-2 flex items-center text-[#4caf50] font-bold px-2 text-lg">
                         <Icon name="check_box" className="mr-1 text-[20px]" /> 已寄出紀錄 
                         <span className="ml-2 bg-[#a5d6a7] text-white text-xs px-2 py-0.5 rounded-full">{shipped.length}筆</span>
@@ -556,7 +561,7 @@
                                     </div>
                                 </div>
                                 
-                                {/* 運費快捷鍵 */}
+                                {/* 運費快捷鍵 (轉單 Modal 內) */}
                                 <div className="flex gap-2 mb-3 -mt-2 px-1 overflow-x-auto custom-scrollbar">
                                     <button type="button" onClick={() => {setTShippingExpense(38); setTShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">
                                         ⚡ 7-11本38收60
@@ -790,35 +795,39 @@
                             {editingId ? '編輯市場營業' : '新增市場營業'}
                         </div>
                         <Input type="date" value={date} onChange={e => { setDate(e.target.value); setSelectedDay(e.target.value); setViewMonthStr(safeStr(e.target.value).substring(0,7)); }} />
+                        
+                        {/* 修改欄位順序：地點 | 位租 */}
                         <div className="grid grid-cols-2 gap-3">
                             <Input placeholder="地點" value={location} onChange={e => setLocation(e.target.value)} />
+                            <Input type="number" placeholder="位租" value={rent} onChange={e => setRent(e.target.value)} />
+                        </div>
+                        {/* 修改欄位順序：當日業績 | 售出件數 */}
+                        <div className="grid grid-cols-2 gap-3">
                             <div className="mb-3 w-full">
                                 <div className="flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 h-[48px] focus-within:border-[#bc9f8b] transition-colors">
                                     <input type="number" placeholder="當日業績" value={revenue} onChange={handleRevenueChange} className="bg-transparent w-full h-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
                                 </div>
                             </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
                             <div className="mb-3 w-full">
                                 <div className="flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 h-[48px] focus-within:border-[#bc9f8b] transition-colors">
                                     <input type="number" placeholder="售出件數 (自動推算)" value={soldQty} onChange={e => setSoldQty(e.target.value)} className="bg-transparent w-full h-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
                                 </div>
                             </div>
-                            <Input placeholder="備註 (選填)" value={note} onChange={e => setNote(e.target.value)} />
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
-                            <Input type="number" placeholder="位租" value={rent} onChange={e => setRent(e.target.value)} />
+                        {/* 獨立備註列 */}
+                        <Input placeholder="備註 (選填)" value={note} onChange={e => setNote(e.target.value)} />
+                        
+                        <div className="grid grid-cols-2 gap-3 mt-1">
                             <Input type="number" placeholder="電費 (選填)" value={electricity} onChange={e => setElectricity(e.target.value)} />
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
                             <Input type="number" placeholder="清潔費 (選填)" value={cleaning} onChange={e => setCleaning(e.target.value)} />
-                            <Input type="number" placeholder="過路費 (選填)" value={toll} onChange={e => setToll(e.target.value)} />
                         </div>
                         <div className="grid grid-cols-2 gap-3">
+                            <Input type="number" placeholder="過路費 (選填)" value={toll} onChange={e => setToll(e.target.value)} />
                             <Input type="number" placeholder="停車費 (選填)" value={parking} onChange={e => setParking(e.target.value)} />
-                            <div className="flex items-center justify-center text-[11px] text-[#a89689] bg-[#fdfaf7] rounded-xl border border-[#f2e7df] border-dashed">
-                                ※交通油資請至「支出」紀錄
-                            </div>
+                        </div>
+                        
+                        <div className="flex items-center justify-center text-[11px] text-[#a89689] bg-[#fdfaf7] rounded-xl border border-[#f2e7df] border-dashed py-2 mb-3">
+                            ※交通油資請至「現貨支出」紀錄
                         </div>
                         
                         <div className="grid grid-cols-2 gap-3 mb-4 mt-1">
@@ -1203,7 +1212,11 @@
                                                                     {isBorrow ? '+' : '-'}${e.amount}
                                                                 </div>
                                                                 <button onClick={() => handleEditClick(e)} className="p-1.5 bg-[#fdfaf7] text-[#bc9f8b] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
-                                                                <button onClick={() => setConfirmDialog({isOpen: true, id: e.id, collection: 'expenses'})} className="p-1.5 bg-[#fdf2f2] text-[#e57373] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
+                                                                <button onClick={() => setConfirmDialog({
+                                                                    isOpen: true, title: "刪除確認", message: "確定要刪除這筆紀錄嗎？", 
+                                                                    onConfirm: () => { setExpenses(prev => prev.filter(x => x.id !== e.id)); setConfirmDialog({isOpen: false}); },
+                                                                    onCancel: () => setConfirmDialog({isOpen: false}), isDanger: true
+                                                                })} className="p-1.5 bg-[#fdf2f2] text-[#e57373] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
                                                             </div>
                                                         </div>
                                                     );
@@ -1252,20 +1265,6 @@
             const currentStartupCap = settings && settings.startupCapital !== undefined ? settings.startupCapital : 36284;
 
             const handleCapitalChange = () => {
-                setDialog({
-                    isOpen: true,
-                    title: "設定創業初始本金",
-                    message: "請輸入您的「初期創業本金」 (系統會自動幫您推算口袋現金！)：",
-                    inputType: "number",
-                    inputValue: currentStartupCap,
-                    onConfirm: () => {
-                        // The CustomModal provides value back via state, but we can't easily capture it if it's external.
-                        // For simplicity in this local scope, we fall back to prompt if needed, 
-                        // OR we handle it properly with state.
-                    }
-                });
-                
-                // Keep the prompt for native input safety in this specific feature
                 const newCapital = window.prompt("請輸入您的「初期創業本金」(系統會自動幫您推算口袋現金！)：", currentStartupCap);
                 if (newCapital !== null && newCapital.trim() !== '' && !isNaN(Number(newCapital))) {
                     setSettings({ ...(settings || {}), startupCapital: Number(newCapital) });
@@ -1276,7 +1275,7 @@
             const allTimeMarketRev = marketSales.reduce((sum, m) => sum + (Number(m.revenue)||0), 0);
             const allTimeStoreRev = deliveries.reduce((sum, d) => sum + (Number(d.revenue)||0), 0);
             const allTimeStoreShipIn = deliveries.reduce((sum, d) => sum + (Number(d.shippingIncome)||0), 0);
-            const allTimeRev = allTimeMarketRev + allTimeStoreRev + allTimeStoreShipIn; 
+            const allTimeRev = allTimeMarketRev + allTimeStoreRev + allTimeStoreShipIn; // 現貨總收
             
             const allTimeMarketRent = marketSales.reduce((sum, m) => sum + (Number(m.rent)||0), 0);
             const allTimeMarketMisc = marketSales.reduce((sum, m) => sum + (Number(m.electricity)||0) + (Number(m.cleaning)||0) + (Number(m.toll)||0) + (Number(m.parking)||0), 0);
@@ -1682,7 +1681,7 @@
         };
 
         // --- 分頁 5：代購預購系統 ---
-        const PreorderTab = ({ preorders, setPreorders, setConfirmDialog }) => {
+        const PreorderTab = ({ preorders, setPreorders, setDialog }) => {
             const [editingId, setEditingId] = useState(null);
             const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
             const [customerName, setCustomerName] = useState('');
@@ -1832,10 +1831,10 @@
                                 <div key={p.id} className="bg-white rounded-xl p-4 shadow-sm border border-[#e8eaf6] relative">
                                     <div className="absolute top-4 right-4 flex gap-1">
                                         <button onClick={() => handleEditClick(p)} className="p-1.5 text-[#5c6bc0] bg-[#e8eaf6] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
-                                        <button onClick={() => setConfirmDialog({
+                                        <button onClick={() => setDialog({
                                             isOpen: true, title: "刪除確認", message: "確定要刪除這筆代購紀錄嗎？", 
-                                            onConfirm: () => { setPreorders(prev => prev.filter(x => x.id !== p.id)); setConfirmDialog({isOpen: false}); },
-                                            onCancel: () => setConfirmDialog({isOpen: false}), isDanger: true
+                                            onConfirm: () => { setPreorders(prev => prev.filter(x => x.id !== p.id)); setDialog({isOpen: false}); },
+                                            onCancel: () => setDialog({isOpen: false}), isDanger: true
                                         })} className="p-1.5 text-[#e57373] bg-[#fdf2f2] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
                                     </div>
                                     
@@ -1880,7 +1879,7 @@
             );
         };
 
-        // --- 設定與備份 Modal (安全穩定版) ---
+        // --- 設定與備份 Modal ---
         const SettingsModal = ({ isOpen, onClose }) => {
             if (!isOpen) return null;
 
@@ -2044,7 +2043,7 @@
                         </nav>
                         
                         <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
-                        <ConfirmModal isOpen={confirmDialog.isOpen} message="確定要刪除這筆紀錄嗎？" onConfirm={executeDelete} onCancel={() => setConfirmDialog({isOpen: false, id: null, collection: ''})} />
+                        <ConfirmModal isOpen={confirmDialog.isOpen} message={confirmDialog.message} onConfirm={executeDelete} onCancel={() => setConfirmDialog({isOpen: false, id: null, collection: ''})} />
                     </div>
                 </ErrorBoundary>
             );
