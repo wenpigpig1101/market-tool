@@ -42,9 +42,9 @@
     <script>
         window.onerror = function(msg, url, lineNo, columnNo, error) {
             var errorHtml = '<div style="padding: 30px; text-align: center; color: #e57373;">' +
-                            '<h3 style="font-size:24px; margin-bottom:10px;">🛡️ 系統啟動保護</h3>' +
-                            '<p style="font-size:14px; margin-bottom:10px;">系統偵測到異常的舊快取。</p>' +
-                            '<p style="font-size:14px; margin-bottom:20px; color:#7a6453;">請您<strong>「清除瀏覽紀錄」</strong>或使用<strong>「無痕模式」</strong>重新開啟網頁。</p>' +
+                            '<h3 style="font-size:24px; margin-bottom:10px;">🛡️ 系統保護機制</h3>' +
+                            '<p style="font-size:14px; margin-bottom:10px;">系統偵測到舊快取衝突。</p>' +
+                            '<p style="font-size:14px; margin-bottom:20px; color:#7a6453;">請不用擔心，您的資料很安全。請嘗試重新整理網頁。</p>' +
                             '<pre style="font-size:10px; text-align:left; background:#fff; padding:10px; border-radius:8px; overflow-x:auto;">' + msg + '</pre>' +
                             '</div>';
             document.getElementById('root').innerHTML = errorHtml;
@@ -67,6 +67,7 @@
             return arr.filter(i => i !== null && typeof i === 'object' && !Array.isArray(i));
         };
 
+        // 鋼鐵防護版的 ErrorBoundary，絕對不清除 localStorage
         class ErrorBoundary extends Component {
             constructor(props) {
                 super(props);
@@ -78,8 +79,30 @@
             componentDidCatch(error, errorInfo) {
                 console.error("渲染錯誤：", error, errorInfo);
             }
-            repairAndReload() {
-                localStorage.clear();
+            safeRepairAndReload() {
+                // 安全修復：只檢查格式，不刪除資料
+                const safeParse = (key) => {
+                    try {
+                        const raw = localStorage.getItem(key);
+                        if(raw) JSON.parse(raw);
+                    } catch(e) {
+                        localStorage.setItem(key, '[]'); // 只有當資料完全壞掉(無法解析)時才重置該陣列
+                    }
+                };
+                safeParse('xq_deliveries');
+                safeParse('xq_marketSales');
+                safeParse('xq_expenses');
+                safeParse('xq_reservations');
+                safeParse('xq_preorders');
+                
+                try {
+                    const stats = localStorage.getItem('xq_market_sold');
+                    if(stats) {
+                        const s = JSON.parse(stats);
+                        if(Array.isArray(s) || typeof s !== 'object') localStorage.setItem('xq_market_sold', '{}');
+                    }
+                } catch(e) { localStorage.setItem('xq_market_sold', '{}'); }
+
                 window.location.reload();
             }
             render() {
@@ -87,10 +110,11 @@
                     return (
                         <div className="flex flex-col h-screen p-8 text-center text-[#e57373] bg-[#fdfaf7] justify-center">
                             <div className="text-5xl mb-4">🛡️</div>
-                            <h2 className="text-xl font-bold mb-2">資料結構修復中</h2>
-                            <p className="text-sm text-[#a89689] mb-4 leading-relaxed">偵測到部分舊資料格式衝突。<br/>請點擊下方按鈕，系統將為您自動修復。</p>
-                            <button onClick={() => this.repairAndReload()} className="w-full py-4 bg-[#bc9f8b] text-white font-bold rounded-xl shadow-md">
-                                一鍵清除舊資料並重啟
+                            <h2 className="text-xl font-bold mb-2">畫面載入異常</h2>
+                            <p className="text-sm text-[#a89689] mb-4 leading-relaxed">您的資料安全無虞，請點擊下方按鈕安全重新整理。</p>
+                            <textarea className="w-full h-16 p-2 text-[9px] bg-white border border-[#f2e7df] rounded-xl mb-6 opacity-60 custom-scrollbar" readOnly value={this.state.errorStr}></textarea>
+                            <button onClick={() => this.safeRepairAndReload()} className="w-full py-4 bg-[#bc9f8b] text-white font-bold rounded-xl shadow-md">
+                                安全修復並重新整理
                             </button>
                         </div>
                     );
@@ -162,11 +186,19 @@
             );
         };
 
-        // --- 分頁 1：超商 & 留貨 ---
+        const formatRevenueStr = (num) => {
+            const validNum = Number(num) || 0;
+            if (validNum >= 10000) return Number.isInteger(validNum / 10000) ? `${validNum / 10000}萬` : `${(validNum / 10000).toFixed(1)}萬`;
+            if (validNum >= 1000) return Number.isInteger(validNum / 1000) ? `${validNum / 1000}千` : `${(validNum / 1000).toFixed(1)}千`;
+            return validNum.toString();
+        };
+
+        // --- 分頁 1：超商 & 留貨 (完美整合版) ---
         const StoreTab = ({ deliveries, setDeliveries, reservations, setReservations, setConfirmDialog }) => {
             const [formMode, setFormMode] = useState('delivery'); 
             const [editingId, setEditingId] = useState(null);
             
+            // 寄件表單
             const [dDate, setDDate] = useState(new Date().toISOString().split('T')[0]);
             const [dCustomerName, setDCustomerName] = useState('');
             const [dRevenue, setDRevenue] = useState('');
@@ -176,12 +208,14 @@
             const [dHasGift, setDHasGift] = useState(false);
             const [dGiftCount, setDGiftCount] = useState('');
 
+            // 留貨表單
             const [rDate, setRDate] = useState(new Date().toISOString().split('T')[0]);
             const [rCustomerName, setRCustomerName] = useState('');
             const [rItemsCount, setRItemsCount] = useState('');
             const [rRevenue, setRRevenue] = useState(''); 
             const [rNote, setRNote] = useState('');
 
+            // 轉單 Modal
             const [transferRecord, setTransferRecord] = useState(null);
             const [tDate, setTDate] = useState('');
             const [tRevenue, setTRevenue] = useState('');
@@ -283,6 +317,7 @@
             const pending = deliveries.filter(d => d.status === 'pending');
             const shipped = deliveries.filter(d => d.status === 'shipped');
             
+            // 按月份分組
             const groupedShipped = useMemo(() => {
                 const groups = {};
                 shipped.forEach(d => {
@@ -301,6 +336,7 @@
 
             return (
                 <div className="animate-fade-in pb-20">
+                    
                     {!editingId && (
                         <div className="flex bg-[#fdfaf7] rounded-xl p-1.5 mb-4 border border-[#f2e7df] shadow-inner">
                             <button className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${formMode === 'delivery' ? 'bg-white shadow text-[#bc9f8b]' : 'text-[#c4b5aa]'}`} onClick={() => { setFormMode('delivery'); resetDeliveryForm(); }}>📦 新增超商寄件</button>
@@ -325,11 +361,20 @@
                                     <Input type="number" placeholder="售出服飾件數" value={dSoldQty} onChange={e => setDSoldQty(e.target.value)} />
                                 </div>
                                 
+                                {/* 運費快捷鍵 */}
                                 <div className="flex gap-2 mb-3 -mt-2 px-1 overflow-x-auto custom-scrollbar">
-                                    <button type="button" onClick={() => {setDShippingExpense(38); setDShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">⚡ 7-11本38收60</button>
-                                    <button type="button" onClick={() => {setDShippingExpense(39); setDShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">⚡ 全家本39收60</button>
-                                    <button type="button" onClick={() => {setDShippingExpense(38); setDShippingIncome(38);}} className="shrink-0 text-[11px] bg-[#fdfaf7] border border-[#d6ccc2] text-[#8d6e63] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#f2e7df] transition-colors">7-11本38</button>
-                                    <button type="button" onClick={() => {setDShippingExpense(39); setDShippingIncome(39);}} className="shrink-0 text-[11px] bg-[#fdfaf7] border border-[#d6ccc2] text-[#8d6e63] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#f2e7df] transition-colors">全家本39</button>
+                                    <button type="button" onClick={() => {setDShippingExpense(38); setDShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">
+                                        ⚡ 7-11本38收60
+                                    </button>
+                                    <button type="button" onClick={() => {setDShippingExpense(39); setDShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">
+                                        ⚡ 全家本39收60
+                                    </button>
+                                    <button type="button" onClick={() => {setDShippingExpense(38); setDShippingIncome(38);}} className="shrink-0 text-[11px] bg-[#fdfaf7] border border-[#d6ccc2] text-[#8d6e63] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#f2e7df] transition-colors">
+                                        7-11本38
+                                    </button>
+                                    <button type="button" onClick={() => {setDShippingExpense(39); setDShippingIncome(39);}} className="shrink-0 text-[11px] bg-[#fdfaf7] border border-[#d6ccc2] text-[#8d6e63] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#f2e7df] transition-colors">
+                                        全家本39
+                                    </button>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-3">
@@ -365,6 +410,7 @@
                         )}
                     </Card>
 
+                    {/* 現貨保留清單 */}
                     <div className="mb-6 animate-fade-in">
                         <div className="flex items-center text-[#1976d2] font-bold px-2 text-lg mb-2">
                             <Icon name="diamond" className="mr-1 text-[20px]" /> 現貨保留區 
@@ -390,7 +436,7 @@
                                         </div>
                                         <div className="flex gap-1 shrink-0">
                                             <button onClick={() => handleEditReserve(r)} className="p-1.5 text-[#64b5f6] bg-[#f5f9ff] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
-                                            <button onClick={() => setConfirmDialog({isOpen: true, id: r.id, collection: 'reservations', message: '確定要刪除這筆保留紀錄嗎？'})} className="p-1.5 text-[#e57373] bg-[#fdf2f2] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
+                                            <button onClick={() => setConfirmDialog({isOpen: true, id: r.id, collection: 'reservations', message: "確定要刪除這筆保留紀錄嗎？"})} className="p-1.5 text-[#e57373] bg-[#fdf2f2] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
                                         </div>
                                     </div>
                                     <button onClick={() => openTransferModal(r)} className="w-full py-2 bg-[#e8f5e9] text-[#2e7d32] rounded-lg font-bold flex justify-center items-center text-sm shadow-sm transition-colors active:bg-[#c8e6c9]">
@@ -402,8 +448,9 @@
                         )}
                     </div>
 
+                    {/* 未寄出清單 */}
                     <div className="mt-6 mb-2 flex items-center text-[#9b4949] font-bold px-2 text-lg">
-                        <Icon name="push_pin" className="mr-1 text-[20px]" /> 未寄出 
+                        <Icon name="push_pin" className="mr-1 text-[20px]" /> 現貨未寄出 
                         <span className="ml-2 bg-[#d6aba3] text-white text-xs px-2 py-0.5 rounded-full">{pending.length}筆</span>
                         {pendingAmount > 0 && <span className="ml-auto text-sm text-[#e57373] font-black tracking-wide">待收 ${pendingAmount.toLocaleString()}</span>}
                     </div>
@@ -416,11 +463,12 @@
                             <div className="flex gap-2">
                                 <button onClick={() => toggleDeliveryStatus(d.id, d.status)} className="p-2 bg-[#f0f9f0] text-[#4caf50] rounded-lg shadow-sm flex items-center"><Icon name="local_shipping" className="mr-1 text-[16px]"/> 寄出</button>
                                 <button onClick={() => handleEditDelivery(d)} className="p-2 bg-[#fdfaf7] text-[#bc9f8b] rounded-lg shadow-sm"><Icon name="edit" className="text-[20px]" /></button>
-                                <button onClick={() => setConfirmDialog({isOpen: true, id: d.id, collection: 'deliveries', message: '確定要刪除這筆寄件紀錄嗎？'})} className="p-2 bg-[#fdf2f2] text-[#e57373] rounded-lg shadow-sm"><Icon name="delete" className="text-[20px]" /></button>
+                                <button onClick={() => setConfirmDialog({isOpen: true, id: d.id, collection: 'deliveries', message: "確定要刪除這筆未寄出紀錄嗎？"})} className="p-2 bg-[#fdf2f2] text-[#e57373] rounded-lg shadow-sm"><Icon name="delete" className="text-[20px]" /></button>
                             </div>
                         </div>
                     ))}
 
+                    {/* 已寄出清單 (手風琴按月分組) */}
                     <div className="mt-6 mb-2 flex items-center text-[#4caf50] font-bold px-2 text-lg">
                         <Icon name="check_box" className="mr-1 text-[20px]" /> 已寄出紀錄 
                         <span className="ml-2 bg-[#a5d6a7] text-white text-xs px-2 py-0.5 rounded-full">{shipped.length}筆</span>
@@ -458,7 +506,7 @@
                                                         <div className="flex gap-1">
                                                             <button onClick={() => toggleDeliveryStatus(d.id, d.status)} className="p-2 text-[#a89689]"><Icon name="undo" /></button>
                                                             <button onClick={() => handleEditDelivery(d)} className="p-2 text-[#bc9f8b]"><Icon name="edit" className="text-[18px]" /></button>
-                                                            <button onClick={() => setConfirmDialog({isOpen: true, id: d.id, collection: 'deliveries', message: '確定要刪除這筆已寄出紀錄嗎？'})} className="p-2 text-[#e57373]"><Icon name="delete" className="text-[18px]" /></button>
+                                                            <button onClick={() => setConfirmDialog({isOpen: true, id: d.id, collection: 'deliveries', message: "確定要刪除這筆已寄出紀錄嗎？"})} className="p-2 text-[#e57373]"><Icon name="delete" className="text-[18px]" /></button>
                                                         </div>
                                                     </div>
                                                 ))}
@@ -470,6 +518,7 @@
                         </div>
                     )}
 
+                    {/* 轉單 Modal */}
                     {transferRecord && (
                         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-[80] animate-fade-in px-4">
                             <div className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-xl max-h-[90vh] overflow-y-auto custom-scrollbar">
@@ -482,11 +531,12 @@
                                     <Input type="number" value={tSoldQty} onChange={e => setTSoldQty(e.target.value)} placeholder="售出服飾件數" />
                                 </div>
                                 
+                                {/* 運費快捷鍵 (轉單 Modal 內) */}
                                 <div className="flex gap-2 mb-3 -mt-2 px-1 overflow-x-auto custom-scrollbar">
-                                    <button type="button" onClick={() => {setTShippingExpense(38); setTShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">⚡ 7-11本38收60</button>
-                                    <button type="button" onClick={() => {setTShippingExpense(39); setTShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">⚡ 全家本39收60</button>
-                                    <button type="button" onClick={() => {setTShippingExpense(38); setTShippingIncome(38);}} className="shrink-0 text-[11px] bg-[#fdfaf7] border border-[#d6ccc2] text-[#8d6e63] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#f2e7df] transition-colors">7-11本38</button>
-                                    <button type="button" onClick={() => {setTShippingExpense(39); setTShippingIncome(39);}} className="shrink-0 text-[11px] bg-[#fdfaf7] border border-[#d6ccc2] text-[#8d6e63] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#f2e7df] transition-colors">全家本39</button>
+                                    <button type="button" onClick={() => {setTShippingExpense(38); setTShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm">⚡ 7-11本38收60</button>
+                                    <button type="button" onClick={() => {setTShippingExpense(39); setTShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm">⚡ 全家本39收60</button>
+                                    <button type="button" onClick={() => {setTShippingExpense(38); setTShippingIncome(38);}} className="shrink-0 text-[11px] bg-[#fdfaf7] border border-[#d6ccc2] text-[#8d6e63] px-2 py-1.5 rounded-lg font-bold shadow-sm">7-11本38</button>
+                                    <button type="button" onClick={() => {setTShippingExpense(39); setTShippingIncome(39);}} className="shrink-0 text-[11px] bg-[#fdfaf7] border border-[#d6ccc2] text-[#8d6e63] px-2 py-1.5 rounded-lg font-bold shadow-sm">全家本39</button>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-3">
@@ -508,7 +558,7 @@
             );
         };
 
-        // --- 分頁 2：現貨市場 ---
+        // --- 分頁 2：市場 ---
         const MarketTab = ({ marketSales, setMarketSales, setConfirmDialog }) => {
             const currentDate = new Date().toISOString().split('T')[0];
             const [editingId, setEditingId] = useState(null);
@@ -521,7 +571,6 @@
             const [note, setNote] = useState('');
             const [electricity, setElectricity] = useState('');
             const [cleaning, setCleaning] = useState('');
-            const [gas, setGas] = useState(''); 
             const [toll, setToll] = useState('');
             const [parking, setParking] = useState('');
             const [hasGift, setHasGift] = useState(false);
@@ -539,9 +588,7 @@
                     if (mDate.startsWith(viewMonthStr)) {
                         if (!stats[mDate]) stats[mDate] = { revenue: 0, locations: [] };
                         stats[mDate].revenue += (Number(m.revenue) || 0);
-                        if (m.location && !stats[mDate].locations.includes(m.location)) {
-                            stats[mDate].locations.push(m.location);
-                        }
+                        if (m.location && !stats[mDate].locations.includes(m.location)) stats[mDate].locations.push(m.location);
                     }
                 });
                 return stats;
@@ -557,47 +604,26 @@
             const handleRevenueChange = (e) => {
                 const val = e.target.value;
                 setRevenue(val);
-                if (val !== '') {
-                    setSoldQty(Math.round(Number(val) / 200).toString());
-                } else {
-                    setSoldQty('');
-                }
+                if (val !== '') { setSoldQty(Math.round(Number(val) / 200).toString()); } else { setSoldQty(''); }
             };
 
             const handleAddMarket = () => {
                 if (!location) return;
                 const recordData = {
-                    date, location, revenue: Number(revenue) || 0, soldQty: Number(soldQty) || 0,
-                    rent: Number(rent) || 0, note,
-                    electricity: Number(electricity) || 0, cleaning: Number(cleaning) || 0,
-                    toll: Number(toll) || 0, parking: Number(parking) || 0,
-                    gas: 0, 
-                    hasGift, giftCount: hasGift ? (Number(giftCount) || 0) : 0,
-                    accessories: { necklace: Number(acc.necklace) || 0, hat: Number(acc.hat) || 0, bag: Number(acc.bag) || 0, other: Number(acc.other) || 0 }
+                    date, location, revenue: Number(revenue) || 0, soldQty: Number(soldQty) || 0, rent: Number(rent) || 0, note,
+                    electricity: Number(electricity) || 0, cleaning: Number(cleaning) || 0, toll: Number(toll) || 0, parking: Number(parking) || 0, gas: 0, 
+                    hasGift, giftCount: hasGift ? (Number(giftCount) || 0) : 0, accessories: { necklace: Number(acc.necklace) || 0, hat: Number(acc.hat) || 0, bag: Number(acc.bag) || 0, other: Number(acc.other) || 0 }
                 };
-                
-                if (editingId) {
-                    setMarketSales(prev => prev.map(m => m.id === editingId ? { ...m, ...recordData } : m).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
-                } else {
-                    const newRecord = { id: Date.now().toString(), ...recordData };
-                    setMarketSales(prev => [newRecord, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
-                }
+                if (editingId) { setMarketSales(prev => prev.map(m => m.id === editingId ? { ...m, ...recordData } : m).sort((a,b)=> safeTime(b.date) - safeTime(a.date))); } 
+                else { setMarketSales(prev => [{ id: Date.now().toString(), ...recordData }, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date))); }
                 resetForm();
             };
 
             const handleEditClick = (record) => {
-                setEditingId(record.id);
-                setDate(record.date); setLocation(record.location); setRevenue(record.revenue || ''); setSoldQty(record.soldQty || '');
-                setRent(record.rent || ''); setNote(record.note || ''); setElectricity(record.electricity || '');
-                setCleaning(record.cleaning || ''); setToll(record.toll || ''); setParking(record.parking || '');
-                setHasGift(record.hasGift || false); setGiftCount(record.giftCount || '');
-                const rac = record.accessories || {};
-                setAcc({
-                    necklace: rac.necklace || '', hat: rac.hat || '',
-                    bag: rac.bag || '', other: rac.other || ''
-                });
-                setSearchTerm('');
-                scrollToTop();
+                setEditingId(record.id); setDate(record.date); setLocation(record.location); setRevenue(record.revenue || ''); setSoldQty(record.soldQty || '');
+                setRent(record.rent || ''); setNote(record.note || ''); setElectricity(record.electricity || ''); setCleaning(record.cleaning || ''); setToll(record.toll || ''); setParking(record.parking || ''); setHasGift(record.hasGift || false); setGiftCount(record.giftCount || '');
+                setAcc({ necklace: record.accessories?.necklace || '', hat: record.accessories?.hat || '', bag: record.accessories?.bag || '', other: record.accessories?.other || '' });
+                setSearchTerm(''); scrollToTop();
             };
 
             const changeMonth = (offset) => {
@@ -640,9 +666,7 @@
                 return days;
             };
 
-            const searchedSales = searchTerm
-                ? marketSales.filter(m => safeStr(m.location).includes(searchTerm)).sort((a, b) => safeTime(b.date) - safeTime(a.date))
-                : [];
+            const searchedSales = searchTerm ? marketSales.filter(m => safeStr(m.location).includes(searchTerm)).sort((a, b) => safeTime(b.date) - safeTime(a.date)) : [];
 
             const renderSearchResults = () => {
                 if (!searchTerm) return null;
@@ -658,9 +682,7 @@
                 return (
                     <div className="animate-fade-in mt-6">
                         <Card className="bg-gradient-to-r from-[#fffde7] to-[#fff8e1] border-[#fff59d] mb-4">
-                            <div className="flex items-center text-[#f57f17] font-bold text-lg mb-3 pb-2 border-b border-[#fff59d]">
-                                <Icon name="analytics" className="mr-2" /> 「{searchTerm}」績效評估報告
-                            </div>
+                            <div className="flex items-center text-[#f57f17] font-bold text-lg mb-3 pb-2 border-b border-[#fff59d]"><Icon name="analytics" className="mr-2" /> 「{searchTerm}」績效評估報告</div>
                             <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-sm text-[#7a6453]">
                                 <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">出攤次數</span><span className="font-black text-lg text-[#5c4d43]">{times} 次</span></div>
                                 <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">累積總業績</span><span className="font-black text-lg text-[#5c4d43]">${totalRev.toLocaleString()}</span></div>
@@ -699,44 +721,22 @@
             return (
                 <div className="animate-fade-in pb-20">
                     <Card className={editingId ? 'border-2 border-[#bc9f8b]' : ''}>
-                        <div className="flex items-center mb-4 text-[#7a6453] font-bold text-lg">
-                            <Icon name={editingId ? 'edit' : 'storefront'} className="mr-2 text-[#bc9f8b]" /> 
-                            {editingId ? '編輯市場營業' : '新增市場營業'}
-                        </div>
+                        <div className="flex items-center mb-4 text-[#7a6453] font-bold text-lg"><Icon name={editingId ? 'edit' : 'storefront'} className="mr-2 text-[#bc9f8b]" /> {editingId ? '編輯市場營業' : '新增市場營業'}</div>
                         <Input type="date" value={date} onChange={e => { setDate(e.target.value); setSelectedDay(e.target.value); setViewMonthStr(safeStr(e.target.value).substring(0,7)); }} />
                         
-                        {/* 欄位順序：地點 | 位租 */}
-                        <div className="grid grid-cols-2 gap-3">
-                            <Input placeholder="地點" value={location} onChange={e => setLocation(e.target.value)} />
-                            <Input type="number" placeholder="位租" value={rent} onChange={e => setRent(e.target.value)} />
-                        </div>
-                        {/* 欄位順序：當日業績 | 售出件數 */}
-                        <div className="grid grid-cols-2 gap-3">
-                            <Input type="number" placeholder="當日業績" value={revenue} onChange={handleRevenueChange} />
-                            <Input type="number" placeholder="售出件數 (自動推算)" value={soldQty} onChange={e => setSoldQty(e.target.value)} />
-                        </div>
-                        {/* 獨立備註列 */}
+                        {/* 排序：地點 | 位租 */}
+                        <div className="grid grid-cols-2 gap-3"><Input placeholder="地點" value={location} onChange={e => setLocation(e.target.value)} /><Input type="number" placeholder="位租" value={rent} onChange={e => setRent(e.target.value)} /></div>
+                        {/* 排序：當日業績 | 售出件數 */}
+                        <div className="grid grid-cols-2 gap-3"><Input type="number" placeholder="當日業績" value={revenue} onChange={handleRevenueChange} /><Input type="number" placeholder="售出件數 (自動推算)" value={soldQty} onChange={e => setSoldQty(e.target.value)} /></div>
+                        
                         <Input placeholder="備註 (選填)" value={note} onChange={e => setNote(e.target.value)} />
                         
-                        <div className="grid grid-cols-2 gap-3 mt-1">
-                            <Input type="number" placeholder="電費 (選填)" value={electricity} onChange={e => setElectricity(e.target.value)} />
-                            <Input type="number" placeholder="清潔費 (選填)" value={cleaning} onChange={e => setCleaning(e.target.value)} />
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                            <Input type="number" placeholder="過路費 (選填)" value={toll} onChange={e => setToll(e.target.value)} />
-                            <Input type="number" placeholder="停車費 (選填)" value={parking} onChange={e => setParking(e.target.value)} />
-                        </div>
-                        
-                        <div className="flex items-center justify-center text-[11px] text-[#a89689] bg-[#fdfaf7] rounded-xl border border-[#f2e7df] border-dashed py-2 mb-3">
-                            ※交通油資請至「現貨支出」紀錄
-                        </div>
+                        <div className="grid grid-cols-2 gap-3 mt-1"><Input type="number" placeholder="電費 (選填)" value={electricity} onChange={e => setElectricity(e.target.value)} /><Input type="number" placeholder="清潔費 (選填)" value={cleaning} onChange={e => setCleaning(e.target.value)} /></div>
+                        <div className="grid grid-cols-2 gap-3"><Input type="number" placeholder="過路費 (選填)" value={toll} onChange={e => setToll(e.target.value)} /><Input type="number" placeholder="停車費 (選填)" value={parking} onChange={e => setParking(e.target.value)} /></div>
+                        <div className="flex items-center justify-center text-[11px] text-[#a89689] bg-[#fdfaf7] rounded-xl border border-[#f2e7df] border-dashed py-2 mb-3">※交通油資請至「現貨支出」紀錄</div>
                         
                         <div className="grid grid-cols-2 gap-3 mb-4 mt-1">
-                            <button 
-                                className={`w-full h-[48px] rounded-xl border text-[15px] transition-colors font-wawa font-bold flex items-center justify-center ${hasGift ? 'border-[#bc9f8b] bg-[#fdfaf7] text-[#bc9f8b]' : 'border-[#f0e6e0] bg-[#fdfdfd] text-[#a89689]'}`} 
-                                onClick={(e) => { e.preventDefault(); setHasGift(!hasGift); }}>
-                                🎁 {hasGift ? '有贈品' : '無贈品'}
-                            </button>
+                            <button className={`w-full h-[48px] rounded-xl border text-[15px] transition-colors font-wawa font-bold flex items-center justify-center ${hasGift ? 'border-[#bc9f8b] bg-[#fdfaf7] text-[#bc9f8b]' : 'border-[#f0e6e0] bg-[#fdfdfd] text-[#a89689]'}`} onClick={(e) => { e.preventDefault(); setHasGift(!hasGift); }}>🎁 {hasGift ? '有贈品' : '無贈品'}</button>
                             <Input type="number" placeholder="贈品數量" value={giftCount} onChange={e => setGiftCount(e.target.value)} disabled={!hasGift} />
                         </div>
 
@@ -745,27 +745,13 @@
                             <div className="grid grid-cols-4 gap-2 text-center text-xs text-[#a89689]">
                                 {['項鍊', '帽子', '包包', '其他'].map((label, idx) => {
                                     const keys = ['necklace', 'hat', 'bag', 'other'];
-                                    return (
-                                        <div key={label}>
-                                            <label className="block mb-1">{label}</label>
-                                            <input type="number" value={acc[keys[idx]]} onChange={e=>setAcc({...acc, [keys[idx]]: e.target.value})} className="w-full h-[40px] bg-[#fdfdfd] border border-[#f0e6e0] rounded-lg px-2 text-center outline-none focus:border-[#bc9f8b] font-wawa" />
-                                        </div>
-                                    )
+                                    return ( <div key={label}><label className="block mb-1">{label}</label><input type="number" value={acc[keys[idx]]} onChange={e=>setAcc({...acc, [keys[idx]]: e.target.value})} className="w-full h-[40px] bg-[#fdfdfd] border border-[#f0e6e0] rounded-lg px-2 text-center outline-none focus:border-[#bc9f8b] font-wawa" /></div> )
                                 })}
                             </div>
                         </div>
-                        
-                        <div className="flex gap-3">
-                            {editingId && (
-                                <Button onClick={resetForm} className="flex-1 bg-[#f2e7df] !text-[#7a6453]">取消</Button>
-                            )}
-                            <Button onClick={handleAddMarket} className={editingId ? 'flex-[2] bg-[#bc9f8b] text-white' : 'w-full bg-[#bc9f8b] text-white'}>
-                                {editingId ? '儲存修改' : '儲存紀錄'}
-                            </Button>
-                        </div>
+                        <div className="flex gap-3">{editingId && <Button onClick={resetForm} className="flex-1 bg-[#f2e7df] !text-[#7a6453]">取消</Button>}<Button onClick={handleAddMarket} className={editingId ? 'flex-[2] bg-[#bc9f8b] text-white' : 'w-full bg-[#bc9f8b] text-white'}>{editingId ? '儲存修改' : '儲存紀錄'}</Button></div>
                     </Card>
 
-                    {/* 地點績效搜尋器 */}
                     <div className="mb-4 px-1">
                         <div className={`flex items-center bg-white border ${searchTerm ? 'border-[#bc9f8b] shadow-sm' : 'border-[#e0d6ce]'} rounded-xl px-3 h-[48px] transition-colors`}>
                             <Icon name="search" className={`mr-2 text-[20px] ${searchTerm ? 'text-[#bc9f8b]' : 'text-[#c4b5aa]'}`} />
@@ -782,9 +768,7 @@
                                     <div className="font-bold text-[#7a6453] text-lg tracking-wider">{viewParts[0]||''}年 {parseInt(viewParts[1]||1, 10)}月</div>
                                     <button onClick={() => changeMonth(1)} className="p-1.5 text-[#a89689] bg-[#fdfaf7] rounded-full hover:bg-[#f2e7df]"><Icon name="chevron_right" /></button>
                                 </div>
-                                <div className="grid grid-cols-7 text-center text-xs font-bold text-[#a89689] mb-3">
-                                    <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
-                                </div>
+                                <div className="grid grid-cols-7 text-center text-xs font-bold text-[#a89689] mb-3"><div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div></div>
                                 <div className="grid grid-cols-7 gap-y-2 gap-x-1">{renderCalendarDays()}</div>
                             </Card>
 
@@ -792,9 +776,7 @@
                                 <Icon name="location_on" className="mr-1 text-[20px]" /> {parseInt(safeStr(selectedDay).split('-')[1]||0, 10)}/{parseInt(safeStr(selectedDay).split('-')[2]||0, 10)} 營業紀錄 
                                 <span className="ml-2 bg-[#f2e7df] text-[#7a6453] text-xs px-2.5 py-1 rounded-full font-bold">{filteredSales.length} 筆</span>
                             </div>
-                            {filteredSales.length === 0 ? (
-                                <div className="bg-white rounded-2xl border border-dashed border-[#e0d6ce] text-center text-[#c4b5aa] text-sm py-8 mx-2 mt-4">這天沒有擺攤，是休息日喔 ☕</div>
-                            ) : filteredSales.map(m => {
+                            {filteredSales.length === 0 ? <div className="bg-white rounded-2xl border border-dashed border-[#e0d6ce] text-center text-[#c4b5aa] text-sm py-8 mx-2 mt-4">這天沒有擺攤，是休息日喔 ☕</div> : filteredSales.map(m => {
                                 const dailyMisc = (Number(m.electricity) || 0) + (Number(m.cleaning) || 0) + (Number(m.toll) || 0) + (Number(m.parking) || 0);
                                 const operatingProfit = (Number(m.revenue)||0) - (Number(m.rent)||0) - dailyMisc; 
                                 return (
@@ -814,14 +796,12 @@
                                 )
                             })}
                         </React.Fragment>
-                    ) : (
-                        renderSearchResults()
-                    )}
+                    ) : renderSearchResults()}
                 </div>
             );
         };
 
-        // --- 分頁 3：現貨支出 (資料夾收納版) ---
+        // --- 分頁 3：現貨支出 ---
         const ExpenseTab = ({ expenses, setExpenses, setConfirmDialog }) => {
             const [editingId, setEditingId] = useState(null);
             const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -832,48 +812,21 @@
             const [isArrived, setIsArrived] = useState(true);
             const [flowType, setFlowType] = useState('in');
             
-            // 支出分類展開狀態
             const [expandedTypes, setExpandedTypes] = useState({});
 
-            const resetForm = () => {
-                setEditingId(null); setDate(new Date().toISOString().split('T')[0]);
-                setType('wholesale'); setName(''); setAmount(''); setQty(''); setIsArrived(true); setFlowType('in');
-            };
+            const resetForm = () => { setEditingId(null); setDate(new Date().toISOString().split('T')[0]); setType('wholesale'); setName(''); setAmount(''); setQty(''); setIsArrived(true); setFlowType('in'); };
 
             const handleAddExpense = () => {
                 if (!name || !amount) return;
-                const recordData = { 
-                    date, type, name, 
-                    amount: Number(amount),
-                    qty: type === 'wholesale' ? (Number(qty) || 0) : 0,
-                    isArrived: type === 'wholesale' ? isArrived : true,
-                    flowType: type === 'financing' ? flowType : 'out'
-                };
-
-                if (editingId) {
-                    setExpenses(prev => prev.map(e => e.id === editingId ? { ...e, ...recordData } : e).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
-                } else {
-                    const newRecord = { id: Date.now().toString(), ...recordData };
-                    setExpenses(prev => [newRecord, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
-                }
+                const recordData = { date, type, name, amount: Number(amount), qty: type === 'wholesale' ? (Number(qty) || 0) : 0, isArrived: type === 'wholesale' ? isArrived : true, flowType: type === 'financing' ? flowType : 'out' };
+                if (editingId) setExpenses(prev => prev.map(e => e.id === editingId ? { ...e, ...recordData } : e).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
+                else setExpenses(prev => [{ id: Date.now().toString(), ...recordData }, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
                 resetForm();
             };
 
-            const handleEditClick = (record) => {
-                setEditingId(record.id);
-                setDate(record.date); setType(record.type); setName(record.name); setAmount(record.amount); setQty(record.qty || '');
-                setIsArrived(record.isArrived !== false); 
-                setFlowType(record.flowType || 'in');
-                scrollToTop();
-            };
-
-            const toggleArriveStatus = (id) => {
-                setExpenses(prev => prev.map(e => e.id === id ? { ...e, isArrived: true } : e));
-            };
-            
-            const toggleType = (t) => {
-                setExpandedTypes(prev => ({ ...prev, [t]: !prev[t] }));
-            };
+            const handleEditClick = (record) => { setEditingId(record.id); setDate(record.date); setType(record.type); setName(record.name); setAmount(record.amount); setQty(record.qty || ''); setIsArrived(record.isArrived !== false); setFlowType(record.flowType || 'in'); scrollToTop(); };
+            const toggleArriveStatus = (id) => setExpenses(prev => prev.map(e => e.id === id ? { ...e, isArrived: true } : e));
+            const toggleType = (t) => setExpandedTypes(prev => ({ ...prev, [t]: !prev[t] }));
 
             const wholesaleTotal = expenses.filter(e => e.type === 'wholesale').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const inTransitTotal = expenses.filter(e => e.type === 'wholesale' && e.isArrived === false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
@@ -890,93 +843,40 @@
                 financing: { label: '資金借還', color: 'bg-[#9e9e9e]', text: 'text-[#757575]', bgLight: 'bg-[#f5f5f5]', placeholder: '借入週轉金 / 償還欠款', icon: 'swap_horiz' }
             };
 
-            // 將支出依據類型分組 (陣列本身已是最新到最舊)
             const groupedExpenses = useMemo(() => {
                 const groups = {};
-                expenses.forEach(e => {
-                    const t = e.type || 'wholesale';
-                    if (!groups[t]) groups[t] = [];
-                    groups[t].push(e);
-                });
+                expenses.forEach(e => { const t = e.type || 'wholesale'; if (!groups[t]) groups[t] = []; groups[t].push(e); });
                 return groups;
             }, [expenses]);
 
             return (
                 <div className="animate-fade-in pb-20">
                     <Card className={editingId && typeConfig[type] ? `border-2 border-${typeConfig[type].color.split('-')[1]}` : ''}>
-                        <div className="flex items-center mb-4 text-[#7a6453] font-bold text-lg">
-                            <Icon name={editingId ? 'edit' : 'account_balance_wallet'} className="mr-2 text-[#7a6453]" /> 
-                            {editingId ? '編輯支出紀錄' : '公司營運支出'}
-                        </div>
-                        
+                        <div className="flex items-center mb-4 text-[#7a6453] font-bold text-lg"><Icon name={editingId ? 'edit' : 'account_balance_wallet'} className="mr-2 text-[#7a6453]" /> {editingId ? '編輯支出紀錄' : '公司營運支出'}</div>
                         <div className="grid grid-cols-3 gap-2 mb-4">
                             {Object.keys(typeConfig).map(tKey => {
                                 const tConf = typeConfig[tKey];
-                                return (
-                                    <button 
-                                        key={tKey}
-                                        onClick={() => { setType(tKey); setQty(''); setIsArrived(true); }} 
-                                        className={`py-2 rounded-xl text-[12px] font-bold transition-all border ${type === tKey ? `${tConf.color} text-white border-transparent shadow-md` : 'bg-white border-[#f0e6e0] text-[#a89689]'}`}>
-                                        {tConf.label.split(' ')[0]}
-                                    </button>
-                                );
+                                return ( <button key={tKey} onClick={() => { setType(tKey); setQty(''); setIsArrived(true); }} className={`py-2 rounded-xl text-[12px] font-bold transition-all border ${type === tKey ? `${tConf.color} text-white border-transparent shadow-md` : 'bg-white border-[#f0e6e0] text-[#a89689]'}`}> {tConf.label.split(' ')[0]} </button> );
                             })}
                         </div>
-
                         <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
-                        
                         {type === 'financing' && (
                             <div className="flex items-center gap-3 mb-4">
-                                <button
-                                    className={`flex-1 h-[48px] rounded-xl border text-[13px] transition-colors font-wawa font-bold flex items-center justify-center shadow-sm ${flowType === 'in' ? 'border-[#4caf50] bg-[#f0f9f0] text-[#4caf50]' : 'border-[#e0e0e0] bg-[#fdfdfd] text-[#9e9e9e]'}`}
-                                    onClick={(e) => { e.preventDefault(); setFlowType('in'); }}
-                                >
-                                    📥 借入週轉金 (現金+)
-                                </button>
-                                <button
-                                    className={`flex-1 h-[48px] rounded-xl border text-[13px] transition-colors font-wawa font-bold flex items-center justify-center shadow-sm ${flowType === 'out' ? 'border-[#e57373] bg-[#fff2f2] text-[#e57373]' : 'border-[#e0e0e0] bg-[#fdfdfd] text-[#9e9e9e]'}`}
-                                    onClick={(e) => { e.preventDefault(); setFlowType('out'); }}
-                                >
-                                    📤 償還本金 (現金-)
-                                </button>
+                                <button className={`flex-1 h-[48px] rounded-xl border text-[13px] transition-colors font-wawa font-bold flex items-center justify-center shadow-sm ${flowType === 'in' ? 'border-[#4caf50] bg-[#f0f9f0] text-[#4caf50]' : 'border-[#e0e0e0] bg-[#fdfdfd] text-[#9e9e9e]'}`} onClick={(e) => { e.preventDefault(); setFlowType('in'); }}>📥 借入週轉金 (現金+)</button>
+                                <button className={`flex-1 h-[48px] rounded-xl border text-[13px] transition-colors font-wawa font-bold flex items-center justify-center shadow-sm ${flowType === 'out' ? 'border-[#e57373] bg-[#fff2f2] text-[#e57373]' : 'border-[#e0e0e0] bg-[#fdfdfd] text-[#9e9e9e]'}`} onClick={(e) => { e.preventDefault(); setFlowType('out'); }}>📤 償還本金 (現金-)</button>
                             </div>
                         )}
-
                         <Input placeholder={typeConfig[type] ? typeConfig[type].placeholder : '名稱'} value={name} onChange={e => setName(e.target.value)} />
-                        
                         {type === 'wholesale' ? (
                             <React.Fragment>
-                                <div className="grid grid-cols-2 gap-3 mb-3">
-                                    <Input type="number" placeholder="現貨支出總額" value={amount} onChange={e => setAmount(e.target.value)} />
-                                    <Input type="number" placeholder="進貨總件數" value={qty} onChange={e => setQty(e.target.value)} />
-                                </div>
-                                <div className="flex items-center gap-3 mb-4">
-                                    <button
-                                        className={`flex-1 h-[48px] rounded-xl border text-[14px] transition-colors font-wawa font-bold flex items-center justify-center shadow-sm ${isArrived ? 'border-[#4caf50] bg-[#f0f9f0] text-[#4caf50]' : 'border-[#ffb300] bg-[#fffde7] text-[#f57f17]'}`}
-                                        onClick={(e) => { e.preventDefault(); setIsArrived(!isArrived); }}
-                                    >
-                                        {isArrived ? '📦 已到貨 (算入現貨庫存)' : '🚚 貨在途 (暫不入庫)'}
-                                    </button>
-                                </div>
+                                <div className="grid grid-cols-2 gap-3 mb-3"><Input type="number" placeholder="現貨支出總額" value={amount} onChange={e => setAmount(e.target.value)} /><Input type="number" placeholder="進貨總件數" value={qty} onChange={e => setQty(e.target.value)} /></div>
+                                <div className="flex items-center gap-3 mb-4"><button className={`flex-1 h-[48px] rounded-xl border text-[14px] transition-colors font-wawa font-bold flex items-center justify-center shadow-sm ${isArrived ? 'border-[#4caf50] bg-[#f0f9f0] text-[#4caf50]' : 'border-[#ffb300] bg-[#fffde7] text-[#f57f17]'}`} onClick={(e) => { e.preventDefault(); setIsArrived(!isArrived); }}>{isArrived ? '📦 已到貨 (算入現貨庫存)' : '🚚 貨在途 (暫不入庫)'}</button></div>
                             </React.Fragment>
                         ) : (
                             <Input type="number" placeholder={type === 'financing' ? (flowType === 'in' ? '借入金額' : '償還金額') : "支出總金額"} value={amount} onChange={e => setAmount(e.target.value)} />
                         )}
-
-                        {type === 'wholesale' && amount && qty && (
-                            <div className="text-right text-xs text-[#e57373] font-bold mb-3 px-1">
-                                單筆平均進價：${(Number(amount) / Number(qty)).toFixed(1)} /件
-                            </div>
-                        )}
-                        
-                        <div className="flex gap-3">
-                            {editingId && (
-                                <Button onClick={resetForm} className="flex-1 bg-[#f2e7df] !text-[#7a6453]">取消</Button>
-                            )}
-                            <Button onClick={handleAddExpense} className={`${typeConfig[type] ? typeConfig[type].color : 'bg-gray-400'} hover:opacity-90 text-white ${editingId ? 'flex-[2]' : 'w-full'}`}>
-                                {editingId ? '儲存修改' : (type === 'financing' ? '儲存借還紀錄' : '儲存支出')}
-                            </Button>
-                        </div>
+                        {type === 'wholesale' && amount && qty && <div className="text-right text-xs text-[#e57373] font-bold mb-3 px-1">單筆平均進價：${(Number(amount) / Number(qty)).toFixed(1)} /件</div>}
+                        <div className="flex gap-3">{editingId && <Button onClick={resetForm} className="flex-1 bg-[#f2e7df] !text-[#7a6453]">取消</Button>}<Button onClick={handleAddExpense} className={`${typeConfig[type] ? typeConfig[type].color : 'bg-gray-400'} hover:opacity-90 text-white ${editingId ? 'flex-[2]' : 'w-full'}`}>{editingId ? '儲存修改' : (type === 'financing' ? '儲存借還紀錄' : '儲存支出')}</Button></div>
                     </Card>
 
                     <div className="grid grid-cols-2 gap-3 mb-6">
@@ -985,58 +885,28 @@
                             const mTot = currentMonthExpenses.filter(e=>e.type===c.k).reduce((s,e)=>s+(Number(e.amount)||0),0);
                             return (
                                 <div key={c.k} className="bg-white rounded-xl p-3 shadow-sm border border-[#f2e7df] text-center flex flex-col justify-between">
-                                    <div>
-                                        <div className="text-[11px] text-[#a89689] font-bold mb-1">歷史總{c.t}</div>
-                                        <div className={`text-lg font-black text-[#${c.l}]`}>${tot.toLocaleString()}</div>
-                                        {c.k==='wholesale' && inTransitTotal > 0 && <div className="text-[9px] text-[#f57f17] font-bold mt-0.5">含在途未入庫 ${inTransitTotal.toLocaleString()}</div>}
-                                    </div>
-                                    <div className="text-[10px] text-[#7a6453] font-bold mt-1.5 pt-1.5 border-t border-[#fdfaf7] bg-[#fdfaf7] rounded -mx-1 -mb-1 pb-1">
-                                        本月 ({parseInt(currentMonth.substring(5,7))}月): <span className={`text-[#${c.l}]`}>${mTot.toLocaleString()}</span>
-                                    </div>
+                                    <div><div className="text-[11px] text-[#a89689] font-bold mb-1">歷史總{c.t}</div><div className={`text-lg font-black text-[#${c.l}]`}>${tot.toLocaleString()}</div>{c.k==='wholesale' && inTransitTotal > 0 && <div className="text-[9px] text-[#f57f17] font-bold mt-0.5">含在途未入庫 ${inTransitTotal.toLocaleString()}</div>}</div>
+                                    <div className="text-[10px] text-[#7a6453] font-bold mt-1.5 pt-1.5 border-t border-[#fdfaf7] bg-[#fdfaf7] rounded -mx-1 -mb-1 pb-1">本月: <span className={`text-[#${c.l}]`}>${mTot.toLocaleString()}</span></div>
                                 </div>
                             );
                         })}
                         <div className="bg-white rounded-xl p-3 shadow-sm border border-[#f2e7df] text-center flex flex-col justify-between bg-gray-50 border-gray-200">
-                            <div>
-                                <div className="text-[11px] text-[#a89689] font-bold mb-1">歷史淨借入週轉金</div>
-                                <div className={`text-lg font-black ${(expenses.filter(e=>e.type==='financing'&&e.flowType==='in').reduce((s,e)=>s+(Number(e.amount)||0),0) - expenses.filter(e=>e.type==='financing'&&e.flowType!=='in').reduce((s,e)=>s+(Number(e.amount)||0),0)) >= 0 ? 'text-[#4caf50]' : 'text-[#e57373]'}`}>
-                                    ${(expenses.filter(e=>e.type==='financing'&&e.flowType==='in').reduce((s,e)=>s+(Number(e.amount)||0),0) - expenses.filter(e=>e.type==='financing'&&e.flowType!=='in').reduce((s,e)=>s+(Number(e.amount)||0),0)).toLocaleString()}
-                                </div>
-                            </div>
-                            <div className="text-[10px] text-[#7a6453] font-bold mt-1.5 pt-1.5 border-t border-[#fdfaf7] bg-[#fdfaf7] rounded -mx-1 -mb-1 pb-1">
-                                (不計入損益計算)
-                            </div>
+                            <div><div className="text-[11px] text-[#a89689] font-bold mb-1">歷史淨借入週轉金</div><div className={`text-lg font-black ${(expenses.filter(e=>e.type==='financing'&&e.flowType==='in').reduce((s,e)=>s+(Number(e.amount)||0),0) - expenses.filter(e=>e.type==='financing'&&e.flowType!=='in').reduce((s,e)=>s+(Number(e.amount)||0),0)) >= 0 ? 'text-[#4caf50]' : 'text-[#e57373]'}`}>${(expenses.filter(e=>e.type==='financing'&&e.flowType==='in').reduce((s,e)=>s+(Number(e.amount)||0),0) - expenses.filter(e=>e.type==='financing'&&e.flowType!=='in').reduce((s,e)=>s+(Number(e.amount)||0),0)).toLocaleString()}</div></div>
+                            <div className="text-[10px] text-[#7a6453] font-bold mt-1.5 pt-1.5 border-t border-[#fdfaf7] bg-[#fdfaf7] rounded -mx-1 -mb-1 pb-1">(不計入損益計算)</div>
                         </div>
                     </div>
 
-                    <div className="mt-8 mb-2 flex items-center text-[#7a6453] font-bold px-2 text-lg">
-                        <Icon name="folder_open" className="mr-1 text-[20px]" /> 支出明細分類庫
-                    </div>
-                    {expenses.length === 0 ? (
-                        <div className="text-center text-[#c4b5aa] text-sm py-8 bg-white rounded-2xl border border-dashed border-[#e0d6ce] mt-4 mx-2">目前尚無支出紀錄</div>
-                    ) : (
+                    <div className="mt-8 mb-2 flex items-center text-[#7a6453] font-bold px-2 text-lg"><Icon name="folder_open" className="mr-1 text-[20px]" /> 支出明細分類庫</div>
+                    {expenses.length === 0 ? <div className="text-center text-[#c4b5aa] text-sm py-8 bg-white rounded-2xl border border-dashed border-[#e0d6ce] mt-4 mx-2">目前尚無支出紀錄</div> : (
                         <div className="mt-4 space-y-3 px-1">
                             {Object.keys(typeConfig).map(tKey => {
-                                const items = groupedExpenses[tKey];
-                                if (!items || items.length === 0) return null;
-                                const conf = typeConfig[tKey];
-                                
+                                const items = groupedExpenses[tKey]; if (!items || items.length === 0) return null; const conf = typeConfig[tKey];
                                 return (
                                     <div key={tKey} className="bg-white rounded-xl shadow-sm border border-[#f2e7df] overflow-hidden">
-                                        <button 
-                                            onClick={() => toggleType(tKey)} 
-                                            className={`w-full flex justify-between items-center p-3 ${conf.bgLight} ${conf.text} transition-colors`}
-                                        >
-                                            <div className="flex items-center font-bold text-sm tracking-wide">
-                                                <Icon name={conf.icon} className="mr-2 text-[18px] opacity-80" />
-                                                {conf.label} 紀錄
-                                            </div>
-                                            <div className="flex items-center">
-                                                <span className={`text-[11px] bg-white ${conf.text} px-2 py-0.5 rounded-full mr-2 font-bold shadow-sm`}>{items.length} 筆</span>
-                                                <Icon name={expandedTypes[tKey] ? "expand_less" : "expand_more"} className="text-[20px] opacity-70" />
-                                            </div>
+                                        <button onClick={() => toggleType(tKey)} className={`w-full flex justify-between items-center p-3 ${conf.bgLight} ${conf.text} transition-colors`}>
+                                            <div className="flex items-center font-bold text-sm tracking-wide"><Icon name={conf.icon} className="mr-2 text-[18px] opacity-80" />{conf.label} 紀錄</div>
+                                            <div className="flex items-center"><span className={`text-[11px] bg-white ${conf.text} px-2 py-0.5 rounded-full mr-2 font-bold shadow-sm`}>{items.length} 筆</span><Icon name={expandedTypes[tKey] ? "expand_less" : "expand_more"} className="text-[20px] opacity-70" /></div>
                                         </button>
-                                        
                                         {expandedTypes[tKey] && (
                                             <div className="p-2 bg-[#fafafa] space-y-2 animate-expand border-t border-gray-100">
                                                 {items.map(e => {
@@ -1045,32 +915,16 @@
                                                         <div key={e.id} className="bg-white rounded-lg p-3 border border-[#f0f0f0] flex justify-between items-center opacity-95 shadow-sm">
                                                             <div className="flex flex-col flex-1">
                                                                 <div className="flex items-center gap-2 mb-1">
-                                                                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${conf.bgLight} ${conf.text} shrink-0`}>
-                                                                        {conf.label.split(' ')[0]}
-                                                                    </span>
+                                                                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${conf.bgLight} ${conf.text} shrink-0`}>{conf.label.split(' ')[0]}</span>
                                                                     <span className="font-bold text-[#5c4d43] text-base truncate max-w-[140px]">{e.name}</span>
-                                                                    {e.type === 'wholesale' && e.isArrived === false && (
-                                                                        <button onClick={() => toggleArriveStatus(e.id)} className="shrink-0 text-[10px] bg-[#fffde7] text-[#f57f17] border border-[#ffe082] px-2 py-0.5 rounded shadow-sm hover:bg-[#fff9c4] transition-colors">
-                                                                            點擊入庫
-                                                                        </button>
-                                                                    )}
-                                                                    {e.type === 'wholesale' && e.isArrived !== false && (
-                                                                        <span className="shrink-0 text-[10px] bg-[#f0f9f0] text-[#4caf50] px-1.5 py-0.5 rounded">已入庫</span>
-                                                                    )}
-                                                                    {e.type === 'financing' && (
-                                                                        <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded ${isBorrow ? 'bg-[#f0f9f0] text-[#4caf50]' : 'bg-[#fff2f2] text-[#e57373]'}`}>
-                                                                            {isBorrow ? '借入' : '償還'}
-                                                                        </span>
-                                                                    )}
+                                                                    {e.type === 'wholesale' && e.isArrived === false && <button onClick={() => toggleArriveStatus(e.id)} className="shrink-0 text-[10px] bg-[#fffde7] text-[#f57f17] border border-[#ffe082] px-2 py-0.5 rounded shadow-sm hover:bg-[#fff9c4] transition-colors">點擊入庫</button>}
+                                                                    {e.type === 'wholesale' && e.isArrived !== false && <span className="shrink-0 text-[10px] bg-[#f0f9f0] text-[#4caf50] px-1.5 py-0.5 rounded">已入庫</span>}
+                                                                    {e.type === 'financing' && <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded ${isBorrow ? 'bg-[#f0f9f0] text-[#4caf50]' : 'bg-[#fff2f2] text-[#e57373]'}`}>{isBorrow ? '借入' : '償還'}</span>}
                                                                 </div>
-                                                                <div className="text-xs text-[#a89689]">
-                                                                    {e.date} {e.type === 'wholesale' && e.qty > 0 && <span className="ml-1 text-[#e57373]">({e.qty}件)</span>}
-                                                                </div>
+                                                                <div className="text-xs text-[#a89689]">{e.date} {e.type === 'wholesale' && e.qty > 0 && <span className="ml-1 text-[#e57373]">({e.qty}件)</span>}</div>
                                                             </div>
                                                             <div className="flex items-center gap-1.5 shrink-0 pl-2">
-                                                                <div className={`font-black text-lg mr-1 ${isBorrow ? 'text-[#4caf50]' : conf.text}`}>
-                                                                    {isBorrow ? '+' : '-'}${e.amount}
-                                                                </div>
+                                                                <div className={`font-black text-lg mr-1 ${isBorrow ? 'text-[#4caf50]' : conf.text}`}>{isBorrow ? '+' : '-'}${e.amount}</div>
                                                                 <button onClick={() => handleEditClick(e)} className="p-1.5 bg-[#fdfaf7] text-[#bc9f8b] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
                                                                 <button onClick={() => setConfirmDialog({isOpen: true, id: e.id, collection: 'expenses', message: "確定要刪除這筆支出嗎？"})} className="p-1.5 bg-[#fdf2f2] text-[#e57373] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
                                                             </div>
@@ -1089,14 +943,12 @@
         }
 
         // --- 4. 營運報表 ---
-        const ReportTab = ({ deliveries, marketSales, expenses, preorders, settings, setSettings, marketSoldStats, setMarketSoldStats, setDialog }) => {
-            const [reportMonth, setReportMonth] = useState(() => {
-                const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            });
+        const ReportTab = ({ deliveries, marketSales, expenses, preorders, settings, setSettings, marketSoldStats, setMarketSoldStats }) => {
+            const [reportMonth, setReportMonth] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; });
             const [isCheckingInventory, setIsCheckingInventory] = useState(false);
             const [actualInv, setActualInv] = useState('');
-
             const [expState, setExpState] = useState({});
+
             const toggleExp = (key) => setExpState(prev => ({...prev, [key]: !prev[key]}));
 
             const changeMonth = (offset) => {
@@ -1105,63 +957,43 @@
                     const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1 + offset, 1);
                     setReportMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
                 }
-                setIsCheckingInventory(false);
-                setActualInv('');
-                setExpState({});
+                setIsCheckingInventory(false); setActualInv(''); setExpState({});
             };
 
             const currentStartupCap = settings && settings.startupCapital !== undefined ? settings.startupCapital : 36284;
-
             const handleCapitalChange = () => {
                 const newCapital = window.prompt("請輸入您的「初期創業本金」(系統會自動幫您推算口袋現金！)：", currentStartupCap);
-                if (newCapital !== null && newCapital.trim() !== '' && !isNaN(Number(newCapital))) {
-                    setSettings({ ...(settings || {}), startupCapital: Number(newCapital) });
-                }
+                if (newCapital !== null && newCapital.trim() !== '' && !isNaN(Number(newCapital))) setSettings({ ...(settings || {}), startupCapital: Number(newCapital) });
             };
 
-            // ---- 全期存摺加減法 ----
+            // ---- 全期存摺 ----
             const allTimeMarketRev = marketSales.reduce((sum, m) => sum + (Number(m.revenue)||0), 0);
             const allTimeStoreRev = deliveries.reduce((sum, d) => sum + (Number(d.revenue)||0), 0);
             const allTimeStoreShipIn = deliveries.reduce((sum, d) => sum + (Number(d.shippingIncome)||0), 0);
             const allTimeRev = allTimeMarketRev + allTimeStoreRev + allTimeStoreShipIn; 
             
-            const allTimeMarketRent = marketSales.reduce((sum, m) => sum + (Number(m.rent)||0), 0);
-            const allTimeMarketMisc = marketSales.reduce((sum, m) => sum + (Number(m.electricity)||0) + (Number(m.cleaning)||0) + (Number(m.toll)||0) + (Number(m.parking)||0), 0);
-            const allTimeStoreShipOut = deliveries.reduce((sum, d) => sum + (Number(d.shippingExpense)||0), 0);
-            const allTimeMarketExp = allTimeMarketRent + allTimeMarketMisc + allTimeStoreShipOut;
-            
+            const allTimeMarketExp = marketSales.reduce((sum, m) => sum + (Number(m.rent)||0) + (Number(m.electricity)||0) + (Number(m.cleaning)||0) + (Number(m.toll)||0) + (Number(m.parking)||0), 0) + deliveries.reduce((sum, d) => sum + (Number(d.shippingExpense)||0), 0);
             const allTimeWholeArrived = expenses.filter(e => e.type === 'wholesale' && e.isArrived !== false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const allTimeWholeTransit = expenses.filter(e => e.type === 'wholesale' && e.isArrived === false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const allTimeWholesale = allTimeWholeArrived + allTimeWholeTransit;
-
-            const allTimeSupply = expenses.filter(e => e.type === 'supply').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
-            const allTimeFixed = expenses.filter(e => e.type === 'fixed').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
-            const allTimeTraffic = expenses.filter(e => e.type === 'traffic').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
-            const allTimeSalary = expenses.filter(e => e.type === 'salary').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
-            const allTimeOtherExp = allTimeSupply + allTimeFixed + allTimeTraffic + allTimeSalary;
-
+            const allTimeOtherExp = expenses.filter(e => ['supply', 'fixed', 'traffic', 'salary'].includes(e.type)).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const allTimeFinancingIn = expenses.filter(e => e.type === 'financing' && e.flowType === 'in').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const allTimeFinancingOut = expenses.filter(e => e.type === 'financing' && e.flowType !== 'in').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
 
             // 代購金流計算 (依狀態自動結算：已到貨/已出貨算付成本，已出貨才算收客款)
             const allTimePreorderCost = preorders.filter(p => ['arrived', 'completed'].includes(p.status)).reduce((sum, p) => sum + (Number(p.wholesaleCost)||0), 0);
             const allTimePreorderRev = preorders.filter(p => p.status === 'completed').reduce((sum, p) => sum + (Number(p.revenue)||0), 0);
-
             const preorderUnpaidRev = preorders.filter(p => p.status !== 'completed').reduce((sum, p) => sum + (Number(p.revenue)||0), 0);
             const preorderUnpaidCost = preorders.filter(p => ['pending', 'ordered'].includes(p.status)).reduce((sum, p) => sum + (Number(p.wholesaleCost)||0), 0);
 
-            const pocketCash = currentStartupCap 
-                + allTimeRev - allTimeMarketExp - allTimeWholesale - allTimeOtherExp 
-                + allTimeFinancingIn - allTimeFinancingOut
-                - allTimePreorderCost + allTimePreorderRev;
+            const pocketCash = currentStartupCap + allTimeRev - allTimeMarketExp - allTimeWholesale - allTimeOtherExp + allTimeFinancingIn - allTimeFinancingOut - allTimePreorderCost + allTimePreorderRev;
 
-            // ---- 計算本月瀑布流損益 ----
+            // ---- 計算本月損益 ----
             const currentDeliveries = deliveries.filter(d => safeStr(d.date).startsWith(reportMonth) && d.status === 'shipped');
             const currentMarket = marketSales.filter(m => safeStr(m.date).startsWith(reportMonth));
             const currentExpenses = expenses.filter(e => safeStr(e.date).startsWith(reportMonth));
             const currentCompletedPreorders = preorders.filter(p => safeStr(p.date).startsWith(reportMonth) && p.status === 'completed');
 
-            // 代購當月損益
             const monthlyPreorderRev = currentCompletedPreorders.reduce((sum, p) => sum + (Number(p.revenue)||0), 0);
             const monthlyPreorderCost = currentCompletedPreorders.reduce((sum, p) => sum + (Number(p.wholesaleCost)||0), 0);
             const monthlyPreorderProfit = monthlyPreorderRev - monthlyPreorderCost;
@@ -1175,16 +1007,13 @@
             const marketClean = currentMarket.reduce((sum, m) => sum + (Number(m.cleaning)||0), 0);
             const marketToll = currentMarket.reduce((sum, m) => sum + (Number(m.toll)||0), 0);
             const marketParking = currentMarket.reduce((sum, m) => sum + (Number(m.parking)||0), 0);
-            const marketMiscOnly = marketElec + marketClean + marketToll + marketParking;
-            const marketMiscAndRent = marketRent + marketMiscOnly; 
+            const marketMiscAndRent = marketRent + marketElec + marketClean + marketToll + marketParking; 
 
             const storeShippingNetExp = currentDeliveries.reduce((sum, d) => sum + (Number(d.shippingExpense)||0) - (Number(d.shippingIncome)||0), 0);
             const monthlyMarketExp = marketMiscAndRent + (storeShippingNetExp > 0 ? storeShippingNetExp : 0);
             const monthlyShippingProfit = storeShippingNetExp < 0 ? Math.abs(storeShippingNetExp) : 0; 
-            
             const frontlineNetIncome = monthlyTotalRev - monthlyMarketExp + monthlyShippingProfit;
 
-            // ---- 庫存與進貨成本 (僅現貨) ----
             const wholesaleToMonth = expenses.filter(e => e.type === 'wholesale' && safeStr(e.date).substring(0, 7) <= reportMonth && e.isArrived !== false);
             const accumulatedWholesaleCost = wholesaleToMonth.reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const accumulatedWholesaleQty = wholesaleToMonth.reduce((sum, e) => sum + (Number(e.qty)||0), 0);
@@ -1192,14 +1021,11 @@
 
             const storeSoldToMonth = deliveries.filter(d => d.status === 'shipped' && safeStr(d.date).substring(0, 7) <= reportMonth);
             const accumulatedStoreSoldQty = storeSoldToMonth.reduce((sum, d) => sum + (Number(d.soldQty) || 1), 0);
-            
             const marketSoldToMonth = marketSales.filter(m => safeStr(m.date).substring(0, 7) <= reportMonth);
             const accumulatedMarketDailySoldQty = marketSoldToMonth.reduce((sum, m) => sum + (Number(m.soldQty) || 0), 0);
 
             let pastAdjustments = 0;
-            Object.keys(marketSoldStats || {}).forEach(key => {
-                if (key < reportMonth) pastAdjustments += (Number(marketSoldStats[key])||0);
-            });
+            Object.keys(marketSoldStats || {}).forEach(key => { if (key < reportMonth) pastAdjustments += (Number(marketSoldStats[key])||0); });
             const currentMonthAdj = Number((marketSoldStats || {})[reportMonth]) || 0;
 
             const accumulatedTotalSold = accumulatedStoreSoldQty + accumulatedMarketDailySoldQty + pastAdjustments + currentMonthAdj;
@@ -1210,14 +1036,12 @@
                 const actual = Number(actualInv) || 0;
                 const diff = theoreticalInventory - actual; 
                 setMarketSoldStats({ ...(marketSoldStats || {}), [reportMonth]: diff });
-                setIsCheckingInventory(false);
-                setActualInv('');
+                setIsCheckingInventory(false); setActualInv('');
             };
 
             const currentMonthStoreSold = currentDeliveries.reduce((sum, d) => sum + (Number(d.soldQty) || 1), 0);
             const currentMonthMarketDailySold = currentMarket.reduce((sum, m) => sum + (Number(m.soldQty) || 0), 0);
             const currentMonthTotalSoldQty = currentMonthStoreSold + currentMonthMarketDailySold + currentMonthAdj;
-            
             const monthlyCOGS = Math.round(currentMonthTotalSoldQty * avgUnitCost);
             const grossProfit = frontlineNetIncome - monthlyCOGS + monthlyPreorderProfit; 
 
@@ -1226,57 +1050,29 @@
             const monthlyTrafficExp = currentExpenses.filter(e => e.type === 'traffic').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const monthlySalary = currentExpenses.filter(e => e.type === 'salary').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const monthlyOtherTotal = monthlySupplyExp + monthlyFixedExp + monthlyTrafficExp;
-            
             const monthlyNetProfit = grossProfit - monthlyOtherTotal - monthlySalary;
-
-            const viewParts = safeStr(reportMonth).split('-');
-            const storeGifts = currentDeliveries.reduce((sum, d) => sum + (Number(d.giftCount) || 0), 0);
-            const marketGifts = currentMarket.reduce((sum, m) => sum + (Number(m.giftCount) || 0), 0);
 
             return (
                 <div className="animate-fade-in pb-20">
                     <div className="flex justify-between items-center bg-white rounded-2xl p-3 shadow-sm border border-[#f2e7df] mb-4">
                         <button onClick={() => changeMonth(-1)} className="p-2 text-[#a89689]"><Icon name="chevron_left" /></button>
-                        <div className="font-bold text-[#7a6453] text-lg">{viewParts[0]||''}年 {parseInt(viewParts[1]||1, 10)}月</div>
+                        <div className="font-bold text-[#7a6453] text-lg">{reportMonth.replace('-', '年')}月</div>
                         <button onClick={() => changeMonth(1)} className="p-2 text-[#a89689]"><Icon name="chevron_right" /></button>
                     </div>
 
-                    {/* 🎯 極簡口袋現金存摺 */}
                     <Card className="bg-[#fffde7] border-[#fff59d] mb-4 shadow-md">
                         <div className="flex justify-between items-start mb-2">
-                            <div className="flex items-center text-[#f57f17] font-bold text-lg">
-                                <Icon name="account_balance_wallet" className="mr-2" /> 我的口袋現金
-                            </div>
-                            <button onClick={handleCapitalChange} className="text-[10px] bg-white border border-[#ffe082] text-[#f57f17] px-2 py-1 rounded-lg shadow-sm flex items-center">
-                                <Icon name="edit" className="text-[12px] mr-1"/> 設本金
-                            </button>
+                            <div className="flex items-center text-[#f57f17] font-bold text-lg"><Icon name="account_balance_wallet" className="mr-2" /> 我的口袋現金</div>
+                            <button onClick={handleCapitalChange} className="text-[10px] bg-white border border-[#ffe082] text-[#f57f17] px-2 py-1 rounded-lg shadow-sm flex items-center"><Icon name="edit" className="text-[12px] mr-1"/> 設本金</button>
                         </div>
-                        
-                        <div className="text-center py-2 mb-3">
-                            <div className="text-xs text-[#a89689] font-bold mb-1">目前手邊實際剩餘現金</div>
-                            <div className={`text-5xl font-black tracking-tight ${pocketCash < 0 ? 'text-red-500' : 'text-[#4caf50]'}`}>
-                                ${pocketCash.toLocaleString()}
-                            </div>
-                        </div>
-
-                        {/* 直白存摺明細 */}
+                        <div className="text-center py-2 mb-3"><div className="text-xs text-[#a89689] font-bold mb-1">目前手邊實際剩餘現金</div><div className={`text-5xl font-black tracking-tight ${pocketCash < 0 ? 'text-red-500' : 'text-[#4caf50]'}`}>${pocketCash.toLocaleString()}</div></div>
                         <div className="bg-white bg-opacity-60 rounded-xl p-3 text-sm text-[#7a6453] font-bold border border-[#fff59d]">
                             <div className="flex justify-between items-center text-[11px] text-[#c4b5aa] mb-2"><span>=== 資金流向明細 ===</span><span>(歷史總累計)</span></div>
+                            <div className="flex justify-between items-center mb-1.5"><span className="flex items-center text-[#4caf50]"><Icon name="add" className="text-[16px] mr-1"/> 創業初始本金</span><span>$ {currentStartupCap.toLocaleString()}</span></div>
                             
-                            <div className="flex justify-between items-center mb-1.5">
-                                <span className="flex items-center text-[#4caf50]"><Icon name="add" className="text-[16px] mr-1"/> 創業初始本金</span>
-                                <span>$ {currentStartupCap.toLocaleString()}</span>
-                            </div>
-                            
-                            {/* 資金週轉折疊 */}
                             <div className="flex justify-between items-center cursor-pointer mb-1.5" onClick={() => toggleExp('fin')}>
-                                <span className="flex items-center text-[#5c4d43]">
-                                    <Icon name="swap_horiz" className="text-[16px] mr-1"/> 資金週轉 (借貸/還款)
-                                    <Icon name={expState['fin'] ? "expand_less" : "expand_more"} className="text-[14px] ml-0.5 opacity-60"/>
-                                </span>
-                                <span className={`${(allTimeFinancingIn - allTimeFinancingOut) >= 0 ? 'text-[#4caf50]' : 'text-[#e57373]'}`}>
-                                    {(allTimeFinancingIn - allTimeFinancingOut) > 0 ? '+' : ''}$ {(allTimeFinancingIn - allTimeFinancingOut).toLocaleString()}
-                                </span>
+                                <span className="flex items-center text-[#5c4d43]"><Icon name="swap_horiz" className="text-[16px] mr-1"/> 資金週轉 (借貸/還款)<Icon name={expState['fin'] ? "expand_less" : "expand_more"} className="text-[14px] ml-0.5 opacity-60"/></span>
+                                <span className={`${(allTimeFinancingIn - allTimeFinancingOut) >= 0 ? 'text-[#4caf50]' : 'text-[#e57373]'}`}>{(allTimeFinancingIn - allTimeFinancingOut) > 0 ? '+' : ''}$ {(allTimeFinancingIn - allTimeFinancingOut).toLocaleString()}</span>
                             </div>
                             {expState['fin'] && (
                                 <div className="pl-6 pr-2 py-1 mb-2 space-y-1 bg-[#fafafa] rounded text-[11px] text-[#a89689] animate-expand">
@@ -1285,32 +1081,22 @@
                                 </div>
                             )}
 
-                            {/* 預購代購金流折疊 */}
                             <div className="flex justify-between items-center cursor-pointer mb-1.5 border-l-2 border-[#5c6bc0] pl-1.5" onClick={() => toggleExp('pre')}>
-                                <span className="flex items-center text-[#5c6bc0]">
-                                    <Icon name="local_shipping" className="text-[16px] mr-1"/> 預購/代購資金
-                                    <Icon name={expState['pre'] ? "expand_less" : "expand_more"} className="text-[14px] ml-0.5 opacity-60"/>
-                                </span>
-                                <span className={`${(allTimePreorderRev - allTimePreorderCost) >= 0 ? 'text-[#4caf50]' : 'text-[#e57373]'}`}>
-                                    {(allTimePreorderRev - allTimePreorderCost) > 0 ? '+' : ''}$ {(allTimePreorderRev - allTimePreorderCost).toLocaleString()}
-                                </span>
+                                <span className="flex items-center text-[#5c6bc0]"><Icon name="local_shipping" className="text-[16px] mr-1"/> 預購/代購資金<Icon name={expState['pre'] ? "expand_less" : "expand_more"} className="text-[14px] ml-0.5 opacity-60"/></span>
+                                <span className={`${(allTimePreorderRev - allTimePreorderCost) >= 0 ? 'text-[#4caf50]' : 'text-[#e57373]'}`}>{(allTimePreorderRev - allTimePreorderCost) > 0 ? '+' : ''}$ {(allTimePreorderRev - allTimePreorderCost).toLocaleString()}</span>
                             </div>
                             {expState['pre'] && (
                                 <div className="pl-6 pr-2 py-1 mb-2 space-y-1 bg-[#f5f6fa] rounded text-[11px] text-[#7986cb] animate-expand">
-                                    <div className="flex justify-between"><span>└ 實際收回客款 (已出貨)</span><span className="text-[#4caf50]">+$ {allTimePreorderRev.toLocaleString()}</span></div>
-                                    <div className="flex justify-between"><span>└ 實際支出批價 (已到貨/出貨)</span><span className="text-[#e57373]">-$ {allTimePreorderCost.toLocaleString()}</span></div>
+                                    <div className="flex justify-between"><span>└ 代購已收客款 (已出貨)</span><span className="text-[#4caf50]">+$ {allTimePreorderRev.toLocaleString()}</span></div>
+                                    <div className="flex justify-between"><span>└ 代購已支批價 (已到/出貨)</span><span className="text-[#e57373]">-$ {allTimePreorderCost.toLocaleString()}</span></div>
                                     <div className="border-t border-[#c5cae9] my-1"></div>
-                                    <div className="flex justify-between"><span>└ 代購待收帳款 (未出貨)</span><span className="text-[#f57f17]">${preorderUnpaidRev.toLocaleString()}</span></div>
-                                    <div className="flex justify-between"><span>└ 代購待付帳款 (待叫貨/已叫貨)</span><span className="text-[#f57f17]">${preorderUnpaidCost.toLocaleString()}</span></div>
+                                    <div className="flex justify-between"><span>└ 代購未收帳款 (未出貨)</span><span className="text-[#f57f17]">${preorderUnpaidRev.toLocaleString()}</span></div>
+                                    <div className="flex justify-between"><span>└ 代購未付帳款 (待/已叫貨)</span><span className="text-[#f57f17]">${preorderUnpaidCost.toLocaleString()}</span></div>
                                 </div>
                             )}
 
-                            {/* 賣衣總收折疊 */}
                             <div className="flex justify-between items-center cursor-pointer mb-1.5" onClick={() => toggleExp('rev')}>
-                                <span className="flex items-center text-[#4caf50]">
-                                    <Icon name="add" className="text-[16px] mr-1"/> 現貨總收現金
-                                    <Icon name={expState['rev'] ? "expand_less" : "expand_more"} className="text-[14px] ml-0.5 opacity-60"/>
-                                </span>
+                                <span className="flex items-center text-[#4caf50]"><Icon name="add" className="text-[16px] mr-1"/> 現貨總收現金<Icon name={expState['rev'] ? "expand_less" : "expand_more"} className="text-[14px] ml-0.5 opacity-60"/></span>
                                 <span>$ {allTimeRev.toLocaleString()}</span>
                             </div>
                             {expState['rev'] && (
@@ -1321,7 +1107,6 @@
                                 </div>
                             )}
 
-                            {/* 買衣服進貨折疊 */}
                             <div className="flex justify-between items-center text-[#e57373] cursor-pointer mb-1.5" onClick={() => toggleExp('whole')}>
                                 <span className="flex items-center"><Icon name="remove" className="text-[16px] mr-1"/> 現貨進貨花費<Icon name={expState['whole'] ? "expand_less" : "expand_more"} className="text-[14px] ml-0.5 opacity-60"/></span>
                                 <span>-$ {allTimeWholesale.toLocaleString()}</span>
@@ -1333,7 +1118,6 @@
                                 </div>
                             )}
 
-                            {/* 包材水電折疊 */}
                             <div className="flex justify-between items-center text-[#e57373] cursor-pointer mb-1.5" onClick={() => toggleExp('other')}>
                                 <span className="flex items-center"><Icon name="remove" className="text-[16px] mr-1"/> 公司後勤開銷<Icon name={expState['other'] ? "expand_less" : "expand_more"} className="text-[14px] ml-0.5 opacity-60"/></span>
                                 <span>-$ {allTimeOtherExp.toLocaleString()}</span>
@@ -1347,7 +1131,6 @@
                                 </div>
                             )}
 
-                            {/* 擺攤租金折疊 */}
                             <div className="flex justify-between items-center text-[#e57373] cursor-pointer" onClick={() => toggleExp('market')}>
                                 <span className="flex items-center"><Icon name="remove" className="text-[16px] mr-1"/> 擺攤租金與運費<Icon name={expState['market'] ? "expand_less" : "expand_more"} className="text-[14px] ml-0.5 opacity-60"/></span>
                                 <span>-$ {allTimeMarketExp.toLocaleString()}</span>
@@ -1362,29 +1145,17 @@
                         </div>
                     </Card>
 
-                    {/* 📊 瀑布流損益表 */}
                     <Card>
-                        <div className="flex items-center font-bold text-[#7a6453] text-lg mb-4 pb-2 border-b border-[#f2e7df]">
-                            <Icon name="request_quote" className="mr-2 text-[#e57373]" /> 本月損益表 <span className="text-xs text-[#a89689] font-normal ml-2">(真實賺賠)</span>
-                        </div>
-                        
+                        <div className="flex items-center font-bold text-[#7a6453] text-lg mb-4 pb-2 border-b border-[#f2e7df]"><Icon name="request_quote" className="mr-2 text-[#e57373]" /> 本月損益表 <span className="text-xs text-[#a89689] font-normal ml-2">(真實賺賠)</span></div>
                         <div className="space-y-3 text-sm font-bold text-[#5c4d43]">
-                            
-                            <div className="flex justify-between text-base cursor-pointer" onClick={() => toggleExp('moRev')}>
-                                <span className="flex items-center">現貨總營業額<Icon name={expState['moRev'] ? "expand_less" : "expand_more"} className="text-[16px] ml-1 text-[#c4b5aa]"/></span>
-                                <span className="text-[#bc9f8b]">${monthlyTotalRev.toLocaleString()}</span>
-                            </div>
+                            <div className="flex justify-between text-base cursor-pointer" onClick={() => toggleExp('moRev')}><span className="flex items-center">現貨總營業額<Icon name={expState['moRev'] ? "expand_less" : "expand_more"} className="text-[16px] ml-1 text-[#c4b5aa]"/></span><span className="text-[#bc9f8b]">${monthlyTotalRev.toLocaleString()}</span></div>
                             {expState['moRev'] && (
                                 <div className="pl-4 pr-2 py-1 -mt-1 mb-1 space-y-1 bg-[#fafafa] border border-[#f0e6e0] rounded text-[11px] text-[#a89689] animate-expand">
                                     <div className="flex justify-between"><span>└ 市場業績</span><span>${marketRevenue.toLocaleString()}</span></div>
                                     <div className="flex justify-between"><span>└ 超商業績</span><span>${storeRevenue.toLocaleString()}</span></div>
                                 </div>
                             )}
-                            
-                            <div className="flex justify-between items-center text-[#e57373] cursor-pointer" onClick={() => toggleExp('moMarket')}>
-                                <span className="flex items-center"><Icon name="remove" className="text-[14px] mr-1"/> 扣：擺攤租金與雜支<Icon name={expState['moMarket'] ? "expand_less" : "expand_more"} className="text-[16px] ml-1 text-[#c4b5aa]"/></span>
-                                <span>-${marketMiscAndRent.toLocaleString()}</span>
-                            </div>
+                            <div className="flex justify-between items-center text-[#e57373] cursor-pointer" onClick={() => toggleExp('moMarket')}><span className="flex items-center"><Icon name="remove" className="text-[14px] mr-1"/> 扣：擺攤租金與雜支<Icon name={expState['moMarket'] ? "expand_less" : "expand_more"} className="text-[16px] ml-1 text-[#c4b5aa]"/></span><span>-${monthlyMarketExp.toLocaleString()}</span></div>
                             {expState['moMarket'] && (
                                 <div className="pl-6 pr-2 py-1 -mt-1 mb-1 space-y-1 bg-[#fafafa] border border-[#f0e6e0] rounded text-[11px] text-[#a89689] animate-expand">
                                     {marketRent > 0 && <div className="flex justify-between"><span>└ 攤位租金</span><span>-${marketRent.toLocaleString()}</span></div>}
@@ -1394,57 +1165,17 @@
                                     {marketParking > 0 && <div className="flex justify-between"><span>└ 停車費</span><span>-${marketParking.toLocaleString()}</span></div>}
                                 </div>
                             )}
-                            
-                            <div className="flex justify-between items-center text-[#e57373]">
-                                <span className="flex items-center"><Icon name="remove" className="text-[14px] mr-1"/> 扣：超商實際倒貼運費</span>
-                                <span>-${(storeShippingNetExp > 0 ? storeShippingNetExp : 0).toLocaleString()}</span>
-                            </div>
-                            {monthlyShippingProfit > 0 && (
-                                <div className="flex justify-between items-center text-[#4caf50]">
-                                    <span className="flex items-center"><Icon name="add" className="text-[14px] mr-1"/> 加：超商運費多收</span>
-                                    <span>+${monthlyShippingProfit.toLocaleString()}</span>
-                                </div>
-                            )}
-
-                            {/* 第一階段結論 */}
-                            <div className="bg-[#fdfaf7] p-2 rounded-lg flex justify-between text-base border border-[#f2e7df]">
-                                <span className="text-[#7a6453]">💰 現貨前端淨收</span><span className="text-[#bc9f8b]">${frontlineNetIncome.toLocaleString()}</span>
-                            </div>
-
+                            <div className="flex justify-between items-center text-[#e57373]"><span className="flex items-center"><Icon name="remove" className="text-[14px] mr-1"/> 扣：超商實際倒貼運費</span><span>-${(storeShippingNetExp > 0 ? storeShippingNetExp : 0).toLocaleString()}</span></div>
+                            {monthlyShippingProfit > 0 && <div className="flex justify-between items-center text-[#4caf50]"><span className="flex items-center"><Icon name="add" className="text-[14px] mr-1"/> 加：超商運費多收</span><span>+${monthlyShippingProfit.toLocaleString()}</span></div>}
+                            <div className="bg-[#fdfaf7] p-2 rounded-lg flex justify-between text-base border border-[#f2e7df]"><span className="text-[#7a6453]">💰 現貨前端淨收</span><span className="text-[#bc9f8b]">${frontlineNetIncome.toLocaleString()}</span></div>
                             <div className="h-1"></div>
-
-                            <div className="flex justify-between items-center text-[#e57373]">
-                                <span className="flex items-center">
-                                    <Icon name="remove" className="text-[14px] mr-1"/> 扣：現貨賣出平均成本
-                                </span>
-                                <span>-${monthlyCOGS.toLocaleString()}</span>
-                            </div>
-                            <div className="pl-6 text-[10px] text-[#a89689] font-normal -mt-2 mb-1">
-                                ( 本月共銷出現貨 {currentMonthTotalSoldQty} 件 )
-                            </div>
-
-                            {/* 代購利潤獨立區塊 */}
-                            <div className="flex justify-between items-center text-[#5c6bc0] mt-3 pt-3 border-t border-dashed border-[#e8eaf6]">
-                                <span className="flex items-center">
-                                    <Icon name="add" className="text-[14px] mr-1"/> 加：代購 / 預購淨利
-                                </span>
-                                <span>+${monthlyPreorderProfit.toLocaleString()}</span>
-                            </div>
-                            <div className="pl-6 text-[10px] text-[#7986cb] font-normal -mt-1 mb-1">
-                                ( 總營收 ${monthlyPreorderRev} - 總批價 ${monthlyPreorderCost} )
-                            </div>
-
-                            {/* 第二階段結論 */}
-                            <div className="bg-[#e8f5e9] bg-opacity-40 p-2 rounded-lg flex justify-between text-base border border-[#c8e6c9] mt-2">
-                                <span className="text-[#4caf50]">💎 總營業毛利</span><span className="text-[#4caf50]">${grossProfit.toLocaleString()}</span>
-                            </div>
-
+                            <div className="flex justify-between items-center text-[#e57373]"><span className="flex items-center"><Icon name="remove" className="text-[14px] mr-1"/> 扣：現貨賣出平均成本</span><span>-${monthlyCOGS.toLocaleString()}</span></div>
+                            <div className="pl-6 text-[10px] text-[#a89689] font-normal -mt-2 mb-1">( 本月共銷出現貨 {currentMonthTotalSoldQty} 件 )</div>
+                            <div className="flex justify-between items-center text-[#5c6bc0] mt-3 pt-3 border-t border-dashed border-[#e8eaf6]"><span className="flex items-center"><Icon name="add" className="text-[14px] mr-1"/> 加：代購 / 預購淨利</span><span>+${monthlyPreorderProfit.toLocaleString()}</span></div>
+                            <div className="pl-6 text-[10px] text-[#7986cb] font-normal -mt-1 mb-1">( 總營收 ${monthlyPreorderRev} - 總批價 ${monthlyPreorderCost} )</div>
+                            <div className="bg-[#e8f5e9] bg-opacity-40 p-2 rounded-lg flex justify-between text-base border border-[#c8e6c9] mt-2"><span className="text-[#4caf50]">💎 總營業毛利</span><span className="text-[#4caf50]">${grossProfit.toLocaleString()}</span></div>
                             <div className="h-2"></div>
-
-                            <div className="flex justify-between items-center text-[#e57373] cursor-pointer" onClick={() => toggleExp('moOther')}>
-                                <span className="flex items-center"><Icon name="remove" className="text-[14px] mr-1"/> 扣：後勤開銷 (包材/水電/交通)<Icon name={expState['moOther'] ? "expand_less" : "expand_more"} className="text-[16px] ml-1 text-[#c4b5aa]"/></span>
-                                <span>-${monthlyOtherTotal.toLocaleString()}</span>
-                            </div>
+                            <div className="flex justify-between items-center text-[#e57373] cursor-pointer" onClick={() => toggleExp('moOther')}><span className="flex items-center"><Icon name="remove" className="text-[14px] mr-1"/> 扣：後勤開銷 (包材/水電)<Icon name={expState['moOther'] ? "expand_less" : "expand_more"} className="text-[16px] ml-1 text-[#c4b5aa]"/></span><span>-${monthlyOtherTotal.toLocaleString()}</span></div>
                             {expState['moOther'] && (
                                 <div className="pl-6 pr-2 py-1 -mt-1 mb-1 space-y-1 bg-[#fafafa] border border-[#f0e6e0] rounded text-[11px] text-[#a89689] animate-expand">
                                     {monthlySupplyExp > 0 && <div className="flex justify-between"><span>└ 生財包材雜支</span><span>-${monthlySupplyExp.toLocaleString()}</span></div>}
@@ -1452,83 +1183,43 @@
                                     {monthlyTrafficExp > 0 && <div className="flex justify-between"><span>└ 交通與油資</span><span>-${monthlyTrafficExp.toLocaleString()}</span></div>}
                                 </div>
                             )}
-
-                            <div className="flex justify-between items-center text-[#fbc02d]">
-                                <span className="flex items-center"><Icon name="remove" className="text-[14px] mr-1"/> 扣：發老闆薪水</span>
-                                <span>-${monthlySalary.toLocaleString()}</span>
-                            </div>
-
+                            <div className="flex justify-between items-center text-[#fbc02d]"><span className="flex items-center"><Icon name="remove" className="text-[14px] mr-1"/> 扣：發老闆薪水</span><span>-${monthlySalary.toLocaleString()}</span></div>
                             <div className="border-t-2 border-[#bc9f8b] pt-3 mt-4"></div>
-
-                            {/* 最終淨利 */}
-                            <div className="flex justify-between items-end mt-1">
-                                <span className="text-lg text-[#bc9f8b]">🏦 本月最終淨利</span>
-                                <span className={`text-3xl font-black ${monthlyNetProfit < 0 ? 'text-red-500' : 'text-[#bc9f8b]'}`}>
-                                    ${monthlyNetProfit.toLocaleString()}
-                                </span>
-                            </div>
-                            
-                            <div className="text-[10px] text-center text-[#a89689] mt-2">
-                                (註：資金的借款與還款不計入損益表，僅影響口袋現金)
-                            </div>
+                            <div className="flex justify-between items-end mt-1"><span className="text-lg text-[#bc9f8b]">🏦 本月最終淨利</span><span className={`text-3xl font-black ${monthlyNetProfit < 0 ? 'text-red-500' : 'text-[#bc9f8b]'}`}>${monthlyNetProfit.toLocaleString()}</span></div>
+                            <div className="text-[10px] text-center text-[#a89689] mt-2">(註：資金的借款與還款不計入損益表，僅影響口袋現金)</div>
                         </div>
                     </Card>
 
-                    {/* 📦 庫存盤點模組 */}
                     <Card className="bg-white border-dashed border-2 border-[#c8e6c9] mb-4">
                         <div className="flex items-center text-[#4caf50] font-bold text-lg mb-3"><Icon name="inventory_2" className="mr-2" /> 現貨庫存與盤點</div>
-                        <div className="flex items-center justify-between mb-3 text-sm">
-                            <span className="text-[#7a6453] font-bold">目前現貨平均成本</span>
-                            <span className="font-black text-[#5c4d43]">${avgUnitCost.toFixed(1)} <span className="text-xs text-[#a89689] font-normal">/件</span></span>
-                        </div>
+                        <div className="flex items-center justify-between mb-3 text-sm"><span className="text-[#7a6453] font-bold">目前現貨平均成本</span><span className="font-black text-[#5c4d43]">${avgUnitCost.toFixed(1)} <span className="text-xs text-[#a89689] font-normal">/件</span></span></div>
                         <div className="grid grid-cols-3 gap-2 border-t border-[#f2e7df] pt-3 pb-2">
-                            <div className="text-center">
-                                <div className="text-[10px] text-[#a89689] font-bold">歷史總進貨</div>
-                                <div className="font-black text-lg text-[#5c4d43]">{accumulatedWholesaleQty}</div>
-                            </div>
-                            <div className="text-center border-x border-[#f2e7df]">
-                                <div className="text-[10px] text-[#a89689] font-bold">歷史總售出</div>
-                                <div className="font-black text-lg text-[#5c4d43]">{accumulatedTotalSold}</div>
-                            </div>
-                            <div className="text-center">
-                                <div className="text-[10px] text-[#4caf50] font-bold">目前手邊應有</div>
-                                <div className="font-black text-2xl text-[#4caf50]">{currentInventoryQty}</div>
-                            </div>
+                            <div className="text-center"><div className="text-[10px] text-[#a89689] font-bold">歷史總進貨</div><div className="font-black text-lg text-[#5c4d43]">{accumulatedWholesaleQty}</div></div>
+                            <div className="text-center border-x border-[#f2e7df]"><div className="text-[10px] text-[#a89689] font-bold">歷史總售出</div><div className="font-black text-lg text-[#5c4d43]">{accumulatedTotalSold}</div></div>
+                            <div className="text-center"><div className="text-[10px] text-[#4caf50] font-bold">目前手邊應有</div><div className="font-black text-2xl text-[#4caf50]">{currentInventoryQty}</div></div>
                         </div>
-
-                        {/* 盤點區塊 */}
                         <div className="mt-2 pt-2 border-t border-[#f2e7df]">
                             {isCheckingInventory ? (
                                 <div className="animate-fade-in pt-2">
                                     <div className="text-xs text-[#a89689] mb-2 font-bold">系統帳面數量：{theoreticalInventory} 件</div>
                                     <div className="flex items-center gap-2 mb-3">
                                         <input type="number" placeholder="輸入實際剩下幾件" value={actualInv} onChange={e=>setActualInv(e.target.value)} className="flex-[2] bg-[#fdfdfd] border border-[#c8e6c9] rounded-lg px-3 h-[40px] text-sm outline-none focus:border-[#4caf50] font-wawa"/>
-                                        <div className="flex-1 text-xs font-bold text-[#e57373] text-right">
-                                            盤差<br/><span className="text-lg">{(theoreticalInventory - (Number(actualInv)||0))}</span> 件
-                                        </div>
+                                        <div className="flex-1 text-xs font-bold text-[#e57373] text-right">盤差<br/><span className="text-lg">{(theoreticalInventory - (Number(actualInv)||0))}</span> 件</div>
                                     </div>
-                                    <div className="flex gap-2">
-                                        <button onClick={()=>setIsCheckingInventory(false)} className="flex-1 h-[40px] bg-[#f2e7df] text-[#7a6453] rounded-lg text-sm font-bold font-wawa">取消</button>
-                                        <button onClick={saveInventoryCheck} className="flex-[2] h-[40px] bg-[#4caf50] text-white rounded-lg text-sm font-bold font-wawa shadow-sm">校正儲存</button>
-                                    </div>
+                                    <div className="flex gap-2"><button onClick={()=>setIsCheckingInventory(false)} className="flex-1 h-[40px] bg-[#f2e7df] text-[#7a6453] rounded-lg text-sm font-bold font-wawa">取消</button><button onClick={saveInventoryCheck} className="flex-[2] h-[40px] bg-[#4caf50] text-white rounded-lg text-sm font-bold font-wawa shadow-sm">校正儲存</button></div>
                                 </div>
                             ) : (
-                                <button onClick={()=>{setActualInv(''); setIsCheckingInventory(true);}} className="w-full py-2 bg-[#f0f9f0] text-[#4caf50] rounded-lg text-sm font-bold border border-[#c8e6c9] transition-colors active:bg-[#e8f5e9]">
-                                    ✏️ 數量不對？輸入盤點校正
-                                </button>
+                                <button onClick={()=>{setActualInv(''); setIsCheckingInventory(true);}} className="w-full py-2 bg-[#f0f9f0] text-[#4caf50] rounded-lg text-sm font-bold border border-[#c8e6c9] transition-colors active:bg-[#e8f5e9]">✏️ 數量不對？輸入盤點校正</button>
                             )}
-                            {currentMonthAdj !== 0 && !isCheckingInventory && (
-                                <div className="text-center text-xs text-[#e57373] mt-2 font-bold">本月已有盤差紀錄：{currentMonthAdj > 0 ? '+' : ''}{currentMonthAdj} 件</div>
-                            )}
+                            {currentMonthAdj !== 0 && !isCheckingInventory && <div className="text-center text-xs text-[#e57373] mt-2 font-bold">本月已有盤差紀錄：{currentMonthAdj > 0 ? '+' : ''}{currentMonthAdj} 件</div>}
                         </div>
                     </Card>
-
                     <Card><div className="flex justify-between items-center text-base font-bold text-[#5c4d43]"><span className="flex items-center">🎁 本月贈品統計</span><span className="text-[#e57373]">共 {storeGifts + marketGifts} 件</span></div></Card>
                 </div>
             );
         };
 
-        // --- 分頁 5：代購預購系統 ---
+        // --- 5. 代購預購系統 ---
         const PreorderTab = ({ preorders, setPreorders, setConfirmDialog }) => {
             const [editingId, setEditingId] = useState(null);
             const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -1537,63 +1228,29 @@
             const [wholesaleCost, setWholesaleCost] = useState('');
             const [revenue, setRevenue] = useState('');
             const [note, setNote] = useState('');
-            
             const [activeFilter, setActiveFilter] = useState('all');
 
-            const resetForm = () => {
-                setEditingId(null); setDate(new Date().toISOString().split('T')[0]);
-                setCustomerName(''); setItemsCount(''); setWholesaleCost(''); setRevenue(''); setNote('');
-            };
+            const resetForm = () => { setEditingId(null); setDate(new Date().toISOString().split('T')[0]); setCustomerName(''); setItemsCount(''); setWholesaleCost(''); setRevenue(''); setNote(''); };
 
             const handleAddPreorder = () => {
                 if (!customerName || !wholesaleCost || !revenue) return;
-                const recordData = { 
-                    date, customerName, 
-                    itemsCount: Number(itemsCount) || 1, 
-                    wholesaleCost: Number(wholesaleCost) || 0,
-                    revenue: Number(revenue) || 0,
-                    note, 
-                    status: editingId ? (preorders.find(p => p.id === editingId)?.status || 'pending') : 'pending'
-                };
-                
-                if (editingId) {
-                    setPreorders(prev => prev.map(p => p.id === editingId ? { ...p, ...recordData } : p).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
-                } else {
-                    const newRecord = { id: Date.now().toString(), ...recordData };
-                    setPreorders(prev => [{ ...newRecord }, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
-                }
+                const recordData = { date, customerName, itemsCount: Number(itemsCount) || 1, wholesaleCost: Number(wholesaleCost) || 0, revenue: Number(revenue) || 0, note, status: editingId ? (preorders.find(p => p.id === editingId)?.status || 'pending') : 'pending' };
+                if (editingId) setPreorders(prev => prev.map(p => p.id === editingId ? { ...p, ...recordData } : p).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
+                else setPreorders(prev => [{ id: Date.now().toString(), ...recordData }, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
                 resetForm();
             };
 
-            const handleEditClick = (record) => {
-                setEditingId(record.id);
-                setDate(record.date); setCustomerName(record.customerName);
-                setItemsCount(record.itemsCount); 
-                setWholesaleCost(record.wholesaleCost); setRevenue(record.revenue);
-                setNote(record.note || '');
-                scrollToTop();
-            };
-
-            const changeStatus = (id, newStatus) => {
-                setPreorders(prev => prev.map(p => p.id === id ? { ...p, status: newStatus } : p));
-            };
+            const handleEditClick = (r) => { setEditingId(r.id); setDate(r.date); setCustomerName(r.customerName); setItemsCount(r.itemsCount); setWholesaleCost(r.wholesaleCost); setRevenue(r.revenue); setNote(r.note || ''); scrollToTop(); };
+            const changeStatus = (id, s) => setPreorders(prev => prev.map(p => p.id === id ? { ...p, status: s } : p));
 
             const filteredList = preorders.filter(p => activeFilter === 'all' || p.status === activeFilter);
-            
             const totalItems = filteredList.reduce((sum, p) => sum + (Number(p.itemsCount)||0), 0);
             const totalWholesale = filteredList.reduce((sum, p) => sum + (Number(p.wholesaleCost)||0), 0);
             const totalRevenue = filteredList.reduce((sum, p) => sum + (Number(p.revenue)||0), 0);
 
-            const filters = [
-                { id: 'all', label: '全部' },
-                { id: 'pending', label: '待叫貨' },
-                { id: 'ordered', label: '已叫貨' },
-                { id: 'arrived', label: '已到貨' },
-                { id: 'completed', label: '已出貨' }
-            ];
-
-            const getStatusConfig = (status) => {
-                switch(status) {
+            const filters = [{ id: 'all', label: '全部' }, { id: 'pending', label: '待叫貨' }, { id: 'ordered', label: '已叫貨' }, { id: 'arrived', label: '已到貨' }, { id: 'completed', label: '已出貨' }];
+            const getStatusConfig = (s) => {
+                switch(s) {
                     case 'pending': return { text: '待叫貨', color: 'bg-gray-100 text-gray-600', nextBtn: '標記為已叫貨', nextStatus: 'ordered', nextColor: 'bg-[#ffb74d] text-white' };
                     case 'ordered': return { text: '已叫貨', color: 'bg-[#fff3e0] text-[#f57c00]', nextBtn: '標記為已到貨', nextStatus: 'arrived', nextColor: 'bg-[#64b5f6] text-white' };
                     case 'arrived': return { text: '已到貨', color: 'bg-[#e3f2fd] text-[#1976d2]', nextBtn: '已結算/出貨', nextStatus: 'completed', nextColor: 'bg-[#4caf50] text-white' };
@@ -1605,43 +1262,18 @@
             return (
                 <div className="animate-fade-in pb-20">
                     <Card className={editingId ? 'border-2 border-[#5c6bc0]' : 'border border-[#e8eaf6]'}>
-                        <div className="flex items-center mb-4 text-[#5c6bc0] font-bold text-lg">
-                            <Icon name={editingId ? 'edit' : 'add_circle'} className="mr-2" /> 
-                            {editingId ? '編輯代購 / 預購紀錄' : '建立代購 / 預購訂單'}
-                        </div>
+                        <div className="flex items-center mb-4 text-[#5c6bc0] font-bold text-lg"><Icon name={editingId ? 'edit' : 'add_circle'} className="mr-2" /> {editingId ? '編輯代購 / 預購紀錄' : '建立代購 / 預購訂單'}</div>
                         <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
-                        
-                        <div className="grid grid-cols-2 gap-3">
-                            <Input placeholder="客人姓名或暱稱" value={customerName} onChange={e => setCustomerName(e.target.value)} />
-                            <Input type="number" placeholder="商品件數" value={itemsCount} onChange={e => setItemsCount(e.target.value)} />
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-3">
-                            <Input type="number" placeholder="單筆總批價(成本)" value={wholesaleCost} onChange={e => setWholesaleCost(e.target.value)} />
-                            <Input type="number" placeholder="單筆總售價(實收)" value={revenue} onChange={e => setRevenue(e.target.value)} />
-                        </div>
+                        <div className="grid grid-cols-2 gap-3"><Input placeholder="客人姓名或暱稱" value={customerName} onChange={e => setCustomerName(e.target.value)} /><Input type="number" placeholder="商品件數" value={itemsCount} onChange={e => setItemsCount(e.target.value)} /></div>
+                        <div className="grid grid-cols-2 gap-3"><Input type="number" placeholder="單筆總批價(成本)" value={wholesaleCost} onChange={e => setWholesaleCost(e.target.value)} /><Input type="number" placeholder="單筆總售價(實收)" value={revenue} onChange={e => setRevenue(e.target.value)} /></div>
                         <Input placeholder="備註(款式、顏色、尺寸)" value={note} onChange={e => setNote(e.target.value)} />
-                        
-                        <div className="flex gap-3">
-                            {editingId && (
-                                <Button onClick={resetForm} className="flex-1 bg-[#e8eaf6] !text-[#5c6bc0]">取消</Button>
-                            )}
-                            <Button onClick={handleAddPreorder} className={editingId ? 'flex-[2] bg-[#5c6bc0] text-white' : 'w-full bg-[#5c6bc0] text-white'}>
-                                {editingId ? '儲存修改' : '建立單筆代購'}
-                            </Button>
-                        </div>
+                        <div className="flex gap-3">{editingId && <Button onClick={resetForm} className="flex-1 bg-[#e8eaf6] !text-[#5c6bc0]">取消</Button>}<Button onClick={handleAddPreorder} className={editingId ? 'flex-[2] bg-[#5c6bc0] text-white' : 'w-full bg-[#5c6bc0] text-white'}>{editingId ? '儲存修改' : '建立單筆代購'}</Button></div>
                     </Card>
 
-                    {/* 狀態過濾列 */}
                     <div className="flex overflow-x-auto gap-2 mb-4 custom-scrollbar px-1">
-                        {filters.map(f => (
-                            <button key={f.id} onClick={() => setActiveFilter(f.id)} className={`px-4 py-2 rounded-full whitespace-nowrap text-sm font-bold transition-colors shadow-sm ${activeFilter === f.id ? 'bg-[#3949ab] text-white' : 'bg-white text-[#7986cb] border border-[#c5cae9]'}`}>
-                                {f.label}
-                            </button>
-                        ))}
+                        {filters.map(f => <button key={f.id} onClick={() => setActiveFilter(f.id)} className={`px-4 py-2 rounded-full whitespace-nowrap text-sm font-bold transition-colors shadow-sm ${activeFilter === f.id ? 'bg-[#3949ab] text-white' : 'bg-white text-[#7986cb] border border-[#c5cae9]'}`}>{f.label}</button>)}
                     </div>
 
-                    {/* 統計 Summary */}
                     <Card className="bg-[#f8f9fa] border-none mb-4 p-3 shadow-inner">
                         <div className="flex justify-between items-center text-sm font-bold">
                             <div className="text-[#5c6bc0]">合計 <span className="text-lg">{totalItems}</span> 件</div>
@@ -1652,51 +1284,33 @@
                         </div>
                     </Card>
 
-                    {filteredList.length === 0 ? <div className="text-center text-[#c5cae9] text-sm py-8 mt-2 bg-white rounded-2xl border border-dashed border-[#c5cae9] mx-1">此分類目前沒有訂單！</div> : (
+                    {filteredList.length === 0 ? <div className="text-center text-[#c5cae9] text-sm py-8 mx-1 bg-white rounded-2xl border border-dashed border-[#c5cae9]">此分類目前沒有訂單！</div> : (
                         <div className="space-y-3 mx-1">
                         {filteredList.map(p => {
                             const conf = getStatusConfig(p.status);
                             const profit = (Number(p.revenue)||0) - (Number(p.wholesaleCost)||0);
                             
-                            // 資金全自動認定機制：
-                            // 成本：只要是 已到貨 / 已出貨，就算已付批價
+                            // 自動化判定：已到貨/已出貨=已扣款；已出貨=已入帳
                             const isCostPaid = ['arrived', 'completed'].includes(p.status);
-                            // 營收：只要是 已出貨，就算已入帳
                             const isRevReceived = p.status === 'completed';
 
                             return (
                                 <div key={p.id} className="bg-white rounded-xl p-4 shadow-sm border border-[#e8eaf6] relative">
                                     <div className="absolute top-4 right-4 flex gap-1">
                                         <button onClick={() => handleEditClick(p)} className="p-1.5 text-[#5c6bc0] bg-[#e8eaf6] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
-                                        <button onClick={() => setConfirmDialog({
-                                            isOpen: true, message: "確定要刪除這筆代購紀錄嗎？", 
-                                            onConfirm: () => { setPreorders(prev => prev.filter(x => x.id !== p.id)); setConfirmDialog({isOpen: false}); },
-                                            onCancel: () => setConfirmDialog({isOpen: false})
-                                        })} className="p-1.5 text-[#e57373] bg-[#fdf2f2] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
+                                        <button onClick={() => setConfirmDialog({isOpen: true, id: p.id, collection: 'preorders', message: "確定刪除這筆代購紀錄嗎？"})} className="p-1.5 text-[#e57373] bg-[#fdf2f2] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
                                     </div>
-                                    
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <div className="font-bold text-[#3949ab] text-lg">{p.customerName}</div>
-                                        <div className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${conf.color}`}>{conf.text}</div>
-                                    </div>
+                                    <div className="flex items-center gap-2 mb-2"><div className="font-bold text-[#3949ab] text-lg">{p.customerName}</div><div className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${conf.color}`}>{conf.text}</div></div>
                                     <div className="text-xs text-gray-400 mb-2">{p.date} 建立 {p.itemsCount > 1 ? `| 共 ${p.itemsCount} 件` : ''}</div>
                                     {p.note && <div className="text-sm text-gray-600 mb-3 bg-gray-50 p-2 rounded-lg border border-gray-100">{p.note}</div>}
                                     
                                     <div className="grid grid-cols-2 gap-2 text-sm pt-2 border-t border-gray-100 mt-2">
-                                        <div>批價成本: <span className="text-gray-500 font-bold">${p.wholesaleCost}</span>
-                                            {isCostPaid ? <span className="text-[9px] bg-red-50 text-red-500 px-1 ml-1 rounded font-bold">已扣款</span> : <span className="text-[9px] bg-gray-100 text-gray-500 px-1 ml-1 rounded">未扣款</span>}
-                                        </div>
-                                        <div>實收售價: <span className="text-[#3949ab] font-bold">${p.revenue}</span>
-                                            {isRevReceived ? <span className="text-[9px] bg-green-50 text-green-600 px-1 ml-1 rounded font-bold">已入帳</span> : <span className="text-[9px] bg-orange-50 text-orange-500 px-1 ml-1 rounded font-bold">待收</span>}
-                                        </div>
+                                        <div>批價成本: <span className="text-gray-500 font-bold">${p.wholesaleCost}</span>{isCostPaid ? <span className="text-[9px] bg-red-50 text-red-500 px-1 ml-1 rounded font-bold">已扣款</span> : <span className="text-[9px] bg-gray-100 text-gray-500 px-1 ml-1 rounded">未扣款</span>}</div>
+                                        <div>實收售價: <span className="text-[#3949ab] font-bold">${p.revenue}</span>{isRevReceived ? <span className="text-[9px] bg-green-50 text-green-600 px-1 ml-1 rounded font-bold">已入帳</span> : <span className="text-[9px] bg-orange-50 text-orange-500 px-1 ml-1 rounded font-bold">待收</span>}</div>
                                     </div>
                                     <div className="text-right text-xs mt-1 font-bold text-[#4caf50]">單筆利潤: +${profit}</div>
 
-                                    {conf.nextBtn && (
-                                        <button onClick={() => changeStatus(p.id, conf.nextStatus)} className={`w-full mt-3 py-2.5 rounded-xl font-bold flex justify-center items-center text-sm shadow-sm transition-colors ${conf.nextColor}`}>
-                                            {conf.nextBtn} <Icon name="arrow_forward_ios" className="ml-1 text-[12px]" />
-                                        </button>
-                                    )}
+                                    {conf.nextBtn && <button onClick={() => changeStatus(p.id, conf.nextStatus)} className={`w-full mt-3 py-2.5 rounded-xl font-bold flex justify-center items-center text-sm shadow-sm transition-colors ${conf.nextColor}`}>{conf.nextBtn} <Icon name="arrow_forward_ios" className="ml-1 text-[12px]" /></button>}
                                 </div>
                             )
                         })}
@@ -1709,30 +1323,14 @@
         // --- 設定與備份 Modal ---
         const SettingsModal = ({ isOpen, onClose }) => {
             if (!isOpen) return null;
-
             const handleExport = () => {
-                const data = {
-                    xq_deliveries: localStorage.getItem('xq_deliveries'),
-                    xq_marketSales: localStorage.getItem('xq_marketSales'),
-                    xq_expenses: localStorage.getItem('xq_expenses'),
-                    xq_reservations: localStorage.getItem('xq_reservations'),
-                    xq_preorders: localStorage.getItem('xq_preorders'),
-                    xq_settings: localStorage.getItem('xq_settings'),
-                    xq_market_sold: localStorage.getItem('xq_market_sold'),
-                };
+                const data = { xq_deliveries: localStorage.getItem('xq_deliveries'), xq_marketSales: localStorage.getItem('xq_marketSales'), xq_expenses: localStorage.getItem('xq_expenses'), xq_reservations: localStorage.getItem('xq_reservations'), xq_preorders: localStorage.getItem('xq_preorders'), xq_settings: localStorage.getItem('xq_settings'), xq_market_sold: localStorage.getItem('xq_market_sold') };
                 const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `森衣好_資料備份_${new Date().toISOString().split('T')[0]}.json`;
-                a.click();
-                URL.revokeObjectURL(url);
+                const a = document.createElement('a'); a.href = url; a.download = `森衣好_資料備份_${new Date().toISOString().split('T')[0]}.json`; a.click(); URL.revokeObjectURL(url);
             };
-
             const handleImport = (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
+                const file = e.target.files[0]; if (!file) return; const reader = new FileReader();
                 reader.onload = (event) => {
                     try {
                         const d = JSON.parse(event.target.result);
@@ -1743,41 +1341,26 @@
                         if(d.xq_preorders) localStorage.setItem('xq_preorders', d.xq_preorders);
                         if(d.xq_settings) localStorage.setItem('xq_settings', d.xq_settings);
                         if(d.xq_market_sold) localStorage.setItem('xq_market_sold', d.xq_market_sold);
-                        alert('✅ 資料匯入成功！系統將為您重新整理畫面。');
-                        window.location.reload();
-                    } catch(err) {
-                        alert('❌ 匯入失敗！檔案格式不正確，請確保您選擇的是正確的備份檔 (.json)。');
-                    }
-                };
-                reader.readAsText(file);
+                        alert('✅ 資料匯入成功！系統將為您重新整理畫面。'); window.location.reload();
+                    } catch(err) { alert('❌ 匯入失敗！檔案格式不正確。'); }
+                }; reader.readAsText(file);
             };
 
             return (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[120] animate-fade-in px-4">
                     <div className="bg-[#fdfaf7] rounded-3xl p-6 w-full max-w-sm shadow-2xl relative">
                         <button onClick={onClose} className="absolute top-4 right-4 text-[#a89689] p-1 bg-white rounded-full shadow-sm"><Icon name="close" /></button>
-                        
-                        <div className="text-center text-[#5c4d43] font-bold mb-6 text-xl flex flex-col items-center">
-                            <div className="bg-white p-3 rounded-full mb-2 shadow-sm border border-[#f2e7df]"><Icon name="save" className="text-[28px] text-[#bc9f8b]" /></div>
-                            系統設定與資料備份
-                        </div>
-
+                        <div className="text-center text-[#5c4d43] font-bold mb-6 text-xl"><div className="bg-white p-3 rounded-full mb-2 shadow-sm inline-block border border-[#f2e7df]"><Icon name="save" className="text-[28px] text-[#bc9f8b]" /></div><br/>系統設定與備份</div>
                         <div className="space-y-4">
                             <div className="bg-white p-4 rounded-xl border border-[#c8e6c9] shadow-sm">
-                                <div className="font-bold text-[#2e7d32] mb-1 flex items-center"><Icon name="download" className="mr-1 text-[18px] align-text-bottom"/> 匯出備份 (下載)</div>
-                                <div className="text-xs text-[#4caf50] mb-3 leading-relaxed">下載備份檔，您可透過 LINE 傳送給合夥人，達成安全的離線資料共享。</div>
-                                <button onClick={handleExport} className="w-full py-3 bg-[#4caf50] text-white font-bold rounded-lg shadow-sm active:bg-[#388e3c] transition-colors">
-                                    下載備份檔 (.json)
-                                </button>
+                                <div className="font-bold text-[#2e7d32] mb-1"><Icon name="download" className="mr-1 text-[18px] align-text-bottom"/>匯出備份 (下載)</div>
+                                <div className="text-xs text-[#4caf50] mb-3">下載 JSON 檔，可透過 LINE 傳給合夥人共享。</div>
+                                <button onClick={handleExport} className="w-full py-3 bg-[#4caf50] text-white font-bold rounded-lg shadow-sm">下載備份檔</button>
                             </div>
-
                             <div className="bg-white p-4 rounded-xl border border-[#ffe0b2] shadow-sm">
-                                <div className="font-bold text-[#ef6c00] mb-1 flex items-center"><Icon name="upload" className="mr-1 text-[18px] align-text-bottom"/> 匯入備份 (還原)</div>
-                                <div className="text-xs text-[#ff9800] mb-3 leading-relaxed">選擇您或合夥人下載的備份檔 (.json)。<br/><strong className="text-red-500">注意：匯入將會完全覆蓋目前的資料！</strong></div>
-                                <label className="w-full py-3 bg-[#ff9800] text-white font-bold rounded-lg shadow-sm flex justify-center items-center cursor-pointer active:bg-[#f57c00] transition-colors">
-                                    選擇檔案並匯入
-                                    <input type="file" accept=".json" className="hidden" onChange={handleImport} />
-                                </label>
+                                <div className="font-bold text-[#ef6c00] mb-1"><Icon name="upload" className="mr-1 text-[18px] align-text-bottom"/>匯入備份 (還原)</div>
+                                <div className="text-xs text-[#ff9800] mb-3">選擇備份檔。<strong className="text-red-500">注意：會覆蓋現有資料！</strong></div>
+                                <label className="w-full py-3 bg-[#ff9800] text-white font-bold rounded-lg shadow-sm flex justify-center cursor-pointer">選擇檔案並匯入<input type="file" accept=".json" className="hidden" onChange={handleImport} /></label>
                             </div>
                         </div>
                     </div>
@@ -1785,7 +1368,6 @@
             );
         };
 
-        // --- 應用程式主體 ---
         const App = () => {
             const [activeTab, setActiveTab] = useState('store');
             const [showSettings, setShowSettings] = useState(false);
@@ -1806,19 +1388,26 @@
             const settings = (typeof settingsRaw === 'object' && settingsRaw !== null && !Array.isArray(settingsRaw)) ? settingsRaw : { monthlyGoal: 100000, startupCapital: 36284 };
             const marketSoldStats = (typeof marketSoldStatsRaw === 'object' && marketSoldStatsRaw !== null && !Array.isArray(marketSoldStatsRaw)) ? marketSoldStatsRaw : {};
 
-            const setDeliveries = (updater) => setDeliveriesRaw(prev => typeof updater === 'function' ? updater(getSafeArr(prev)) : updater);
-            const setMarketSales = (updater) => setMarketSalesRaw(prev => typeof updater === 'function' ? updater(getSafeArr(prev)) : updater);
-            const setExpenses = (updater) => setExpensesRaw(prev => typeof updater === 'function' ? updater(getSafeArr(prev)) : updater);
-            const setReservations = (updater) => setReservationsRaw(prev => typeof updater === 'function' ? updater(getSafeArr(prev)) : updater);
-            const setPreorders = (updater) => setPreordersRaw(prev => typeof updater === 'function' ? updater(getSafeArr(prev)) : updater);
-            const setSettings = (updater) => setSettingsRaw(prev => typeof updater === 'function' ? updater((typeof prev === 'object' && prev !== null && !Array.isArray(prev)) ? prev : { monthlyGoal: 100000, startupCapital: 36284 }) : updater);
-            const setMarketSoldStats = (updater) => setMarketSoldStatsRaw(prev => typeof updater === 'function' ? updater((typeof prev === 'object' && prev !== null && !Array.isArray(prev)) ? prev : {}) : updater);
+            const setDeliveries = (u) => setDeliveriesRaw(p => typeof u === 'function' ? u(getSafeArr(p)) : u);
+            const setMarketSales = (u) => setMarketSalesRaw(p => typeof u === 'function' ? u(getSafeArr(p)) : u);
+            const setExpenses = (u) => setExpensesRaw(p => typeof u === 'function' ? u(getSafeArr(p)) : u);
+            const setReservations = (u) => setReservationsRaw(p => typeof u === 'function' ? u(getSafeArr(p)) : u);
+            const setPreorders = (u) => setPreordersRaw(p => typeof u === 'function' ? u(getSafeArr(p)) : u);
+            const setSettings = (u) => setSettingsRaw(p => typeof u === 'function' ? u(p) : u);
+            const setMarketSoldStats = (u) => setMarketSoldStatsRaw(p => typeof u === 'function' ? u(p) : u);
             
-            const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, message: '', onConfirm: null, onCancel: null });
+            const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, id: null, collection: '', message: '' });
 
             const executeDelete = () => {
-                if (confirmDialog.onConfirm) confirmDialog.onConfirm();
-                setConfirmDialog({isOpen: false, message: '', onConfirm: null, onCancel: null});
+                const { id, collection } = confirmDialog;
+                if(id && collection) {
+                    if (collection === 'deliveries') setDeliveries(prev => prev.filter(d => d.id !== id));
+                    if (collection === 'market_sales') setMarketSales(prev => prev.filter(m => m.id !== id));
+                    if (collection === 'expenses') setExpenses(prev => prev.filter(e => e.id !== id));
+                    if (collection === 'reservations') setReservations(prev => prev.filter(r => r.id !== id));
+                    if (collection === 'preorders') setPreorders(prev => prev.filter(p => p.id !== id));
+                }
+                setConfirmDialog({isOpen: false, id: null, collection: '', message: ''});
             };
 
             return (
@@ -1826,51 +1415,36 @@
                     <div className="flex flex-col h-screen custom-scrollbar text-[#5c4d43] max-w-lg mx-auto bg-[#fdfaf7] shadow-2xl relative">
                         <header className="bg-[#bc9f8b] text-white pt-6 pb-4 px-5 flex justify-between items-center shadow-md sticky top-0 z-10">
                             <div className="flex items-center text-2xl font-bold tracking-widest drop-shadow-sm">💰 200%森衣好</div>
-                            <button onClick={() => setShowSettings(true)} className="p-1.5 bg-white bg-opacity-20 rounded-full hover:bg-opacity-30 transition-colors">
-                                <Icon name="settings" className="text-[20px]" />
-                            </button>
+                            <button onClick={() => setShowSettings(true)} className="p-1.5 bg-white bg-opacity-20 rounded-full hover:bg-opacity-30 transition-colors"><Icon name="settings" className="text-[20px]" /></button>
                         </header>
                         
                         <main id="main-content" className="flex-1 overflow-y-auto p-4 relative custom-scrollbar">
                             {activeTab === 'store' && <StoreTab deliveries={deliveries} setDeliveries={setDeliveries} reservations={reservations} setReservations={setReservations} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'market' && <MarketTab marketSales={marketSales} setMarketSales={setMarketSales} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'expense' && <ExpenseTab expenses={expenses} setExpenses={setExpenses} setConfirmDialog={setConfirmDialog} />}
-                            {activeTab === 'report' && <ReportTab deliveries={deliveries} marketSales={marketSales} expenses={expenses} preorders={preorders} settings={settings} setSettings={setSettings} marketSoldStats={marketSoldStats} setMarketSoldStats={setMarketSoldStats} setDialog={setConfirmDialog} />}
+                            {activeTab === 'report' && <ReportTab deliveries={deliveries} marketSales={marketSales} expenses={expenses} preorders={preorders} settings={settings} setSettings={setSettings} marketSoldStats={marketSoldStats} setMarketSoldStats={setMarketSoldStats} />}
                             {activeTab === 'preorder' && <PreorderTab preorders={preorders} setPreorders={setPreorders} setConfirmDialog={setConfirmDialog} />}
                         </main>
 
-                        {/* 5 分頁底部導覽列 */}
                         <nav className="bg-white border-t border-[#f2e7df] flex justify-around pb-safe pt-2 fixed bottom-0 w-full max-w-lg z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] px-1">
-                            {[ 
-                               { id: 'store', icon: 'inventory_2', label: '現貨超商' }, 
-                               { id: 'market', icon: 'storefront', label: '現貨市場' },
-                               { id: 'expense', icon: 'payments', label: '現貨支出' },
-                               { id: 'report', icon: 'bar_chart', label: '營運報表' },
-                               { id: 'preorder', icon: 'local_shipping', label: '代購', color: 'text-[#5c6bc0]' }
-                            ].map(t => {
+                            {[ { id: 'store', icon: 'inventory_2', label: '現貨超商' }, { id: 'market', icon: 'storefront', label: '現貨市場' }, { id: 'expense', icon: 'payments', label: '現貨支出' }, { id: 'report', icon: 'bar_chart', label: '營運報表' }, { id: 'preorder', icon: 'local_shipping', label: '代購', color: 'text-[#5c6bc0]' }].map(t => {
                                 const isActive = activeTab === t.id;
-                                const activeColorClass = isActive ? (t.color ? t.color : 'text-[#bc9f8b]') : 'text-[#c4b5aa]';
-                                const activeBgColorClass = isActive ? (t.id === 'preorder' ? 'bg-[#5c6bc0]' : 'bg-[#bc9f8b]') : '';
-                                
                                 return (
-                                    <button key={t.id} onClick={() => { setActiveTab(t.id); scrollToTop(); }} className={`flex flex-col items-center justify-center py-1 w-full transition-colors relative ${activeColorClass}`}>
+                                    <button key={t.id} onClick={() => { setActiveTab(t.id); scrollToTop(); }} className={`flex flex-col items-center justify-center py-1 w-full transition-colors relative ${isActive ? (t.color||'text-[#bc9f8b]') : 'text-[#c4b5aa]'}`}>
                                         <Icon name={t.icon} className="mb-0.5 text-[22px]" />
                                         <span className={`text-[10px] tracking-tighter ${isActive ? 'font-black' : 'font-medium'}`}>{t.label}</span>
-                                        {isActive && <div className={`absolute top-0 w-6 h-1 rounded-b-full ${activeBgColorClass}`}></div>}
+                                        {isActive && <div className={`absolute top-0 w-6 h-1 rounded-b-full ${t.id==='preorder'?'bg-[#5c6bc0]':'bg-[#bc9f8b]'}`}></div>}
                                     </button>
                                 );
                             })}
                         </nav>
-                        
                         <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
-                        <ConfirmModal isOpen={confirmDialog.isOpen} message={confirmDialog.message || "確定要刪除這筆紀錄嗎？"} onConfirm={executeDelete} onCancel={() => setConfirmDialog({isOpen: false, message: '', onConfirm: null, onCancel: null})} />
+                        <ConfirmModal isOpen={confirmDialog.isOpen} message={confirmDialog.message} onConfirm={executeDelete} onCancel={() => setConfirmDialog({isOpen: false, id: null, collection: '', message: ''})} />
                     </div>
                 </ErrorBoundary>
             );
         };
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        const root = ReactDOM.createRoot(document.getElementById('root')); root.render(<App />);
     </script>
 </body>
 </html>
