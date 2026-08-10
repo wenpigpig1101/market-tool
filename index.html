@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>200%森衣好 (整合版)</title>
+    <title>200%森衣好</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -206,7 +206,7 @@
         };
 
         // --- 分頁 1：超商 & 留貨 (完美整合版) ---
-        const StoreTab = ({ deliveries, setDeliveries, reservations, setReservations, setConfirmDialog, daigouOrders, daigouProducts }) => {
+        const StoreTab = ({ deliveries, setDeliveries, reservations, setReservations, preorders, setConfirmDialog }) => {
             const [formMode, setFormMode] = useState('delivery'); 
             const [editingId, setEditingId] = useState(null);
             
@@ -239,37 +239,34 @@
 
             const [expandedMonths, setExpandedMonths] = useState({});
 
-            // 🌟 【跨系統整合】整理代購系統的顧客名單與未結金額
-            const { uniqueCustomers, unpaidDaigou } = useMemo(() => {
-                const names = new Set();
+            // 🌟 【重頭戲】：整合森衣好內建的代購資料，計算未收款客人
+            const unpaidPreordersByCustomer = useMemo(() => {
                 const unpaid = {};
-
-                // 收集森衣好的客人
-                reservations.forEach(r => names.add(r.customerName));
-                deliveries.forEach(d => names.add(d.customerName));
-
-                // 收集代購系統的客人與未結算金額
-                daigouOrders.forEach(order => {
-                    if (order.customer) {
-                        names.add(order.customer);
-                        
-                        // status !== 'completed' 代表還沒結帳收款
-                        if (order.status !== 'completed') {
-                            const product = daigouProducts.find(p => p.id === order.productId);
-                            if (product) {
-                                if (!unpaid[order.customer]) unpaid[order.customer] = { total: 0, items: 0 };
-                                unpaid[order.customer].total += (product.price * order.quantity);
-                                unpaid[order.customer].items += order.quantity;
-                            }
+                preorders.forEach(p => {
+                    // 判斷該筆代購是否已經付款 (如果有 isPaid 就看 isPaid，沒有的話只要狀態是 completed 就當作已付款)
+                    const isPaid = p.isPaid !== undefined ? p.isPaid : p.status === 'completed';
+                    
+                    if (!isPaid) {
+                        if (!unpaid[p.customerName]) {
+                            unpaid[p.customerName] = { customer: p.customerName, totalRevenue: 0, itemsCount: 0 };
                         }
+                        unpaid[p.customerName].totalRevenue += (Number(p.revenue) || 0);
+                        unpaid[p.customerName].itemsCount += (Number(p.itemsCount) || 1);
                     }
                 });
-
-                return { 
-                    uniqueCustomers: Array.from(names).sort(),
-                    unpaidDaigou: unpaid
-                };
-            }, [reservations, deliveries, daigouOrders, daigouProducts]);
+                
+                // 轉成陣列並按照未結金額由大到小排序
+                return Object.values(unpaid).sort((a, b) => b.totalRevenue - a.totalRevenue);
+            }, [preorders]);
+            
+            // 收集所有客人的名字給下拉選單防呆用
+            const allCustomerNames = useMemo(() => {
+                const names = new Set();
+                reservations.forEach(r => names.add(r.customerName));
+                deliveries.forEach(d => names.add(d.customerName));
+                preorders.forEach(p => names.add(p.customerName));
+                return Array.from(names).sort();
+            }, [reservations, deliveries, preorders]);
 
             const resetDeliveryForm = () => {
                 setEditingId(null); setDDate(new Date().toISOString().split('T')[0]);
@@ -379,9 +376,8 @@
             return (
                 <div className="animate-fade-in pb-20">
                     
-                    {/* 🌟 建立全域顧客清單 Datalist 供自動完成使用 */}
                     <datalist id="all-customers-list">
-                        {uniqueCustomers.map(name => <option key={name} value={name} />)}
+                        {allCustomerNames.map(name => <option key={name} value={name} />)}
                     </datalist>
 
                     {!editingId && (
@@ -404,7 +400,6 @@
                         {formMode === 'delivery' ? (
                             <React.Fragment>
                                 <Input type="date" value={dDate} onChange={e => setDDate(e.target.value)} />
-                                {/* 🌟 綁定 list 達成自動完成 */}
                                 <Input placeholder="顧客姓名 (點擊可選代購/歷史客人)" value={dCustomerName} onChange={e => setDCustomerName(e.target.value)} list="all-customers-list" />
                                 <div className="grid grid-cols-2 gap-3">
                                     <Input type="number" placeholder="商品售價(總額)" value={dRevenue} onChange={e => setDRevenue(e.target.value)} />
@@ -445,7 +440,6 @@
                         ) : (
                             <React.Fragment>
                                 <Input type="date" value={rDate} onChange={e => setRDate(e.target.value)} />
-                                {/* 🌟 綁定 list 達成自動完成 */}
                                 <Input placeholder="訂購人姓名 (點擊可選代購/歷史客人)" value={rCustomerName} onChange={e => setRCustomerName(e.target.value)} list="all-customers-list" />
                                 <div className="grid grid-cols-2 gap-3">
                                     <Input type="number" placeholder="預估售價(總額)" value={rRevenue} onChange={e => setRRevenue(e.target.value)} />
@@ -460,8 +454,46 @@
                         )}
                     </Card>
 
+                    {/* 🌟🌟 跨系統配置重頭戲：代購未結清單 (完美復刻您的截圖 2) 🌟🌟 */}
+                    {unpaidPreordersByCustomer.length > 0 && (
+                        <div className="mt-8 mb-4 animate-fade-in border-t border-dashed border-[#c5cae9] pt-6">
+                            <div className="flex justify-between items-center px-2 mb-3">
+                                <div className="flex items-center text-[#3949ab] font-bold text-lg">
+                                    <Icon name="storefront" className="mr-1 text-[22px]" /> 代購待結帳區
+                                </div>
+                                <span className="bg-[#e8eaf6] text-[#5c6bc0] text-xs px-2 py-0.5 rounded-full font-bold">共 {unpaidPreordersByCustomer.length} 人</span>
+                            </div>
+                            
+                            <div className="space-y-3">
+                                {unpaidPreordersByCustomer.map(summary => (
+                                    <div key={summary.customer} className="bg-white p-4 rounded-xl shadow-sm border border-[#e8eaf6] mx-1 flex justify-between items-center transition-all hover:shadow-md">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 bg-[#e8eaf6] text-[#5c6bc0] rounded-full flex items-center justify-center font-bold text-xl shrink-0 shadow-sm border border-[#c5cae9]">
+                                                {summary.customer.charAt(0)}
+                                            </div>
+                                            <div>
+                                                <div className="font-bold text-[#5c4d43] text-lg tracking-wide mb-0.5">{summary.customer}</div>
+                                                <div className="text-[11px] text-[#7986cb] font-medium">總共 {summary.itemsCount} 件代購 (未付款)</div>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-[10px] text-[#a89689] mb-0.5 font-bold tracking-wider">待收款</div>
+                                            <div className="font-black text-xl text-[#e57373]">
+                                                ${summary.totalRevenue.toLocaleString()}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="text-center text-[10px] text-[#c4b5aa] mt-3">
+                                💡 在右下角「代購」功能中記帳，此處會自動同步更新
+                            </div>
+                        </div>
+                    )}
+
+
                     {/* 清單 1：現貨保留區 (留貨) */}
-                    <div className="mb-6 animate-fade-in">
+                    <div className="mt-8 mb-6 animate-fade-in">
                         <div className="flex items-center text-[#1976d2] font-bold px-2 text-lg mb-2">
                             <Icon name="diamond" className="mr-1 text-[20px]" /> 現貨保留區 
                             <span className="ml-2 bg-[#bbdefb] text-[#1565c0] text-xs px-2 py-0.5 rounded-full">{reservations.length}筆</span>
@@ -474,8 +506,6 @@
                         ) : (
                             <div className="space-y-2">
                             {reservations.map(r => {
-                                // 🌟 檢查這位客人有沒有代購未結
-                                const daigouInfo = unpaidDaigou[r.customerName];
                                 return (
                                     <div key={r.id} className="bg-white rounded-xl p-3 shadow-sm border-l-4 border-[#64b5f6] relative mx-1 px-4">
                                         <div className="flex justify-between items-start mb-2">
@@ -485,14 +515,6 @@
                                                     <span className="text-xs font-normal text-[#1976d2] bg-[#e3f2fd] px-1.5 py-0.5 rounded">{r.itemsCount}件</span>
                                                     {Number(r.revenue) > 0 && <span className="text-xs font-bold text-[#1976d2] ml-1">${r.revenue}</span>}
                                                 </div>
-                                                
-                                                {/* 🌟 跨系統防漏接：顯示代購未結提示 */}
-                                                {daigouInfo && (
-                                                    <div className="inline-flex items-center bg-[#fff3e0] border border-[#ffe0b2] text-[#f57c00] text-[11px] px-2 py-0.5 rounded mb-1 font-bold">
-                                                        <Icon name="link" className="text-[12px] mr-0.5" /> 代購未結: ${daigouInfo.total.toLocaleString()} ({daigouInfo.items}件)
-                                                    </div>
-                                                )}
-
                                                 <div className="text-[11px] text-[#a89689]">{r.date}保留 {r.note && <span className="ml-1 text-[#7a6453]">({r.note})</span>}</div>
                                             </div>
                                             <div className="flex gap-1 shrink-0 ml-2">
@@ -510,28 +532,8 @@
                         )}
                     </div>
 
-                    {/* 🌟 跨系統：代購未結專區 (只顯示沒有留現貨、但有代購未結的客人，避免遺漏) */}
-                    {Object.keys(unpaidDaigou).filter(name => !reservations.some(r => r.customerName === name)).length > 0 && (
-                        <div className="mb-6 animate-fade-in border-t border-dashed border-[#e0d6ce] pt-4">
-                            <div className="flex items-center text-[#f57c00] font-bold px-2 text-sm mb-2">
-                                <Icon name="shopping_bag" className="mr-1 text-[16px]" /> 跨系統提醒：純代購待結帳客人
-                            </div>
-                            <div className="flex flex-wrap gap-2 px-1">
-                                {Object.keys(unpaidDaigou)
-                                    .filter(name => !reservations.some(r => r.customerName === name))
-                                    .map(name => (
-                                        <div key={name} className="bg-white border border-[#ffe0b2] rounded-lg px-3 py-1.5 shadow-sm">
-                                            <span className="font-bold text-[#5c4d43] text-sm">{name}</span>
-                                            <span className="text-[#f57c00] font-bold text-xs ml-2">${unpaidDaigou[name].total.toLocaleString()}</span>
-                                            <span className="text-[#a89689] text-[10px] ml-1">({unpaidDaigou[name].items}件)</span>
-                                        </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
                     {/* 清單 2：未寄出 */}
-                    <div className="mt-6 mb-2 flex items-center text-[#9b4949] font-bold px-2 text-lg">
+                    <div className="mt-8 mb-2 flex items-center text-[#9b4949] font-bold px-2 text-lg">
                         <Icon name="push_pin" className="mr-1 text-[20px]" /> 未寄出 
                         <span className="ml-2 bg-[#d6aba3] text-white text-xs px-2 py-0.5 rounded-full">{pending.length}筆</span>
                         {pendingAmount > 0 && <span className="ml-auto text-sm text-[#e57373] font-black tracking-wide">待收 ${pendingAmount.toLocaleString()}</span>}
@@ -551,7 +553,7 @@
                     ))}
 
                     {/* 清單 3：已寄出 */}
-                    <div className="mt-6 mb-2 flex items-center text-[#4caf50] font-bold px-2 text-lg">
+                    <div className="mt-8 mb-2 flex items-center text-[#4caf50] font-bold px-2 text-lg">
                         <Icon name="check_box" className="mr-1 text-[20px]" /> 已寄出紀錄 
                         <span className="ml-2 bg-[#a5d6a7] text-white text-xs px-2 py-0.5 rounded-full">{shipped.length}筆</span>
                     </div>
@@ -1994,13 +1996,12 @@
             const [marketSalesRaw, setMarketSalesRaw] = useLocalStorage('xq_marketSales', []);
             const [expensesRaw, setExpensesRaw] = useLocalStorage('xq_expenses', []);
             const [reservationsRaw, setReservationsRaw] = useLocalStorage('xq_reservations', []);
+            
+            // 讀取《森衣好》第五個分頁「代購」的資料
             const [preordersRaw, setPreordersRaw] = useLocalStorage('xq_preorders', []);
+            
             const [settingsRaw, setSettingsRaw] = useLocalStorage('xq_settings', { monthlyGoal: 100000, startupCapital: 36284 });
             const [marketSoldStatsRaw, setMarketSoldStatsRaw] = useLocalStorage('xq_market_sold', {});
-
-            // 🌟 讀取《代購系統》的資料庫
-            const [daigouOrdersRaw] = useLocalStorage('daigou_orders_v1', []);
-            const [daigouProductsRaw] = useLocalStorage('daigou_products_v1', []);
 
             const deliveries = getSafeArr(deliveriesRaw);
             const marketSales = getSafeArr(marketSalesRaw);
@@ -2010,9 +2011,6 @@
             const settings = (typeof settingsRaw === 'object' && settingsRaw !== null && !Array.isArray(settingsRaw)) ? settingsRaw : { monthlyGoal: 100000, startupCapital: 36284 };
             const marketSoldStats = (typeof marketSoldStatsRaw === 'object' && marketSoldStatsRaw !== null && !Array.isArray(marketSoldStatsRaw)) ? marketSoldStatsRaw : {};
             
-            const daigouOrders = getSafeArr(daigouOrdersRaw);
-            const daigouProducts = getSafeArr(daigouProductsRaw);
-
             const setDeliveries = (updater) => setDeliveriesRaw(prev => typeof updater === 'function' ? updater(getSafeArr(prev)) : updater);
             const setMarketSales = (updater) => setMarketSalesRaw(prev => typeof updater === 'function' ? updater(getSafeArr(prev)) : updater);
             const setExpenses = (updater) => setExpensesRaw(prev => typeof updater === 'function' ? updater(getSafeArr(prev)) : updater);
@@ -2046,7 +2044,8 @@
                         </header>
                         
                         <main id="main-content" className="flex-1 overflow-y-auto p-4 relative custom-scrollbar">
-                            {activeTab === 'store' && <StoreTab deliveries={deliveries} setDeliveries={setDeliveries} reservations={reservations} setReservations={setReservations} setConfirmDialog={setConfirmDialog} daigouOrders={daigouOrders} daigouProducts={daigouProducts} />}
+                            {/* 將 preorders 傳入第一頁，用來計算未結帳的代購 */}
+                            {activeTab === 'store' && <StoreTab deliveries={deliveries} setDeliveries={setDeliveries} reservations={reservations} setReservations={setReservations} preorders={preorders} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'market' && <MarketTab marketSales={marketSales} setMarketSales={setMarketSales} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'expense' && <ExpenseTab expenses={expenses} setExpenses={setExpenses} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'report' && <ReportTab deliveries={deliveries} marketSales={marketSales} expenses={expenses} preorders={preorders} settings={settings} setSettings={setSettings} marketSoldStats={marketSoldStats} setMarketSoldStats={setMarketSoldStats} setDialog={setConfirmDialog} />}
@@ -2087,4 +2086,5 @@
     </script>
 </body>
 </html>
+
 
