@@ -168,10 +168,10 @@
         const Icon = ({ name, className = "" }) => <span className={`material-symbols-outlined ${className}`}>{name}</span>;
         const Card = ({ children, className = "" }) => <div className={`bg-white rounded-2xl p-4 shadow-sm border border-[#f2e7df] mb-4 ${className}`}>{children}</div>;
         
-        const Input = ({ label, value, onChange, type = "text", placeholder, disabled, list }) => (
+        const Input = ({ label, value, onChange, type = "text", placeholder, disabled }) => (
             <div className="mb-3 w-full">
                 <div className={`flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 h-[48px] focus-within:border-[#bc9f8b] transition-colors ${disabled ? 'opacity-60 bg-[#f9f9f9]' : ''}`}>
-                    <input type={type} value={value} onChange={onChange} placeholder={placeholder || label} disabled={disabled} list={list}
+                    <input type={type} value={value} onChange={onChange} placeholder={placeholder || label} disabled={disabled}
                         className="bg-transparent w-full h-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
                 </div>
             </div>
@@ -183,6 +183,7 @@
             </button>
         );
 
+        // 穩定版刪除確認視窗
         const ConfirmModal = ({ isOpen, message, onConfirm, onCancel }) => {
             if (!isOpen) return null;
             return (
@@ -206,8 +207,8 @@
         };
 
         // --- 分頁 1：超商 & 留貨 (完美整合版) ---
-        const StoreTab = ({ deliveries, setDeliveries, reservations, setReservations, preorders, setConfirmDialog }) => {
-            const [formMode, setFormMode] = useState('delivery'); 
+        const StoreTab = ({ deliveries, setDeliveries, reservations, setReservations, setConfirmDialog }) => {
+            const [formMode, setFormMode] = useState('delivery'); // 'delivery' 或 'reserve'
             const [editingId, setEditingId] = useState(null);
             
             // 寄件表單 State
@@ -224,7 +225,7 @@
             const [rDate, setRDate] = useState(new Date().toISOString().split('T')[0]);
             const [rCustomerName, setRCustomerName] = useState('');
             const [rItemsCount, setRItemsCount] = useState('');
-            const [rRevenue, setRRevenue] = useState(''); 
+            const [rRevenue, setRRevenue] = useState(''); // 新增：預估金額
             const [rNote, setRNote] = useState('');
 
             // 轉單 Modal State
@@ -237,36 +238,8 @@
             const [tHasGift, setTHasGift] = useState(false);
             const [tGiftCount, setTGiftCount] = useState('');
 
+            // 月份展開 State (針對已寄出清單)
             const [expandedMonths, setExpandedMonths] = useState({});
-
-            // 🌟 【重頭戲】：整合森衣好內建的代購資料，計算未收款客人
-            const unpaidPreordersByCustomer = useMemo(() => {
-                const unpaid = {};
-                preorders.forEach(p => {
-                    // 判斷該筆代購是否已經付款 (如果有 isPaid 就看 isPaid，沒有的話只要狀態是 completed 就當作已付款)
-                    const isPaid = p.isPaid !== undefined ? p.isPaid : p.status === 'completed';
-                    
-                    if (!isPaid) {
-                        if (!unpaid[p.customerName]) {
-                            unpaid[p.customerName] = { customer: p.customerName, totalRevenue: 0, itemsCount: 0 };
-                        }
-                        unpaid[p.customerName].totalRevenue += (Number(p.revenue) || 0);
-                        unpaid[p.customerName].itemsCount += (Number(p.itemsCount) || 1);
-                    }
-                });
-                
-                // 轉成陣列並按照未結金額由大到小排序
-                return Object.values(unpaid).sort((a, b) => b.totalRevenue - a.totalRevenue);
-            }, [preorders]);
-            
-            // 收集所有客人的名字給下拉選單防呆用
-            const allCustomerNames = useMemo(() => {
-                const names = new Set();
-                reservations.forEach(r => names.add(r.customerName));
-                deliveries.forEach(d => names.add(d.customerName));
-                preorders.forEach(p => names.add(p.customerName));
-                return Array.from(names).sort();
-            }, [reservations, deliveries, preorders]);
 
             const resetDeliveryForm = () => {
                 setEditingId(null); setDDate(new Date().toISOString().split('T')[0]);
@@ -299,8 +272,11 @@
             const handleAddReserve = () => {
                 if (!rCustomerName) return;
                 const recordData = { 
-                    date: rDate, customerName: rCustomerName, 
-                    itemsCount: Number(rItemsCount) || 1, revenue: Number(rRevenue) || 0, note: rNote 
+                    date: rDate, 
+                    customerName: rCustomerName, 
+                    itemsCount: Number(rItemsCount) || 1, 
+                    revenue: Number(rRevenue) || 0, // 儲存預估金額
+                    note: rNote 
                 };
                 
                 if (editingId && formMode === 'reserve') {
@@ -335,6 +311,7 @@
 
             const openTransferModal = (record) => {
                 setTransferRecord(record); setTDate(new Date().toISOString().split('T')[0]);
+                // 將留貨的預估金額與件數直接帶入
                 setTRevenue(record.revenue || ''); setTSoldQty(record.itemsCount); 
                 setTShippingExpense(''); setTShippingIncome(''); setTHasGift(false); setTGiftCount('');
             };
@@ -355,6 +332,7 @@
             const pending = deliveries.filter(d => d.status === 'pending');
             const shipped = deliveries.filter(d => d.status === 'shipped');
             
+            // 將已寄出的資料按月份分組
             const groupedShipped = useMemo(() => {
                 const groups = {};
                 shipped.forEach(d => {
@@ -364,22 +342,21 @@
                 });
                 return groups;
             }, [shipped]);
+            // 按月份排序 (新到舊)
             const sortedMonths = Object.keys(groupedShipped).sort((a, b) => b.localeCompare(a));
 
             const toggleMonth = (month) => {
                 setExpandedMonths(prev => ({ ...prev, [month]: !prev[month] }));
             };
             
+            // 計算未寄出總額與保留區總額
             const pendingAmount = pending.reduce((sum, d) => sum + (Number(d.revenue) || 0), 0);
             const reserveAmount = reservations.reduce((sum, r) => sum + (Number(r.revenue) || 0), 0);
 
             return (
                 <div className="animate-fade-in pb-20">
                     
-                    <datalist id="all-customers-list">
-                        {allCustomerNames.map(name => <option key={name} value={name} />)}
-                    </datalist>
-
+                    {/* 表單切換器 (只有在新增模式下顯示) */}
                     {!editingId && (
                         <div className="flex bg-[#fdfaf7] rounded-xl p-1.5 mb-4 border border-[#f2e7df] shadow-inner">
                             <button className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${formMode === 'delivery' ? 'bg-white shadow text-[#bc9f8b]' : 'text-[#c4b5aa]'}`} 
@@ -389,6 +366,7 @@
                         </div>
                     )}
 
+                    {/* 編輯模式標題 */}
                     {editingId && (
                         <div className={`flex items-center mb-4 font-bold text-lg ${formMode === 'reserve' ? 'text-[#1976d2]' : 'text-[#bc9f8b]'}`}>
                             <Icon name="edit" className="mr-2" />
@@ -400,12 +378,13 @@
                         {formMode === 'delivery' ? (
                             <React.Fragment>
                                 <Input type="date" value={dDate} onChange={e => setDDate(e.target.value)} />
-                                <Input placeholder="顧客姓名 (點擊可選代購/歷史客人)" value={dCustomerName} onChange={e => setDCustomerName(e.target.value)} list="all-customers-list" />
+                                <Input placeholder="顧客姓名" value={dCustomerName} onChange={e => setDCustomerName(e.target.value)} />
                                 <div className="grid grid-cols-2 gap-3">
                                     <Input type="number" placeholder="商品售價(總額)" value={dRevenue} onChange={e => setDRevenue(e.target.value)} />
                                     <Input type="number" placeholder="售出服飾件數" value={dSoldQty} onChange={e => setDSoldQty(e.target.value)} />
                                 </div>
                                 
+                                {/* 運費快捷鍵 */}
                                 <div className="flex gap-2 mb-3 -mt-2 px-1 overflow-x-auto custom-scrollbar">
                                     <button type="button" onClick={() => {setDShippingExpense(38); setDShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">
                                         ⚡ 7-11本38收60
@@ -427,7 +406,7 @@
                                 </div>
                                 
                                 <div className="grid grid-cols-2 gap-3 mb-4">
-                                    <button className={`w-full h-[48px] rounded-xl border text-[15px] transition-colors font-wawa font-bold flex items-center justify-center ${dHasGift ? 'border-[#bc9f8b] bg-[#fdfaf7] text-[#bc9f8b]' : 'border-[#f0e6e0] bg-[#fdfdfd] text-[#a89689]'}`} onClick={(e) => { e.preventDefault(); setDHasGift(!dHasGift); }}>🎁 {dHasGift ? '有贈品' : '無贈品'}</button>
+                                    <button className={`w-full h-[48px] rounded-xl border text-[15px] transition-colors font-wawa font-bold flex items-center justify-center ${dHasGift ? 'border-[#bc9f8b] bg-[#fdfaf7] text-[#bc9f8b]' : 'border-[#f0e6e0] bg-[#fdfdfd] text-[#a89689]'}`} onClick={(e) => { e.preventDefault(); setHasGift(!dHasGift); }}>🎁 {dHasGift ? '有贈品' : '無贈品'}</button>
                                     <div className={`flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 h-[48px] focus-within:border-[#bc9f8b] transition-colors ${!dHasGift ? 'opacity-60 bg-[#f9f9f9]' : ''}`}>
                                         <input type="number" placeholder="贈品數量" value={dGiftCount} onChange={e => setDGiftCount(e.target.value)} disabled={!dHasGift} className="bg-transparent w-full h-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
                                     </div>
@@ -440,7 +419,7 @@
                         ) : (
                             <React.Fragment>
                                 <Input type="date" value={rDate} onChange={e => setRDate(e.target.value)} />
-                                <Input placeholder="訂購人姓名 (點擊可選代購/歷史客人)" value={rCustomerName} onChange={e => setRCustomerName(e.target.value)} list="all-customers-list" />
+                                <Input placeholder="訂購人姓名" value={rCustomerName} onChange={e => setRCustomerName(e.target.value)} />
                                 <div className="grid grid-cols-2 gap-3">
                                     <Input type="number" placeholder="預估售價(總額)" value={rRevenue} onChange={e => setRRevenue(e.target.value)} />
                                     <Input type="number" placeholder="保留件數" value={rItemsCount} onChange={e => setRItemsCount(e.target.value)} />
@@ -454,46 +433,8 @@
                         )}
                     </Card>
 
-                    {/* 🌟🌟 跨系統配置重頭戲：代購未結清單 (完美復刻您的截圖 2) 🌟🌟 */}
-                    {unpaidPreordersByCustomer.length > 0 && (
-                        <div className="mt-8 mb-4 animate-fade-in border-t border-dashed border-[#c5cae9] pt-6">
-                            <div className="flex justify-between items-center px-2 mb-3">
-                                <div className="flex items-center text-[#3949ab] font-bold text-lg">
-                                    <Icon name="storefront" className="mr-1 text-[22px]" /> 代購待結帳區
-                                </div>
-                                <span className="bg-[#e8eaf6] text-[#5c6bc0] text-xs px-2 py-0.5 rounded-full font-bold">共 {unpaidPreordersByCustomer.length} 人</span>
-                            </div>
-                            
-                            <div className="space-y-3">
-                                {unpaidPreordersByCustomer.map(summary => (
-                                    <div key={summary.customer} className="bg-white p-4 rounded-xl shadow-sm border border-[#e8eaf6] mx-1 flex justify-between items-center transition-all hover:shadow-md">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-12 h-12 bg-[#e8eaf6] text-[#5c6bc0] rounded-full flex items-center justify-center font-bold text-xl shrink-0 shadow-sm border border-[#c5cae9]">
-                                                {summary.customer.charAt(0)}
-                                            </div>
-                                            <div>
-                                                <div className="font-bold text-[#5c4d43] text-lg tracking-wide mb-0.5">{summary.customer}</div>
-                                                <div className="text-[11px] text-[#7986cb] font-medium">總共 {summary.itemsCount} 件代購 (未付款)</div>
-                                            </div>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="text-[10px] text-[#a89689] mb-0.5 font-bold tracking-wider">待收款</div>
-                                            <div className="font-black text-xl text-[#e57373]">
-                                                ${summary.totalRevenue.toLocaleString()}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="text-center text-[10px] text-[#c4b5aa] mt-3">
-                                💡 在右下角「代購」功能中記帳，此處會自動同步更新
-                            </div>
-                        </div>
-                    )}
-
-
-                    {/* 清單 1：現貨保留區 (留貨) */}
-                    <div className="mt-8 mb-6 animate-fade-in">
+                    {/* 清單 1：現貨保留區 (留貨) 永遠顯示標題 */}
+                    <div className="mb-6 animate-fade-in">
                         <div className="flex items-center text-[#1976d2] font-bold px-2 text-lg mb-2">
                             <Icon name="diamond" className="mr-1 text-[20px]" /> 現貨保留區 
                             <span className="ml-2 bg-[#bbdefb] text-[#1565c0] text-xs px-2 py-0.5 rounded-full">{reservations.length}筆</span>
@@ -505,35 +446,33 @@
                             </div>
                         ) : (
                             <div className="space-y-2">
-                            {reservations.map(r => {
-                                return (
-                                    <div key={r.id} className="bg-white rounded-xl p-3 shadow-sm border-l-4 border-[#64b5f6] relative mx-1 px-4">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <div>
-                                                <div className="font-bold text-[#5c4d43] text-base flex flex-wrap items-center gap-1 mb-1">
-                                                    {r.customerName} 
-                                                    <span className="text-xs font-normal text-[#1976d2] bg-[#e3f2fd] px-1.5 py-0.5 rounded">{r.itemsCount}件</span>
-                                                    {Number(r.revenue) > 0 && <span className="text-xs font-bold text-[#1976d2] ml-1">${r.revenue}</span>}
-                                                </div>
-                                                <div className="text-[11px] text-[#a89689]">{r.date}保留 {r.note && <span className="ml-1 text-[#7a6453]">({r.note})</span>}</div>
+                            {reservations.map(r => (
+                                <div key={r.id} className="bg-white rounded-xl p-3 shadow-sm border-l-4 border-[#64b5f6] relative mx-1 px-4">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div>
+                                            <div className="font-bold text-[#5c4d43] text-base">
+                                                {r.customerName} 
+                                                <span className="text-xs font-normal text-[#1976d2] ml-2 bg-[#e3f2fd] px-1.5 py-0.5 rounded">{r.itemsCount}件</span>
+                                                {Number(r.revenue) > 0 && <span className="text-xs font-bold text-[#1976d2] ml-1">${r.revenue}</span>}
                                             </div>
-                                            <div className="flex gap-1 shrink-0 ml-2">
-                                                <button onClick={() => handleEditReserve(r)} className="p-1.5 text-[#64b5f6] bg-[#f5f9ff] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
-                                                <button onClick={() => setConfirmDialog({isOpen: true, id: r.id, collection: 'reservations'})} className="p-1.5 text-[#e57373] bg-[#fdf2f2] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
-                                            </div>
+                                            <div className="text-[11px] text-[#a89689] mt-0.5">{r.date}保留 {r.note && <span className="ml-1 text-[#7a6453]">({r.note})</span>}</div>
                                         </div>
-                                        <button onClick={() => openTransferModal(r)} className="w-full py-2 bg-[#e8f5e9] text-[#2e7d32] rounded-lg font-bold flex justify-center items-center text-sm shadow-sm transition-colors active:bg-[#c8e6c9]">
-                                            <Icon name="check_circle" className="mr-1 text-[16px]" /> 客人已結單，轉入準備寄件
-                                        </button>
+                                        <div className="flex gap-1 shrink-0">
+                                            <button onClick={() => handleEditReserve(r)} className="p-1.5 text-[#64b5f6] bg-[#f5f9ff] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
+                                            <button onClick={() => setConfirmDialog({isOpen: true, id: r.id, collection: 'reservations'})} className="p-1.5 text-[#e57373] bg-[#fdf2f2] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
+                                        </div>
                                     </div>
-                                );
-                            })}
+                                    <button onClick={() => openTransferModal(r)} className="w-full py-2 bg-[#e8f5e9] text-[#2e7d32] rounded-lg font-bold flex justify-center items-center text-sm shadow-sm transition-colors active:bg-[#c8e6c9]">
+                                        <Icon name="check_circle" className="mr-1 text-[16px]" /> 客人已結單，轉入準備寄件
+                                    </button>
+                                </div>
+                            ))}
                             </div>
                         )}
                     </div>
 
                     {/* 清單 2：未寄出 */}
-                    <div className="mt-8 mb-2 flex items-center text-[#9b4949] font-bold px-2 text-lg">
+                    <div className="mt-6 mb-2 flex items-center text-[#9b4949] font-bold px-2 text-lg">
                         <Icon name="push_pin" className="mr-1 text-[20px]" /> 未寄出 
                         <span className="ml-2 bg-[#d6aba3] text-white text-xs px-2 py-0.5 rounded-full">{pending.length}筆</span>
                         {pendingAmount > 0 && <span className="ml-auto text-sm text-[#e57373] font-black tracking-wide">待收 ${pendingAmount.toLocaleString()}</span>}
@@ -552,8 +491,8 @@
                         </div>
                     ))}
 
-                    {/* 清單 3：已寄出 */}
-                    <div className="mt-8 mb-2 flex items-center text-[#4caf50] font-bold px-2 text-lg">
+                    {/* 清單 3：已寄出 (手風琴按月分組，含當月總額) */}
+                    <div className="mt-6 mb-2 flex items-center text-[#4caf50] font-bold px-2 text-lg">
                         <Icon name="check_box" className="mr-1 text-[20px]" /> 已寄出紀錄 
                         <span className="ml-2 bg-[#a5d6a7] text-white text-xs px-2 py-0.5 rounded-full">{shipped.length}筆</span>
                     </div>
@@ -622,6 +561,7 @@
                                     </div>
                                 </div>
                                 
+                                {/* 運費快捷鍵 (轉單 Modal 內) */}
                                 <div className="flex gap-2 mb-3 -mt-2 px-1 overflow-x-auto custom-scrollbar">
                                     <button type="button" onClick={() => {setTShippingExpense(38); setTShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">
                                         ⚡ 7-11本38收60
@@ -856,10 +796,12 @@
                         </div>
                         <Input type="date" value={date} onChange={e => { setDate(e.target.value); setSelectedDay(e.target.value); setViewMonthStr(safeStr(e.target.value).substring(0,7)); }} />
                         
+                        {/* 欄位順序：地點 | 位租 */}
                         <div className="grid grid-cols-2 gap-3">
                             <Input placeholder="地點" value={location} onChange={e => setLocation(e.target.value)} />
                             <Input type="number" placeholder="位租" value={rent} onChange={e => setRent(e.target.value)} />
                         </div>
+                        {/* 欄位順序：當日業績 | 售出件數 */}
                         <div className="grid grid-cols-2 gap-3">
                             <div className="mb-3 w-full">
                                 <div className="flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 h-[48px] focus-within:border-[#bc9f8b] transition-colors">
@@ -872,6 +814,7 @@
                                 </div>
                             </div>
                         </div>
+                        {/* 獨立備註列 */}
                         <Input placeholder="備註 (選填)" value={note} onChange={e => setNote(e.target.value)} />
                         
                         <div className="grid grid-cols-2 gap-3 mt-1">
@@ -923,6 +866,7 @@
                         </div>
                     </Card>
 
+                    {/* 地點績效搜尋器 */}
                     <div className="mb-4 px-1">
                         <div className={`flex items-center bg-white border ${searchTerm ? 'border-[#bc9f8b] shadow-sm' : 'border-[#e0d6ce]'} rounded-xl px-3 h-[48px] transition-colors`}>
                             <Icon name="search" className={`mr-2 text-[20px] ${searchTerm ? 'text-[#bc9f8b]' : 'text-[#c4b5aa]'}`} />
@@ -978,7 +922,7 @@
             );
         };
 
-        // --- 分頁 3：支出紀錄 ---
+        // --- 分頁 3：支出紀錄 (資料夾收折版) ---
         const ExpenseTab = ({ expenses, setExpenses, setConfirmDialog }) => {
             const [editingId, setEditingId] = useState(null);
             const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -989,6 +933,7 @@
             const [isArrived, setIsArrived] = useState(true);
             const [flowType, setFlowType] = useState('in');
             
+            // 支出分類展開狀態
             const [expandedTypes, setExpandedTypes] = useState({});
 
             const resetForm = () => {
@@ -1058,6 +1003,7 @@
                 financing: { label: '資金借還', color: 'bg-[#9e9e9e]', text: 'text-[#757575]', bgLight: 'bg-[#f5f5f5]', placeholder: '如: 借入週轉金 / 償還欠款', icon: 'swap_horiz' }
             };
 
+            // 將支出依據類型分組 (陣列本身已是最新到最舊)
             const groupedExpenses = useMemo(() => {
                 const groups = {};
                 expenses.forEach(e => {
@@ -1325,6 +1271,7 @@
                 }
             };
 
+            // ---- 1. 全期存摺加減法 ----
             const allTimeMarketRev = marketSales.reduce((sum, m) => sum + (Number(m.revenue)||0), 0);
             const allTimeStoreRev = deliveries.reduce((sum, d) => sum + (Number(d.revenue)||0), 0);
             const allTimeStoreShipIn = deliveries.reduce((sum, d) => sum + (Number(d.shippingIncome)||0), 0);
@@ -1348,22 +1295,25 @@
             const allTimeFinancingIn = expenses.filter(e => e.type === 'financing' && e.flowType === 'in').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const allTimeFinancingOut = expenses.filter(e => e.type === 'financing' && e.flowType !== 'in').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
 
-            const allTimePreorderCost = preorders.filter(p => (p.isCostPaid !== undefined ? p.isCostPaid : p.status !== 'pending')).reduce((sum, p) => sum + (Number(p.wholesaleCost)||0), 0);
-            const allTimePreorderRev = preorders.filter(p => (p.isPaid !== undefined ? p.isPaid : p.status === 'completed')).reduce((sum, p) => sum + (Number(p.revenue)||0), 0);
+            // 代購金流計算 (依狀態自動結算：已到貨/已出貨算付成本，已出貨才算收客款)
+            const allTimePreorderCost = preorders.filter(p => ['arrived', 'completed'].includes(p.status)).reduce((sum, p) => sum + (Number(p.wholesaleCost)||0), 0);
+            const allTimePreorderRev = preorders.filter(p => p.status === 'completed').reduce((sum, p) => sum + (Number(p.revenue)||0), 0);
 
-            const preorderUnpaidRev = preorders.filter(p => !(p.isPaid !== undefined ? p.isPaid : p.status === 'completed')).reduce((sum, p) => sum + (Number(p.revenue)||0), 0);
-            const preorderUnpaidCost = preorders.filter(p => !(p.isCostPaid !== undefined ? p.isCostPaid : p.status !== 'pending')).reduce((sum, p) => sum + (Number(p.wholesaleCost)||0), 0);
+            const preorderUnpaidRev = preorders.filter(p => p.status !== 'completed').reduce((sum, p) => sum + (Number(p.revenue)||0), 0);
+            const preorderUnpaidCost = preorders.filter(p => ['pending', 'ordered'].includes(p.status)).reduce((sum, p) => sum + (Number(p.wholesaleCost)||0), 0);
 
             const pocketCash = currentStartupCap 
                 + allTimeRev - allTimeMarketExp - allTimeWholesale - allTimeOtherExp 
                 + allTimeFinancingIn - allTimeFinancingOut
                 - allTimePreorderCost + allTimePreorderRev;
 
+            // ---- 2. 計算本月瀑布流損益 ----
             const currentDeliveries = deliveries.filter(d => safeStr(d.date).startsWith(reportMonth) && d.status === 'shipped');
             const currentMarket = marketSales.filter(m => safeStr(m.date).startsWith(reportMonth));
             const currentExpenses = expenses.filter(e => safeStr(e.date).startsWith(reportMonth));
             const currentCompletedPreorders = preorders.filter(p => safeStr(p.date).startsWith(reportMonth) && p.status === 'completed');
 
+            // 代購當月損益
             const monthlyPreorderRev = currentCompletedPreorders.reduce((sum, p) => sum + (Number(p.revenue)||0), 0);
             const monthlyPreorderCost = currentCompletedPreorders.reduce((sum, p) => sum + (Number(p.wholesaleCost)||0), 0);
             const monthlyPreorderProfit = monthlyPreorderRev - monthlyPreorderCost;
@@ -1386,6 +1336,7 @@
             
             const frontlineNetIncome = monthlyTotalRev - monthlyMarketExp + monthlyShippingProfit;
 
+            // ---- 3. 庫存與進貨成本 (僅現貨) ----
             const wholesaleToMonth = expenses.filter(e => e.type === 'wholesale' && safeStr(e.date).substring(0, 7) <= reportMonth && e.isArrived !== false);
             const accumulatedWholesaleCost = wholesaleToMonth.reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const accumulatedWholesaleQty = wholesaleToMonth.reduce((sum, e) => sum + (Number(e.qty)||0), 0);
@@ -1420,7 +1371,7 @@
             const currentMonthTotalSoldQty = currentMonthStoreSold + currentMonthMarketDailySold + currentMonthAdj;
             
             const monthlyCOGS = Math.round(currentMonthTotalSoldQty * avgUnitCost);
-            const grossProfit = frontlineNetIncome - monthlyCOGS + monthlyPreorderProfit; 
+            const grossProfit = frontlineNetIncome - monthlyCOGS + monthlyPreorderProfit; // 加上代購利潤
 
             const monthlySupplyExp = currentExpenses.filter(e => e.type === 'supply').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const monthlyFixedExp = currentExpenses.filter(e => e.type === 'fixed').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
@@ -1442,6 +1393,7 @@
                         <button onClick={() => changeMonth(1)} className="p-2 text-[#a89689]"><Icon name="chevron_right" /></button>
                     </div>
 
+                    {/* 🎯 極簡口袋現金存摺 */}
                     <Card className="bg-[#fffde7] border-[#fff59d] mb-4 shadow-md">
                         <div className="flex justify-between items-start mb-2">
                             <div className="flex items-center text-[#f57f17] font-bold text-lg">
@@ -1459,6 +1411,7 @@
                             </div>
                         </div>
 
+                        {/* 直白存摺明細 */}
                         <div className="bg-white bg-opacity-60 rounded-xl p-3 text-sm text-[#7a6453] font-bold border border-[#fff59d]">
                             <div className="flex justify-between items-center text-[11px] text-[#c4b5aa] mb-2"><span>=== 資金流向明細 ===</span><span>(歷史總累計)</span></div>
                             
@@ -1467,6 +1420,7 @@
                                 <span>$ {currentStartupCap.toLocaleString()}</span>
                             </div>
                             
+                            {/* 資金週轉折疊 */}
                             <div className="flex justify-between items-center cursor-pointer mb-1.5" onClick={() => setExpAllFin(!expAllFin)}>
                                 <span className="flex items-center text-[#5c4d43]">
                                     <Icon name="swap_horiz" className="text-[16px] mr-1"/> 資金週轉 (借貸/還款)
@@ -1483,6 +1437,7 @@
                                 </div>
                             )}
 
+                            {/* 預購代購金流折疊 */}
                             <div className="flex justify-between items-center cursor-pointer mb-1.5 border-l-2 border-[#5c6bc0] pl-1.5" onClick={() => setExpAllPreorder(!expAllPreorder)}>
                                 <span className="flex items-center text-[#5c6bc0]">
                                     <Icon name="local_shipping" className="text-[16px] mr-1"/> 預購/代購資金
@@ -1494,14 +1449,15 @@
                             </div>
                             {expAllPreorder && (
                                 <div className="pl-6 pr-2 py-1 mb-2 space-y-1 bg-[#f5f6fa] rounded text-[11px] text-[#7986cb] animate-expand">
-                                    <div className="flex justify-between"><span>└ 實際收回客款 (已收款)</span><span className="text-[#4caf50]">+$ {allTimePreorderRev.toLocaleString()}</span></div>
-                                    <div className="flex justify-between"><span>└ 實際支出批價 (已付款)</span><span className="text-[#e57373]">-$ {allTimePreorderCost.toLocaleString()}</span></div>
+                                    <div className="flex justify-between"><span>└ 實際收回客款 (已出貨)</span><span className="text-[#4caf50]">+$ {allTimePreorderRev.toLocaleString()}</span></div>
+                                    <div className="flex justify-between"><span>└ 實際支出批價 (已到貨/已出貨)</span><span className="text-[#e57373]">-$ {allTimePreorderCost.toLocaleString()}</span></div>
                                     <div className="border-t border-[#c5cae9] my-1"></div>
-                                    <div className="flex justify-between"><span>└ 代購待收帳款 (未收款)</span><span className="text-[#f57f17]">${preorderUnpaidRev.toLocaleString()}</span></div>
-                                    <div className="flex justify-between"><span>└ 代購待付帳款 (未付批價)</span><span className="text-[#f57f17]">${preorderUnpaidCost.toLocaleString()}</span></div>
+                                    <div className="flex justify-between"><span>└ 代購待收帳款 (未出貨)</span><span className="text-[#f57f17]">${preorderUnpaidRev.toLocaleString()}</span></div>
+                                    <div className="flex justify-between"><span>└ 代購待付帳款 (待叫貨/已叫貨)</span><span className="text-[#f57f17]">${preorderUnpaidCost.toLocaleString()}</span></div>
                                 </div>
                             )}
 
+                            {/* 賣衣總收折疊 */}
                             <div className="flex justify-between items-center cursor-pointer mb-1.5" onClick={() => setExpAllRev(!expAllRev)}>
                                 <span className="flex items-center text-[#4caf50]">
                                     <Icon name="add" className="text-[16px] mr-1"/> 現貨總收現金
@@ -1517,6 +1473,7 @@
                                 </div>
                             )}
 
+                            {/* 買衣服進貨折疊 */}
                             <div className="flex justify-between items-center text-[#e57373] cursor-pointer mb-1.5" onClick={() => setExpAllWhole(!expAllWhole)}>
                                 <span className="flex items-center"><Icon name="remove" className="text-[16px] mr-1"/> 現貨進貨花費<Icon name={expAllWhole ? "expand_less" : "expand_more"} className="text-[14px] ml-0.5 opacity-60"/></span>
                                 <span>-$ {allTimeWholesale.toLocaleString()}</span>
@@ -1528,6 +1485,7 @@
                                 </div>
                             )}
 
+                            {/* 包材水電折疊 */}
                             <div className="flex justify-between items-center text-[#e57373] cursor-pointer mb-1.5" onClick={() => setExpAllOther(!expAllOther)}>
                                 <span className="flex items-center"><Icon name="remove" className="text-[16px] mr-1"/> 公司後勤開銷<Icon name={expAllOther ? "expand_less" : "expand_more"} className="text-[14px] ml-0.5 opacity-60"/></span>
                                 <span>-$ {allTimeOtherExp.toLocaleString()}</span>
@@ -1541,6 +1499,7 @@
                                 </div>
                             )}
 
+                            {/* 擺攤租金折疊 */}
                             <div className="flex justify-between items-center text-[#e57373] cursor-pointer" onClick={() => setExpAllMarket(!expAllMarket)}>
                                 <span className="flex items-center"><Icon name="remove" className="text-[16px] mr-1"/> 擺攤租金與運費<Icon name={expAllMarket ? "expand_less" : "expand_more"} className="text-[14px] ml-0.5 opacity-60"/></span>
                                 <span>-$ {allTimeMarketExp.toLocaleString()}</span>
@@ -1555,6 +1514,7 @@
                         </div>
                     </Card>
 
+                    {/* 📊 瀑布流損益表 */}
                     <Card>
                         <div className="flex items-center font-bold text-[#7a6453] text-lg mb-4 pb-2 border-b border-[#f2e7df]">
                             <Icon name="request_quote" className="mr-2 text-[#e57373]" /> 本月損益表 <span className="text-xs text-[#a89689] font-normal ml-2">(真實賺賠)</span>
@@ -1598,6 +1558,7 @@
                                 </div>
                             )}
 
+                            {/* 第一階段結論 */}
                             <div className="bg-[#fdfaf7] p-2 rounded-lg flex justify-between text-base border border-[#f2e7df]">
                                 <span className="text-[#7a6453]">💰 現貨前端淨收</span><span className="text-[#bc9f8b]">${frontlineNetIncome.toLocaleString()}</span>
                             </div>
@@ -1614,6 +1575,7 @@
                                 ( 本月共銷出現貨 {currentMonthTotalSoldQty} 件 )
                             </div>
 
+                            {/* 代購利潤獨立區塊 */}
                             <div className="flex justify-between items-center text-[#5c6bc0] mt-3 pt-3 border-t border-dashed border-[#e8eaf6]">
                                 <span className="flex items-center">
                                     <Icon name="add" className="text-[14px] mr-1"/> 加：代購 / 預購淨利
@@ -1624,6 +1586,7 @@
                                 ( 總營收 ${monthlyPreorderRev} - 總批價 ${monthlyPreorderCost} )
                             </div>
 
+                            {/* 第二階段結論 */}
                             <div className="bg-[#e8f5e9] bg-opacity-40 p-2 rounded-lg flex justify-between text-base border border-[#c8e6c9] mt-2">
                                 <span className="text-[#4caf50]">💎 總營業毛利</span><span className="text-[#4caf50]">${grossProfit.toLocaleString()}</span>
                             </div>
@@ -1649,6 +1612,7 @@
 
                             <div className="border-t-2 border-[#bc9f8b] pt-3 mt-4"></div>
 
+                            {/* 最終淨利 */}
                             <div className="flex justify-between items-end mt-1">
                                 <span className="text-lg text-[#bc9f8b]">🏦 本月最終淨利</span>
                                 <span className={`text-3xl font-black ${monthlyNetProfit < 0 ? 'text-red-500' : 'text-[#bc9f8b]'}`}>
@@ -1662,6 +1626,7 @@
                         </div>
                     </Card>
 
+                    {/* 📦 庫存盤點模組 */}
                     <Card className="bg-white border-dashed border-2 border-[#c8e6c9] mb-4">
                         <div className="flex items-center text-[#4caf50] font-bold text-lg mb-3"><Icon name="inventory_2" className="mr-2" /> 現貨庫存與盤點</div>
                         <div className="flex items-center justify-between mb-3 text-sm">
@@ -1683,6 +1648,7 @@
                             </div>
                         </div>
 
+                        {/* 盤點區塊 */}
                         <div className="mt-2 pt-2 border-t border-[#f2e7df]">
                             {isCheckingInventory ? (
                                 <div className="animate-fade-in pt-2">
@@ -1715,7 +1681,7 @@
         };
 
         // --- 分頁 5：代購預購系統 ---
-        const PreorderTab = ({ preorders, setPreorders, setDialog }) => {
+        const PreorderTab = ({ preorders, setPreorders, setConfirmDialog }) => {
             const [editingId, setEditingId] = useState(null);
             const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
             const [customerName, setCustomerName] = useState('');
@@ -1739,9 +1705,7 @@
                     wholesaleCost: Number(wholesaleCost) || 0,
                     revenue: Number(revenue) || 0,
                     note, 
-                    status: editingId ? (preorders.find(p => p.id === editingId)?.status || 'pending') : 'pending',
-                    isPaid: editingId ? preorders.find(p => p.id === editingId)?.isPaid : false,
-                    isCostPaid: editingId ? preorders.find(p => p.id === editingId)?.isCostPaid : false
+                    status: editingId ? (preorders.find(p => p.id === editingId)?.status || 'pending') : 'pending'
                 };
                 
                 if (editingId) {
@@ -1764,19 +1728,6 @@
 
             const changeStatus = (id, newStatus) => {
                 setPreorders(prev => prev.map(p => p.id === id ? { ...p, status: newStatus } : p));
-            };
-
-            const getIsPaid = (p) => p.isPaid !== undefined ? p.isPaid : p.status === 'completed';
-            const getIsCostPaid = (p) => p.isCostPaid !== undefined ? p.isCostPaid : p.status !== 'pending';
-
-            const toggleIsPaid = (p) => {
-                const current = getIsPaid(p);
-                setPreorders(prev => prev.map(item => item.id === p.id ? { ...item, isPaid: !current } : item));
-            };
-
-            const toggleIsCostPaid = (p) => {
-                const current = getIsCostPaid(p);
-                setPreorders(prev => prev.map(item => item.id === p.id ? { ...item, isCostPaid: !current } : item));
             };
 
             const filteredList = preorders.filter(p => activeFilter === 'all' || p.status === activeFilter);
@@ -1833,6 +1784,7 @@
                         </div>
                     </Card>
 
+                    {/* 狀態過濾列 */}
                     <div className="flex overflow-x-auto gap-2 mb-4 custom-scrollbar px-1">
                         {filters.map(f => (
                             <button key={f.id} onClick={() => setActiveFilter(f.id)} className={`px-4 py-2 rounded-full whitespace-nowrap text-sm font-bold transition-colors shadow-sm ${activeFilter === f.id ? 'bg-[#3949ab] text-white' : 'bg-white text-[#7986cb] border border-[#c5cae9]'}`}>
@@ -1841,6 +1793,7 @@
                         ))}
                     </div>
 
+                    {/* 統計 Summary */}
                     <Card className="bg-[#f8f9fa] border-none mb-4 p-3 shadow-inner">
                         <div className="flex justify-between items-center text-sm font-bold">
                             <div className="text-[#5c6bc0]">合計 <span className="text-lg">{totalItems}</span> 件</div>
@@ -1856,17 +1809,19 @@
                         {filteredList.map(p => {
                             const conf = getStatusConfig(p.status);
                             const profit = (Number(p.revenue)||0) - (Number(p.wholesaleCost)||0);
-                            const isPaid = getIsPaid(p);
-                            const isCostPaid = getIsCostPaid(p);
+                            
+                            // 全自動判定：已到貨/已出貨算已付成本；已出貨算已收客款
+                            const isCostPaid = ['arrived', 'completed'].includes(p.status);
+                            const isRevReceived = p.status === 'completed';
 
                             return (
                                 <div key={p.id} className="bg-white rounded-xl p-4 shadow-sm border border-[#e8eaf6] relative">
                                     <div className="absolute top-4 right-4 flex gap-1">
                                         <button onClick={() => handleEditClick(p)} className="p-1.5 text-[#5c6bc0] bg-[#e8eaf6] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
-                                        <button onClick={() => setDialog({
+                                        <button onClick={() => setConfirmDialog({
                                             isOpen: true, title: "刪除確認", message: "確定要刪除這筆代購紀錄嗎？", 
-                                            onConfirm: () => { setPreorders(prev => prev.filter(x => x.id !== p.id)); setDialog({isOpen: false}); },
-                                            onCancel: () => setDialog({isOpen: false}), isDanger: true
+                                            onConfirm: () => { setPreorders(prev => prev.filter(x => x.id !== p.id)); setConfirmDialog({isOpen: false}); },
+                                            onCancel: () => setConfirmDialog({isOpen: false}), isDanger: true
                                         })} className="p-1.5 text-[#e57373] bg-[#fdf2f2] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
                                     </div>
                                     
@@ -1880,20 +1835,15 @@
                                     {p.note && <div className="text-sm text-gray-600 mb-3 bg-gray-50 p-2 rounded-lg border border-gray-100">{p.note}</div>}
                                     
                                     <div className="grid grid-cols-2 gap-2 text-sm pt-2 border-t border-gray-100 mt-2">
-                                        <div>批價成本: <span className="text-gray-500 font-bold">${p.wholesaleCost}</span></div>
-                                        <div>實收售價: <span className="text-[#3949ab] font-bold">${p.revenue}</span></div>
+                                        <div>批價成本: <span className="text-gray-500 font-bold">${p.wholesaleCost}</span>
+                                            {isCostPaid ? <span className="text-[9px] bg-red-50 text-red-500 px-1 ml-1 rounded">已付</span> : <span className="text-[9px] bg-gray-100 text-gray-500 px-1 ml-1 rounded">未付</span>}
+                                        </div>
+                                        <div>實收售價: <span className="text-[#3949ab] font-bold">${p.revenue}</span>
+                                            {isRevReceived ? <span className="text-[9px] bg-green-50 text-green-600 px-1 ml-1 rounded">已入帳</span> : <span className="text-[9px] bg-orange-50 text-orange-500 px-1 ml-1 rounded">待收</span>}
+                                        </div>
                                     </div>
                                     <div className="text-right text-xs mt-1 font-bold text-[#4caf50]">
                                         單筆利潤: +${profit}
-                                    </div>
-
-                                    <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
-                                        <button onClick={() => toggleIsPaid(p)} className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm flex items-center justify-center ${isPaid ? 'bg-[#e8f5e9] text-[#2e7d32] border border-[#c8e6c9]' : 'bg-[#fff8e1] text-[#f57f17] border border-[#ffecb3]'}`}>
-                                            {isPaid ? '💰 已收客款' : '⏳ 未收款'}
-                                        </button>
-                                        <button onClick={() => toggleIsCostPaid(p)} className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm flex items-center justify-center ${isCostPaid ? 'bg-[#e8f5e9] text-[#2e7d32] border border-[#c8e6c9]' : 'bg-[#ffebee] text-[#c62828] border border-[#ffcdd2]'}`}>
-                                            {isCostPaid ? '💸 已付批價' : '⏳ 未付批價'}
-                                        </button>
                                     </div>
 
                                     {conf.nextBtn && (
@@ -1910,6 +1860,7 @@
             );
         };
 
+        // --- 設定與備份 Modal ---
         const SettingsModal = ({ isOpen, onClose }) => {
             if (!isOpen) return null;
 
@@ -1988,6 +1939,7 @@
             );
         };
 
+        // --- 應用程式主體 ---
         const App = () => {
             const [activeTab, setActiveTab] = useState('store');
             const [showSettings, setShowSettings] = useState(false);
@@ -1996,10 +1948,7 @@
             const [marketSalesRaw, setMarketSalesRaw] = useLocalStorage('xq_marketSales', []);
             const [expensesRaw, setExpensesRaw] = useLocalStorage('xq_expenses', []);
             const [reservationsRaw, setReservationsRaw] = useLocalStorage('xq_reservations', []);
-            
-            // 讀取《森衣好》第五個分頁「代購」的資料
             const [preordersRaw, setPreordersRaw] = useLocalStorage('xq_preorders', []);
-            
             const [settingsRaw, setSettingsRaw] = useLocalStorage('xq_settings', { monthlyGoal: 100000, startupCapital: 36284 });
             const [marketSoldStatsRaw, setMarketSoldStatsRaw] = useLocalStorage('xq_market_sold', {});
 
@@ -2010,7 +1959,7 @@
             const preorders = getSafeArr(preordersRaw);
             const settings = (typeof settingsRaw === 'object' && settingsRaw !== null && !Array.isArray(settingsRaw)) ? settingsRaw : { monthlyGoal: 100000, startupCapital: 36284 };
             const marketSoldStats = (typeof marketSoldStatsRaw === 'object' && marketSoldStatsRaw !== null && !Array.isArray(marketSoldStatsRaw)) ? marketSoldStatsRaw : {};
-            
+
             const setDeliveries = (updater) => setDeliveriesRaw(prev => typeof updater === 'function' ? updater(getSafeArr(prev)) : updater);
             const setMarketSales = (updater) => setMarketSalesRaw(prev => typeof updater === 'function' ? updater(getSafeArr(prev)) : updater);
             const setExpenses = (updater) => setExpensesRaw(prev => typeof updater === 'function' ? updater(getSafeArr(prev)) : updater);
@@ -2044,14 +1993,14 @@
                         </header>
                         
                         <main id="main-content" className="flex-1 overflow-y-auto p-4 relative custom-scrollbar">
-                            {/* 將 preorders 傳入第一頁，用來計算未結帳的代購 */}
-                            {activeTab === 'store' && <StoreTab deliveries={deliveries} setDeliveries={setDeliveries} reservations={reservations} setReservations={setReservations} preorders={preorders} setConfirmDialog={setConfirmDialog} />}
+                            {activeTab === 'store' && <StoreTab deliveries={deliveries} setDeliveries={setDeliveries} reservations={reservations} setReservations={setReservations} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'market' && <MarketTab marketSales={marketSales} setMarketSales={setMarketSales} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'expense' && <ExpenseTab expenses={expenses} setExpenses={setExpenses} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'report' && <ReportTab deliveries={deliveries} marketSales={marketSales} expenses={expenses} preorders={preorders} settings={settings} setSettings={setSettings} marketSoldStats={marketSoldStats} setMarketSoldStats={setMarketSoldStats} setDialog={setConfirmDialog} />}
                             {activeTab === 'preorder' && <PreorderTab preorders={preorders} setPreorders={setPreorders} setConfirmDialog={setConfirmDialog} />}
                         </main>
 
+                        {/* 底部導覽列 */}
                         <nav className="bg-white border-t border-[#f2e7df] flex justify-around pb-safe pt-2 fixed bottom-0 w-full max-w-lg z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] px-1">
                             {[ 
                                { id: 'store', icon: 'inventory_2', label: '現貨超商' }, 
