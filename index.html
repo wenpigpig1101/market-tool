@@ -206,12 +206,12 @@
             return validNum.toString();
         };
 
-        // --- 分頁 1：超商 & 留貨 (完美整合版) ---
-        const StoreTab = ({ deliveries, setDeliveries, reservations, setReservations, setConfirmDialog }) => {
-            const [formMode, setFormMode] = useState('delivery'); // 'delivery' 或 'reserve'
+        // --- 分頁 1：出貨管理中心 (超商寄件 + 現貨保留 + 代購預購) ---
+        const StoreTab = ({ deliveries, setDeliveries, reservations, setReservations, preorders, setPreorders, setConfirmDialog }) => {
+            const [formMode, setFormMode] = useState('delivery'); // 'delivery', 'reserve', 'preorder'
             const [editingId, setEditingId] = useState(null);
             
-            // 寄件表單 State
+            // --- 寄件表單 State ---
             const [dDate, setDDate] = useState(new Date().toISOString().split('T')[0]);
             const [dCustomerName, setDCustomerName] = useState('');
             const [dRevenue, setDRevenue] = useState('');
@@ -221,14 +221,23 @@
             const [dHasGift, setDHasGift] = useState(false);
             const [dGiftCount, setDGiftCount] = useState('');
 
-            // 留貨表單 State
+            // --- 留貨表單 State ---
             const [rDate, setRDate] = useState(new Date().toISOString().split('T')[0]);
             const [rCustomerName, setRCustomerName] = useState('');
             const [rItemsCount, setRItemsCount] = useState('');
-            const [rRevenue, setRRevenue] = useState(''); // 新增：預估金額
+            const [rRevenue, setRRevenue] = useState(''); 
             const [rNote, setRNote] = useState('');
 
-            // 轉單 Modal State
+            // --- 代購表單 State ---
+            const [pDate, setPDate] = useState(new Date().toISOString().split('T')[0]);
+            const [pCustomerName, setPCustomerName] = useState('');
+            const [pItemsCount, setPItemsCount] = useState('');
+            const [pWholesaleCost, setPWholesaleCost] = useState('');
+            const [pRevenue, setPRevenue] = useState('');
+            const [pNote, setPNote] = useState('');
+            const [activeFilter, setActiveFilter] = useState('all');
+
+            // --- 轉單 Modal State ---
             const [transferRecord, setTransferRecord] = useState(null);
             const [tDate, setTDate] = useState('');
             const [tRevenue, setTRevenue] = useState('');
@@ -249,6 +258,11 @@
             const resetReserveForm = () => {
                 setEditingId(null); setRDate(new Date().toISOString().split('T')[0]);
                 setRCustomerName(''); setRItemsCount(''); setRRevenue(''); setRNote('');
+            };
+
+            const resetPreorderForm = () => {
+                setEditingId(null); setPDate(new Date().toISOString().split('T')[0]);
+                setPCustomerName(''); setPItemsCount(''); setPWholesaleCost(''); setPRevenue(''); setPNote('');
             };
 
             const handleAddDelivery = () => {
@@ -275,7 +289,7 @@
                     date: rDate, 
                     customerName: rCustomerName, 
                     itemsCount: Number(rItemsCount) || 1, 
-                    revenue: Number(rRevenue) || 0, // 儲存預估金額
+                    revenue: Number(rRevenue) || 0, 
                     note: rNote 
                 };
                 
@@ -286,6 +300,26 @@
                     setReservations(prev => [newRecord, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
                 }
                 resetReserveForm();
+            };
+
+            const handleAddPreorder = () => {
+                if (!pCustomerName || !pWholesaleCost || !pRevenue) return;
+                const recordData = { 
+                    date: pDate, customerName: pCustomerName, 
+                    itemsCount: Number(pItemsCount) || 1, 
+                    wholesaleCost: Number(pWholesaleCost) || 0,
+                    revenue: Number(pRevenue) || 0,
+                    note: pNote, 
+                    status: editingId ? (preorders.find(p => p.id === editingId)?.status || 'pending') : 'pending'
+                };
+                
+                if (editingId && formMode === 'preorder') {
+                    setPreorders(prev => prev.map(p => p.id === editingId ? { ...p, ...recordData } : p).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
+                } else {
+                    const newRecord = { id: Date.now().toString(), ...recordData };
+                    setPreorders(prev => [newRecord, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
+                }
+                resetPreorderForm();
             };
 
             const handleEditDelivery = (record) => {
@@ -304,9 +338,22 @@
                 scrollToTop();
             };
 
+            const handleEditPreorder = (record) => {
+                setFormMode('preorder'); setEditingId(record.id);
+                setPDate(record.date); setPCustomerName(record.customerName);
+                setPItemsCount(record.itemsCount); 
+                setPWholesaleCost(record.wholesaleCost); setPRevenue(record.revenue);
+                setPNote(record.note || '');
+                scrollToTop();
+            };
+
             const toggleDeliveryStatus = (id, currentStatus) => {
                 const newStatus = currentStatus === 'pending' ? 'shipped' : 'pending';
                 setDeliveries(prev => prev.map(d => d.id === id ? { ...d, status: newStatus } : d));
+            };
+
+            const changePreorderStatus = (id, newStatus) => {
+                setPreorders(prev => prev.map(p => p.id === id ? { ...p, status: newStatus } : p));
             };
 
             const openTransferModal = (record) => {
@@ -329,10 +376,10 @@
                 setTransferRecord(null);
             };
 
+            // 分類與統計邏輯
             const pending = deliveries.filter(d => d.status === 'pending');
             const shipped = deliveries.filter(d => d.status === 'shipped');
             
-            // 將已寄出的資料按月份分組
             const groupedShipped = useMemo(() => {
                 const groups = {};
                 shipped.forEach(d => {
@@ -342,40 +389,61 @@
                 });
                 return groups;
             }, [shipped]);
-            // 按月份排序 (新到舊)
-            const sortedMonths = Object.keys(groupedShipped).sort((a, b) => b.localeCompare(a));
-
-            const toggleMonth = (month) => {
-                setExpandedMonths(prev => ({ ...prev, [month]: !prev[month] }));
-            };
             
-            // 計算未寄出總額與保留區總額
+            const sortedMonths = Object.keys(groupedShipped).sort((a, b) => b.localeCompare(a));
+            const toggleMonth = (month) => setExpandedMonths(prev => ({ ...prev, [month]: !prev[month] }));
+            
             const pendingAmount = pending.reduce((sum, d) => sum + (Number(d.revenue) || 0), 0);
             const reserveAmount = reservations.reduce((sum, r) => sum + (Number(r.revenue) || 0), 0);
+
+            const filteredPreorders = preorders.filter(p => activeFilter === 'all' || p.status === activeFilter);
+            const preorderTotalItems = filteredPreorders.reduce((sum, p) => sum + (Number(p.itemsCount)||0), 0);
+            const preorderTotalWholesale = filteredPreorders.reduce((sum, p) => sum + (Number(p.wholesaleCost)||0), 0);
+            const preorderTotalRevenue = filteredPreorders.reduce((sum, p) => sum + (Number(p.revenue)||0), 0);
+
+            const pFilters = [
+                { id: 'all', label: '全部' },
+                { id: 'pending', label: '待叫貨' },
+                { id: 'ordered', label: '已叫貨' },
+                { id: 'arrived', label: '已到貨' },
+                { id: 'completed', label: '已出貨' }
+            ];
+
+            const getPStatusConfig = (status) => {
+                switch(status) {
+                    case 'pending': return { text: '待叫貨', color: 'bg-gray-100 text-gray-600', nextBtn: '標記為已叫貨', nextStatus: 'ordered', nextColor: 'bg-[#ffb74d] text-white' };
+                    case 'ordered': return { text: '已叫貨', color: 'bg-[#fff3e0] text-[#f57c00]', nextBtn: '標記為已到貨', nextStatus: 'arrived', nextColor: 'bg-[#64b5f6] text-white' };
+                    case 'arrived': return { text: '已到貨', color: 'bg-[#e3f2fd] text-[#1976d2]', nextBtn: '已結單/出貨', nextStatus: 'completed', nextColor: 'bg-[#4caf50] text-white' };
+                    case 'completed': return { text: '已出貨/結單', color: 'bg-[#e8f5e9] text-[#388e3c]' };
+                    default: return { text: '不明', color: 'bg-gray-100 text-gray-600' };
+                }
+            };
 
             return (
                 <div className="animate-fade-in pb-20">
                     
                     {/* 表單切換器 (只有在新增模式下顯示) */}
                     {!editingId && (
-                        <div className="flex bg-[#fdfaf7] rounded-xl p-1.5 mb-4 border border-[#f2e7df] shadow-inner">
-                            <button className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${formMode === 'delivery' ? 'bg-white shadow text-[#bc9f8b]' : 'text-[#c4b5aa]'}`} 
-                                    onClick={() => { setFormMode('delivery'); resetDeliveryForm(); }}>📦 新增超商寄件</button>
-                            <button className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${formMode === 'reserve' ? 'bg-[#e3f2fd] shadow-sm text-[#1976d2]' : 'text-[#c4b5aa]'}`} 
-                                    onClick={() => { setFormMode('reserve'); resetReserveForm(); }}>💎 新增現貨保留</button>
+                        <div className="flex bg-[#fdfaf7] rounded-xl p-1 mb-4 border border-[#f2e7df] shadow-inner gap-1">
+                            <button className={`flex-1 py-2 text-[12px] font-bold rounded-lg transition-all ${formMode === 'delivery' ? 'bg-white shadow text-[#bc9f8b]' : 'text-[#c4b5aa]'}`} 
+                                    onClick={() => { setFormMode('delivery'); resetDeliveryForm(); }}>📦 現貨寄件</button>
+                            <button className={`flex-1 py-2 text-[12px] font-bold rounded-lg transition-all ${formMode === 'reserve' ? 'bg-[#e3f2fd] shadow-sm text-[#1976d2]' : 'text-[#c4b5aa]'}`} 
+                                    onClick={() => { setFormMode('reserve'); resetReserveForm(); }}>💎 現貨保留</button>
+                            <button className={`flex-1 py-2 text-[12px] font-bold rounded-lg transition-all ${formMode === 'preorder' ? 'bg-[#e8eaf6] shadow-sm text-[#5c6bc0]' : 'text-[#c4b5aa]'}`} 
+                                    onClick={() => { setFormMode('preorder'); resetPreorderForm(); }}>✈️ 預購訂單</button>
                         </div>
                     )}
 
                     {/* 編輯模式標題 */}
                     {editingId && (
-                        <div className={`flex items-center mb-4 font-bold text-lg ${formMode === 'reserve' ? 'text-[#1976d2]' : 'text-[#bc9f8b]'}`}>
+                        <div className={`flex items-center mb-4 font-bold text-lg ${formMode === 'reserve' ? 'text-[#1976d2]' : (formMode === 'preorder' ? 'text-[#5c6bc0]' : 'text-[#bc9f8b]')}`}>
                             <Icon name="edit" className="mr-2" />
-                            {formMode === 'reserve' ? '編輯現貨保留資料' : '編輯超商寄件資料'}
+                            {formMode === 'reserve' ? '編輯現貨保留資料' : (formMode === 'preorder' ? '編輯代購預購紀錄' : '編輯超商寄件資料')}
                         </div>
                     )}
 
-                    <Card className={editingId ? (formMode === 'reserve' ? 'border-2 border-[#64b5f6]' : 'border-2 border-[#bc9f8b]') : ''}>
-                        {formMode === 'delivery' ? (
+                    <Card className={editingId ? (formMode === 'reserve' ? 'border-2 border-[#64b5f6]' : (formMode === 'preorder' ? 'border-2 border-[#5c6bc0]' : 'border-2 border-[#bc9f8b]')) : ''}>
+                        {formMode === 'delivery' && (
                             <React.Fragment>
                                 <Input type="date" value={dDate} onChange={e => setDDate(e.target.value)} />
                                 <Input placeholder="顧客姓名" value={dCustomerName} onChange={e => setDCustomerName(e.target.value)} />
@@ -406,7 +474,7 @@
                                 </div>
                                 
                                 <div className="grid grid-cols-2 gap-3 mb-4">
-                                    <button className={`w-full h-[48px] rounded-xl border text-[15px] transition-colors font-wawa font-bold flex items-center justify-center ${dHasGift ? 'border-[#bc9f8b] bg-[#fdfaf7] text-[#bc9f8b]' : 'border-[#f0e6e0] bg-[#fdfdfd] text-[#a89689]'}`} onClick={(e) => { e.preventDefault(); setHasGift(!dHasGift); }}>🎁 {dHasGift ? '有贈品' : '無贈品'}</button>
+                                    <button className={`w-full h-[48px] rounded-xl border text-[15px] transition-colors font-wawa font-bold flex items-center justify-center ${dHasGift ? 'border-[#bc9f8b] bg-[#fdfaf7] text-[#bc9f8b]' : 'border-[#f0e6e0] bg-[#fdfdfd] text-[#a89689]'}`} onClick={(e) => { e.preventDefault(); setDHasGift(!dHasGift); }}>🎁 {dHasGift ? '有贈品' : '無贈品'}</button>
                                     <div className={`flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 h-[48px] focus-within:border-[#bc9f8b] transition-colors ${!dHasGift ? 'opacity-60 bg-[#f9f9f9]' : ''}`}>
                                         <input type="number" placeholder="贈品數量" value={dGiftCount} onChange={e => setDGiftCount(e.target.value)} disabled={!dHasGift} className="bg-transparent w-full h-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
                                     </div>
@@ -416,7 +484,9 @@
                                     <Button onClick={handleAddDelivery} className={editingId ? 'flex-[2] bg-[#bc9f8b] text-white' : 'w-full bg-[#bc9f8b] text-white'}>{editingId ? '儲存修改' : '建立超商寄件'}</Button>
                                 </div>
                             </React.Fragment>
-                        ) : (
+                        )}
+
+                        {formMode === 'reserve' && (
                             <React.Fragment>
                                 <Input type="date" value={rDate} onChange={e => setRDate(e.target.value)} />
                                 <Input placeholder="訂購人姓名" value={rCustomerName} onChange={e => setRCustomerName(e.target.value)} />
@@ -431,9 +501,28 @@
                                 </div>
                             </React.Fragment>
                         )}
+
+                        {formMode === 'preorder' && (
+                            <React.Fragment>
+                                <Input type="date" value={pDate} onChange={e => setPDate(e.target.value)} />
+                                <div className="grid grid-cols-2 gap-3">
+                                    <Input placeholder="客人姓名或暱稱" value={pCustomerName} onChange={e => setPCustomerName(e.target.value)} />
+                                    <Input type="number" placeholder="商品件數" value={pItemsCount} onChange={e => setPItemsCount(e.target.value)} />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <Input type="number" placeholder="單筆總批價(成本)" value={pWholesaleCost} onChange={e => setPWholesaleCost(e.target.value)} />
+                                    <Input type="number" placeholder="單筆總售價(實收)" value={pRevenue} onChange={e => setPRevenue(e.target.value)} />
+                                </div>
+                                <Input placeholder="備註(款式、顏色、尺寸)" value={pNote} onChange={e => setPNote(e.target.value)} />
+                                <div className="flex gap-3">
+                                    {editingId && <Button onClick={resetPreorderForm} className="flex-1 bg-[#e8eaf6] !text-[#5c6bc0]">取消</Button>}
+                                    <Button onClick={handleAddPreorder} className={editingId ? 'flex-[2] bg-[#5c6bc0] text-white' : 'w-full bg-[#5c6bc0] text-white'}>{editingId ? '儲存修改' : '建立單筆代購'}</Button>
+                                </div>
+                            </React.Fragment>
+                        )}
                     </Card>
 
-                    {/* 清單 1：現貨保留區 (留貨) 永遠顯示標題 */}
+                    {/* 清單 1：現貨保留區 (留貨) */}
                     <div className="mb-6 animate-fade-in">
                         <div className="flex items-center text-[#1976d2] font-bold px-2 text-lg mb-2">
                             <Icon name="diamond" className="mr-1 text-[20px]" /> 現貨保留區 
@@ -473,7 +562,7 @@
 
                     {/* 清單 2：未寄出 */}
                     <div className="mt-6 mb-2 flex items-center text-[#9b4949] font-bold px-2 text-lg">
-                        <Icon name="push_pin" className="mr-1 text-[20px]" /> 未寄出 
+                        <Icon name="push_pin" className="mr-1 text-[20px]" /> 現貨未寄出 
                         <span className="ml-2 bg-[#d6aba3] text-white text-xs px-2 py-0.5 rounded-full">{pending.length}筆</span>
                         {pendingAmount > 0 && <span className="ml-auto text-sm text-[#e57373] font-black tracking-wide">待收 ${pendingAmount.toLocaleString()}</span>}
                     </div>
@@ -543,6 +632,81 @@
                             })}
                         </div>
                     )}
+
+                    {/* 清單 4：代購 / 預購訂單 */}
+                    <div className="mt-8 pt-6 border-t-[3px] border-dashed border-[#e8eaf6]">
+                        <div className="flex items-center text-[#5c6bc0] font-bold px-2 text-lg mb-3">
+                            <Icon name="local_shipping" className="mr-1 text-[20px]" /> 代購 / 預購訂單 
+                            <span className="ml-2 bg-[#e8eaf6] text-[#3949ab] text-xs px-2.5 py-1 rounded-full font-bold">{preorders.length} 筆</span>
+                        </div>
+                        
+                        <div className="flex overflow-x-auto gap-2 mb-4 custom-scrollbar px-1">
+                            {pFilters.map(f => (
+                                <button key={f.id} onClick={() => setActiveFilter(f.id)} className={`px-4 py-2 rounded-full whitespace-nowrap text-sm font-bold transition-colors shadow-sm ${activeFilter === f.id ? 'bg-[#3949ab] text-white' : 'bg-white text-[#7986cb] border border-[#c5cae9]'}`}>
+                                    {f.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        <Card className="bg-[#f8f9fa] border-none mb-4 p-3 shadow-inner">
+                            <div className="flex justify-between items-center text-sm font-bold">
+                                <div className="text-[#5c6bc0]">合計 <span className="text-lg">{preorderTotalItems}</span> 件</div>
+                                <div className="flex gap-4 text-right">
+                                    <div className="flex flex-col"><span className="text-[10px] text-gray-500">預估總批價</span><span className="text-[#e57373]">${preorderTotalWholesale.toLocaleString()}</span></div>
+                                    <div className="flex flex-col"><span className="text-[10px] text-gray-500">應收總售價</span><span className="text-[#4caf50]">${preorderTotalRevenue.toLocaleString()}</span></div>
+                                </div>
+                            </div>
+                        </Card>
+
+                        {filteredPreorders.length === 0 ? <div className="text-center text-[#c5cae9] text-sm py-8 mt-2 bg-white rounded-2xl border border-dashed border-[#c5cae9] mx-1">此分類目前沒有訂單！</div> : (
+                            <div className="space-y-3 mx-1">
+                            {filteredPreorders.map(p => {
+                                const conf = getPStatusConfig(p.status);
+                                const profit = (Number(p.revenue)||0) - (Number(p.wholesaleCost)||0);
+                                
+                                // 全自動判定：已到貨/已出貨算已付成本；已出貨算已收客款
+                                const isCostPaid = ['arrived', 'completed'].includes(p.status);
+                                const isRevReceived = p.status === 'completed';
+
+                                return (
+                                    <div key={p.id} className="bg-white rounded-xl p-4 shadow-sm border border-[#e8eaf6] relative">
+                                        <div className="absolute top-4 right-4 flex gap-1">
+                                            <button onClick={() => handleEditPreorder(p)} className="p-1.5 text-[#5c6bc0] bg-[#e8eaf6] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
+                                            <button onClick={() => setConfirmDialog({isOpen: true, id: p.id, collection: 'preorders'})} className="p-1.5 text-[#e57373] bg-[#fdf2f2] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <div className="font-bold text-[#3949ab] text-lg">{p.customerName}</div>
+                                            <div className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${conf.color}`}>{conf.text}</div>
+                                        </div>
+                                        
+                                        <div className="text-xs text-gray-400 mb-2">{p.date} 建立 {p.itemsCount > 1 ? `| 共 ${p.itemsCount} 件` : ''}</div>
+                                        
+                                        {p.note && <div className="text-sm text-gray-600 mb-3 bg-gray-50 p-2 rounded-lg border border-gray-100">{p.note}</div>}
+                                        
+                                        <div className="grid grid-cols-2 gap-2 text-sm pt-2 border-t border-gray-100 mt-2">
+                                            <div>批價成本: <span className="text-gray-500 font-bold">${p.wholesaleCost}</span>
+                                                {isCostPaid ? <span className="text-[9px] bg-red-50 text-red-500 px-1 ml-1 rounded">已扣除</span> : <span className="text-[9px] bg-gray-100 text-gray-500 px-1 ml-1 rounded">未扣</span>}
+                                            </div>
+                                            <div>實收售價: <span className="text-[#3949ab] font-bold">${p.revenue}</span>
+                                                {isRevReceived ? <span className="text-[9px] bg-green-50 text-green-600 px-1 ml-1 rounded">已入帳</span> : <span className="text-[9px] bg-orange-50 text-orange-500 px-1 ml-1 rounded">未入帳</span>}
+                                            </div>
+                                        </div>
+                                        <div className="text-right text-xs mt-1 font-bold text-[#4caf50]">
+                                            單筆利潤: +${profit}
+                                        </div>
+
+                                        {conf.nextBtn && (
+                                            <button onClick={() => changePreorderStatus(p.id, conf.nextStatus)} className={`w-full mt-3 py-2.5 rounded-xl font-bold flex justify-center items-center text-sm shadow-sm transition-colors ${conf.nextColor}`}>
+                                                {conf.nextBtn} <Icon name="arrow_forward_ios" className="ml-1 text-[12px]" />
+                                            </button>
+                                        )}
+                                    </div>
+                                )
+                            })}
+                            </div>
+                        )}
+                    </div>
 
                     {/* 轉單專用 Modal */}
                     {transferRecord && (
@@ -1275,7 +1439,7 @@
             const allTimeMarketRev = marketSales.reduce((sum, m) => sum + (Number(m.revenue)||0), 0);
             const allTimeStoreRev = deliveries.reduce((sum, d) => sum + (Number(d.revenue)||0), 0);
             const allTimeStoreShipIn = deliveries.reduce((sum, d) => sum + (Number(d.shippingIncome)||0), 0);
-            const allTimeRev = allTimeMarketRev + allTimeStoreRev + allTimeStoreShipIn; 
+            const allTimeRev = allTimeMarketRev + allTimeStoreRev + allTimeStoreShipIn; // 現貨總收
             
             const allTimeMarketRent = marketSales.reduce((sum, m) => sum + (Number(m.rent)||0), 0);
             const allTimeMarketMisc = marketSales.reduce((sum, m) => sum + (Number(m.electricity)||0) + (Number(m.cleaning)||0) + (Number(m.toll)||0) + (Number(m.parking)||0), 0);
@@ -1449,8 +1613,8 @@
                             </div>
                             {expAllPreorder && (
                                 <div className="pl-6 pr-2 py-1 mb-2 space-y-1 bg-[#f5f6fa] rounded text-[11px] text-[#7986cb] animate-expand">
-                                    <div className="flex justify-between"><span>└ 實際收回客款 (已出貨)</span><span className="text-[#4caf50]">+$ {allTimePreorderRev.toLocaleString()}</span></div>
-                                    <div className="flex justify-between"><span>└ 實際支出批價 (已到貨/已出貨)</span><span className="text-[#e57373]">-$ {allTimePreorderCost.toLocaleString()}</span></div>
+                                    <div className="flex justify-between"><span>└ 代購總收回營收 (已出貨)</span><span className="text-[#4caf50]">+$ {allTimePreorderRev.toLocaleString()}</span></div>
+                                    <div className="flex justify-between"><span>└ 代購總支出批價 (已到貨含以上)</span><span className="text-[#e57373]">-$ {allTimePreorderCost.toLocaleString()}</span></div>
                                     <div className="border-t border-[#c5cae9] my-1"></div>
                                     <div className="flex justify-between"><span>└ 代購待收帳款 (未出貨)</span><span className="text-[#f57f17]">${preorderUnpaidRev.toLocaleString()}</span></div>
                                     <div className="flex justify-between"><span>└ 代購待付帳款 (待叫貨/已叫貨)</span><span className="text-[#f57f17]">${preorderUnpaidCost.toLocaleString()}</span></div>
@@ -1680,186 +1844,6 @@
             );
         };
 
-        // --- 分頁 5：代購預購系統 ---
-        const PreorderTab = ({ preorders, setPreorders, setConfirmDialog }) => {
-            const [editingId, setEditingId] = useState(null);
-            const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-            const [customerName, setCustomerName] = useState('');
-            const [itemsCount, setItemsCount] = useState('');
-            const [wholesaleCost, setWholesaleCost] = useState('');
-            const [revenue, setRevenue] = useState('');
-            const [note, setNote] = useState('');
-            
-            const [activeFilter, setActiveFilter] = useState('all');
-
-            const resetForm = () => {
-                setEditingId(null); setDate(new Date().toISOString().split('T')[0]);
-                setCustomerName(''); setItemsCount(''); setWholesaleCost(''); setRevenue(''); setNote('');
-            };
-
-            const handleAddPreorder = () => {
-                if (!customerName || !wholesaleCost || !revenue) return;
-                const recordData = { 
-                    date, customerName, 
-                    itemsCount: Number(itemsCount) || 1, 
-                    wholesaleCost: Number(wholesaleCost) || 0,
-                    revenue: Number(revenue) || 0,
-                    note, 
-                    status: editingId ? (preorders.find(p => p.id === editingId)?.status || 'pending') : 'pending'
-                };
-                
-                if (editingId) {
-                    setPreorders(prev => prev.map(p => p.id === editingId ? { ...p, ...recordData } : p).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
-                } else {
-                    const newRecord = { id: Date.now().toString(), ...recordData };
-                    setPreorders(prev => [newRecord, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
-                }
-                resetForm();
-            };
-
-            const handleEditClick = (record) => {
-                setEditingId(record.id);
-                setDate(record.date); setCustomerName(record.customerName);
-                setItemsCount(record.itemsCount); 
-                setWholesaleCost(record.wholesaleCost); setRevenue(record.revenue);
-                setNote(record.note || '');
-                scrollToTop();
-            };
-
-            const changeStatus = (id, newStatus) => {
-                setPreorders(prev => prev.map(p => p.id === id ? { ...p, status: newStatus } : p));
-            };
-
-            const filteredList = preorders.filter(p => activeFilter === 'all' || p.status === activeFilter);
-            
-            const totalItems = filteredList.reduce((sum, p) => sum + (Number(p.itemsCount)||0), 0);
-            const totalWholesale = filteredList.reduce((sum, p) => sum + (Number(p.wholesaleCost)||0), 0);
-            const totalRevenue = filteredList.reduce((sum, p) => sum + (Number(p.revenue)||0), 0);
-
-            const filters = [
-                { id: 'all', label: '全部' },
-                { id: 'pending', label: '待叫貨' },
-                { id: 'ordered', label: '已叫貨' },
-                { id: 'arrived', label: '已到貨' },
-                { id: 'completed', label: '已出貨' }
-            ];
-
-            const getStatusConfig = (status) => {
-                switch(status) {
-                    case 'pending': return { text: '待叫貨', color: 'bg-gray-100 text-gray-600', nextBtn: '標記為已叫貨', nextStatus: 'ordered', nextColor: 'bg-[#ffb74d] text-white' };
-                    case 'ordered': return { text: '已叫貨', color: 'bg-[#fff3e0] text-[#f57c00]', nextBtn: '標記為已到貨', nextStatus: 'arrived', nextColor: 'bg-[#64b5f6] text-white' };
-                    case 'arrived': return { text: '已到貨', color: 'bg-[#e3f2fd] text-[#1976d2]', nextBtn: '已結算/出貨', nextStatus: 'completed', nextColor: 'bg-[#4caf50] text-white' };
-                    case 'completed': return { text: '已出貨/結單', color: 'bg-[#e8f5e9] text-[#388e3c]' };
-                    default: return { text: '不明', color: 'bg-gray-100 text-gray-600' };
-                }
-            };
-
-            return (
-                <div className="animate-fade-in pb-20">
-                    <Card className={editingId ? 'border-2 border-[#5c6bc0]' : 'border border-[#e8eaf6]'}>
-                        <div className="flex items-center mb-4 text-[#5c6bc0] font-bold text-lg">
-                            <Icon name={editingId ? 'edit' : 'add_circle'} className="mr-2" /> 
-                            {editingId ? '編輯代購 / 預購紀錄' : '建立代購 / 預購訂單'}
-                        </div>
-                        <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
-                        
-                        <div className="grid grid-cols-2 gap-3">
-                            <Input placeholder="客人姓名或暱稱" value={customerName} onChange={e => setCustomerName(e.target.value)} />
-                            <Input type="number" placeholder="商品件數" value={itemsCount} onChange={e => setItemsCount(e.target.value)} />
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-3">
-                            <Input type="number" placeholder="單筆總批價(成本)" value={wholesaleCost} onChange={e => setWholesaleCost(e.target.value)} />
-                            <Input type="number" placeholder="單筆總售價(實收)" value={revenue} onChange={e => setRevenue(e.target.value)} />
-                        </div>
-                        <Input placeholder="備註(款式、顏色、尺寸)" value={note} onChange={e => setNote(e.target.value)} />
-                        
-                        <div className="flex gap-3">
-                            {editingId && (
-                                <Button onClick={resetForm} className="flex-1 bg-[#e8eaf6] !text-[#5c6bc0]">取消</Button>
-                            )}
-                            <Button onClick={handleAddPreorder} className={editingId ? 'flex-[2] bg-[#5c6bc0] text-white' : 'w-full bg-[#5c6bc0] text-white'}>
-                                {editingId ? '儲存修改' : '建立單筆代購'}
-                            </Button>
-                        </div>
-                    </Card>
-
-                    {/* 狀態過濾列 */}
-                    <div className="flex overflow-x-auto gap-2 mb-4 custom-scrollbar px-1">
-                        {filters.map(f => (
-                            <button key={f.id} onClick={() => setActiveFilter(f.id)} className={`px-4 py-2 rounded-full whitespace-nowrap text-sm font-bold transition-colors shadow-sm ${activeFilter === f.id ? 'bg-[#3949ab] text-white' : 'bg-white text-[#7986cb] border border-[#c5cae9]'}`}>
-                                {f.label}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* 統計 Summary */}
-                    <Card className="bg-[#f8f9fa] border-none mb-4 p-3 shadow-inner">
-                        <div className="flex justify-between items-center text-sm font-bold">
-                            <div className="text-[#5c6bc0]">合計 <span className="text-lg">{totalItems}</span> 件</div>
-                            <div className="flex gap-4 text-right">
-                                <div className="flex flex-col"><span className="text-[10px] text-gray-500">預估總批價</span><span className="text-[#e57373]">${totalWholesale.toLocaleString()}</span></div>
-                                <div className="flex flex-col"><span className="text-[10px] text-gray-500">應收總售價</span><span className="text-[#4caf50]">${totalRevenue.toLocaleString()}</span></div>
-                            </div>
-                        </div>
-                    </Card>
-
-                    {filteredList.length === 0 ? <div className="text-center text-[#c5cae9] text-sm py-8 mt-2 bg-white rounded-2xl border border-dashed border-[#c5cae9] mx-1">此分類目前沒有訂單！</div> : (
-                        <div className="space-y-3 mx-1">
-                        {filteredList.map(p => {
-                            const conf = getStatusConfig(p.status);
-                            const profit = (Number(p.revenue)||0) - (Number(p.wholesaleCost)||0);
-                            
-                            // 全自動判定：已到貨/已出貨算已付成本；已出貨算已收客款
-                            const isCostPaid = ['arrived', 'completed'].includes(p.status);
-                            const isRevReceived = p.status === 'completed';
-
-                            return (
-                                <div key={p.id} className="bg-white rounded-xl p-4 shadow-sm border border-[#e8eaf6] relative">
-                                    <div className="absolute top-4 right-4 flex gap-1">
-                                        <button onClick={() => handleEditClick(p)} className="p-1.5 text-[#5c6bc0] bg-[#e8eaf6] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
-                                        <button onClick={() => setConfirmDialog({
-                                            isOpen: true, title: "刪除確認", message: "確定要刪除這筆代購紀錄嗎？", 
-                                            onConfirm: () => { setPreorders(prev => prev.filter(x => x.id !== p.id)); setConfirmDialog({isOpen: false}); },
-                                            onCancel: () => setConfirmDialog({isOpen: false}), isDanger: true
-                                        })} className="p-1.5 text-[#e57373] bg-[#fdf2f2] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
-                                    </div>
-                                    
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <div className="font-bold text-[#3949ab] text-lg">{p.customerName}</div>
-                                        <div className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${conf.color}`}>{conf.text}</div>
-                                    </div>
-                                    
-                                    <div className="text-xs text-gray-400 mb-2">{p.date} 建立 {p.itemsCount > 1 ? `| 共 ${p.itemsCount} 件` : ''}</div>
-                                    
-                                    {p.note && <div className="text-sm text-gray-600 mb-3 bg-gray-50 p-2 rounded-lg border border-gray-100">{p.note}</div>}
-                                    
-                                    <div className="grid grid-cols-2 gap-2 text-sm pt-2 border-t border-gray-100 mt-2">
-                                        <div>批價成本: <span className="text-gray-500 font-bold">${p.wholesaleCost}</span>
-                                            {isCostPaid ? <span className="text-[9px] bg-red-50 text-red-500 px-1 ml-1 rounded">已付</span> : <span className="text-[9px] bg-gray-100 text-gray-500 px-1 ml-1 rounded">未付</span>}
-                                        </div>
-                                        <div>實收售價: <span className="text-[#3949ab] font-bold">${p.revenue}</span>
-                                            {isRevReceived ? <span className="text-[9px] bg-green-50 text-green-600 px-1 ml-1 rounded">已入帳</span> : <span className="text-[9px] bg-orange-50 text-orange-500 px-1 ml-1 rounded">待收</span>}
-                                        </div>
-                                    </div>
-                                    <div className="text-right text-xs mt-1 font-bold text-[#4caf50]">
-                                        單筆利潤: +${profit}
-                                    </div>
-
-                                    {conf.nextBtn && (
-                                        <button onClick={() => changeStatus(p.id, conf.nextStatus)} className={`w-full mt-3 py-2.5 rounded-xl font-bold flex justify-center items-center text-sm shadow-sm transition-colors ${conf.nextColor}`}>
-                                            {conf.nextBtn} <Icon name="arrow_forward_ios" className="ml-1 text-[12px]" />
-                                        </button>
-                                    )}
-                                </div>
-                            )
-                        })}
-                        </div>
-                    )}
-                </div>
-            );
-        };
-
         // --- 設定與備份 Modal ---
         const SettingsModal = ({ isOpen, onClose }) => {
             if (!isOpen) return null;
@@ -1878,7 +1862,7 @@
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `森衣好_資料備份_${new Date().toISOString().split('T')[0]}.json`;
+                a.download = `200森衣好_資料備份_${new Date().toISOString().split('T')[0]}.json`;
                 a.click();
                 URL.revokeObjectURL(url);
             };
@@ -1993,31 +1977,28 @@
                         </header>
                         
                         <main id="main-content" className="flex-1 overflow-y-auto p-4 relative custom-scrollbar">
-                            {activeTab === 'store' && <StoreTab deliveries={deliveries} setDeliveries={setDeliveries} reservations={reservations} setReservations={setReservations} setConfirmDialog={setConfirmDialog} />}
+                            {activeTab === 'store' && <StoreTab deliveries={deliveries} setDeliveries={setDeliveries} reservations={reservations} setReservations={setReservations} preorders={preorders} setPreorders={setPreorders} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'market' && <MarketTab marketSales={marketSales} setMarketSales={setMarketSales} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'expense' && <ExpenseTab expenses={expenses} setExpenses={setExpenses} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'report' && <ReportTab deliveries={deliveries} marketSales={marketSales} expenses={expenses} preorders={preorders} settings={settings} setSettings={setSettings} marketSoldStats={marketSoldStats} setMarketSoldStats={setMarketSoldStats} setDialog={setConfirmDialog} />}
-                            {activeTab === 'preorder' && <PreorderTab preorders={preorders} setPreorders={setPreorders} setConfirmDialog={setConfirmDialog} />}
                         </main>
 
-                        {/* 底部導覽列 */}
-                        <nav className="bg-white border-t border-[#f2e7df] flex justify-around pb-safe pt-2 fixed bottom-0 w-full max-w-lg z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] px-1">
+                        {/* 回歸最精簡的 4 個大分頁 */}
+                        <nav className="bg-white border-t border-[#f2e7df] grid grid-cols-4 pb-safe pt-2 fixed bottom-0 w-full max-w-lg z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
                             {[ 
-                               { id: 'store', icon: 'inventory_2', label: '現貨超商' }, 
+                               { id: 'store', icon: 'inventory_2', label: '出貨管理' }, 
                                { id: 'market', icon: 'storefront', label: '現貨市場' },
                                { id: 'expense', icon: 'payments', label: '現貨支出' },
-                               { id: 'report', icon: 'bar_chart', label: '營運報表' },
-                               { id: 'preorder', icon: 'local_shipping', label: '代購', color: 'text-[#5c6bc0]' }
+                               { id: 'report', icon: 'bar_chart', label: '營運報表' }
                             ].map(t => {
                                 const isActive = activeTab === t.id;
-                                const activeColorClass = isActive ? (t.color ? t.color : 'text-[#bc9f8b]') : 'text-[#c4b5aa]';
-                                const activeBgColorClass = isActive ? (t.id === 'preorder' ? 'bg-[#5c6bc0]' : 'bg-[#bc9f8b]') : '';
+                                const activeColorClass = isActive ? 'text-[#bc9f8b]' : 'text-[#c4b5aa]';
                                 
                                 return (
-                                    <button key={t.id} onClick={() => { setActiveTab(t.id); scrollToTop(); }} className={`flex flex-col items-center justify-center py-1 w-full transition-colors relative ${activeColorClass}`}>
-                                        <Icon name={t.icon} className="mb-0.5 text-[22px]" />
-                                        <span className={`text-[10px] tracking-tighter ${isActive ? 'font-black' : 'font-medium'}`}>{t.label}</span>
-                                        {isActive && <div className={`absolute top-0 w-6 h-1 rounded-b-full ${activeBgColorClass}`}></div>}
+                                    <button key={t.id} onClick={() => { setActiveTab(t.id); scrollToTop(); }} className={`flex flex-col items-center justify-center py-2 w-full transition-colors relative ${activeColorClass}`}>
+                                        <Icon name={t.icon} className="mb-1 text-[22px]" />
+                                        <span className={`text-[11px] tracking-widest ${isActive ? 'font-black' : 'font-bold'}`}>{t.label}</span>
+                                        {isActive && <div className="absolute top-0 w-8 h-1 rounded-b-full bg-[#bc9f8b]"></div>}
                                     </button>
                                 );
                             })}
