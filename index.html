@@ -186,7 +186,7 @@
             return validNum.toString();
         };
 
-        // --- 分頁 1：超商 & 留貨 & 新增預購 ---
+        // --- 分頁 1：超商 & 留貨 (加入預購捷徑) ---
         const StoreTab = ({ deliveries, setDeliveries, reservations, setReservations, preorders, setPreorders, setConfirmDialog }) => {
             const [formMode, setFormMode] = useState('delivery'); 
             const [editingId, setEditingId] = useState(null);
@@ -213,7 +213,6 @@
             const [pDate, setPDate] = useState(new Date().toISOString().split('T')[0]);
             const [pCustomerName, setPCustomerName] = useState('');
             const [pItemsCount, setPItemsCount] = useState('');
-            const [pWholesaleCost, setPWholesaleCost] = useState('');
             const [pRevenue, setPRevenue] = useState('');
             const [pNote, setPNote] = useState('');
 
@@ -241,7 +240,7 @@
 
             const resetPreorderForm = () => {
                 setEditingId(null); setPDate(new Date().toISOString().split('T')[0]); setShowSuccess(false);
-                setPCustomerName(''); setPItemsCount(''); setPWholesaleCost(''); setPRevenue(''); setPNote('');
+                setPCustomerName(''); setPItemsCount(''); setPRevenue(''); setPNote('');
             };
 
             const handleAddDelivery = () => {
@@ -282,12 +281,12 @@
             };
 
             const handleAddPreorder = () => {
-                if (!pCustomerName || !pWholesaleCost || !pRevenue) return;
+                if (!pCustomerName || !pRevenue) return;
                 const recordData = { 
                     date: pDate, 
                     customerName: pCustomerName, 
                     itemsCount: Number(pItemsCount) || 1, 
-                    wholesaleCost: Number(pWholesaleCost) || 0, 
+                    wholesaleCost: 0, // 捷徑不填寫批價，預設為0
                     revenue: Number(pRevenue) || 0, 
                     note: pNote, 
                     status: 'pending' 
@@ -365,12 +364,12 @@
                     
                     {!editingId && (
                         <div className="flex gap-1 bg-[#fdfaf7] rounded-xl p-1.5 mb-4 border border-[#f2e7df] shadow-inner">
-                            <button className={`flex-1 py-2 text-[13px] font-bold rounded-lg transition-all ${formMode === 'delivery' ? 'bg-white shadow text-[#bc9f8b]' : 'text-[#c4b5aa]'}`} 
-                                    onClick={() => { setFormMode('delivery'); resetDeliveryForm(); }}>📦 超商寄件</button>
-                            <button className={`flex-1 py-2 text-[13px] font-bold rounded-lg transition-all ${formMode === 'reserve' ? 'bg-[#e3f2fd] shadow-sm text-[#1976d2]' : 'text-[#c4b5aa]'}`} 
-                                    onClick={() => { setFormMode('reserve'); resetReserveForm(); }}>💎 現貨保留</button>
-                            <button className={`flex-1 py-2 text-[13px] font-bold rounded-lg transition-all ${formMode === 'preorder' ? 'bg-[#e8eaf6] shadow-sm text-[#5c6bc0]' : 'text-[#c4b5aa]'}`} 
-                                    onClick={() => { setFormMode('preorder'); resetPreorderForm(); }}>🛒 預購建單</button>
+                            <button className={`flex-1 py-2 text-[13px] font-bold rounded-lg transition-all flex items-center justify-center ${formMode === 'delivery' ? 'bg-white shadow text-[#bc9f8b]' : 'text-[#c4b5aa]'}`} 
+                                    onClick={() => { setFormMode('delivery'); resetDeliveryForm(); }}><Icon name="inventory_2" className="text-[18px] mr-1" />超商寄件</button>
+                            <button className={`flex-1 py-2 text-[13px] font-bold rounded-lg transition-all flex items-center justify-center ${formMode === 'reserve' ? 'bg-[#e3f2fd] shadow-sm text-[#1976d2]' : 'text-[#c4b5aa]'}`} 
+                                    onClick={() => { setFormMode('reserve'); resetReserveForm(); }}><Icon name="diamond" className="text-[18px] mr-1" />現貨保留</button>
+                            <button className={`flex-1 py-2 text-[13px] font-bold rounded-lg transition-all flex items-center justify-center ${formMode === 'preorder' ? 'bg-[#e8eaf6] shadow-sm text-[#5c6bc0]' : 'text-[#c4b5aa]'}`} 
+                                    onClick={() => { setFormMode('preorder'); resetPreorderForm(); }}><Icon name="shopping_cart" className="text-[18px] mr-1" />預購建單</button>
                         </div>
                     )}
 
@@ -439,19 +438,16 @@
                             </React.Fragment>
                         ) : (
                             <React.Fragment>
-                                <div className="flex items-center mb-3 text-[#5c6bc0] font-bold"><Icon name="add_shopping_cart" className="mr-2" /> 快速建立預購單 (捷徑)</div>
+                                <div className="flex items-center mb-4 text-[#5c6bc0] font-bold text-lg"><Icon name="add_shopping_cart" className="mr-2" /> 快速建立預購單 (捷徑)</div>
                                 <Input type="date" value={pDate} onChange={e => setPDate(e.target.value)} />
+                                <Input placeholder="訂購人姓名" value={pCustomerName} onChange={e => setPCustomerName(e.target.value)} />
                                 <div className="grid grid-cols-2 gap-3">
-                                    <Input placeholder="客人姓名或暱稱" value={pCustomerName} onChange={e => setPCustomerName(e.target.value)} />
-                                    <Input type="number" placeholder="商品件數" value={pItemsCount} onChange={e => setPItemsCount(e.target.value)} />
+                                    <Input type="number" placeholder="預估售價(總額)" value={pRevenue} onChange={e => setPRevenue(e.target.value)} />
+                                    <Input type="number" placeholder="預購件數" value={pItemsCount} onChange={e => setPItemsCount(e.target.value)} />
                                 </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <Input type="number" placeholder="單筆總批價(成本)" value={pWholesaleCost} onChange={e => setPWholesaleCost(e.target.value)} />
-                                    <Input type="number" placeholder="單筆總售價(實收)" value={pRevenue} onChange={e => setPRevenue(e.target.value)} />
-                                </div>
-                                <Input placeholder="備註(款式、顏色、尺寸)" value={pNote} onChange={e => setPNote(e.target.value)} />
-                                <div className="flex flex-col gap-2">
-                                    <Button onClick={handleAddPreorder} className="w-full bg-[#5c6bc0] text-white">建立單筆預購 (代購)</Button>
+                                <Input placeholder="預購備註(選填)" value={pNote} onChange={e => setPNote(e.target.value)} />
+                                <div className="flex flex-col gap-2 mt-1">
+                                    <Button onClick={handleAddPreorder} className="w-full bg-[#5c6bc0] text-white py-3">建立單筆預購 (代購)</Button>
                                     {showSuccess && <div className="text-center text-sm font-bold text-[#4caf50] mt-1 animate-fade-in">✅ 建立成功！請至下方「代購」分頁查看</div>}
                                 </div>
                             </React.Fragment>
@@ -1547,4 +1543,5 @@
     </script>
 </body>
 </html>
+
 
