@@ -43,8 +43,8 @@
         window.onerror = function(msg, url, lineNo, columnNo, error) {
             var errorHtml = '<div style="padding: 30px; text-align: center; color: #e57373;">' +
                             '<h3 style="font-size:24px; margin-bottom:10px;">🛡️ 系統保護機制</h3>' +
-                            '<p style="font-size:14px; margin-bottom:10px;">系統偵測到舊快取衝突。</p>' +
-                            '<p style="font-size:14px; margin-bottom:20px; color:#7a6453;">請不用擔心，您的資料很安全。請嘗試重新整理網頁。</p>' +
+                            '<p style="font-size:14px; margin-bottom:10px;">系統偵測到畫面載入異常。</p>' +
+                            '<p style="font-size:14px; margin-bottom:20px; color:#7a6453;">請您<strong>「重新整理網頁」</strong>即可恢復。</p>' +
                             '<pre style="font-size:10px; text-align:left; background:#fff; padding:10px; border-radius:8px; overflow-x:auto;">' + msg + '</pre>' +
                             '</div>';
             document.getElementById('root').innerHTML = errorHtml;
@@ -54,14 +54,13 @@
 
     <script type="text/babel">
         const { useState, useEffect, useMemo, Component } = React;
-
+        
         const safeStr = (str) => String(str || '');
         const safeTime = (d) => {
             if (!d) return 0;
             const t = new Date(d).getTime();
             return isNaN(t) ? 0 : t;
         };
-
         const getSafeArr = (arr) => {
             if (!Array.isArray(arr)) return [];
             return arr.filter(i => i !== null && typeof i === 'object' && !Array.isArray(i));
@@ -80,13 +79,12 @@
                 console.error("渲染錯誤：", error, errorInfo);
             }
             safeRepairAndReload() {
-                // 安全修復：只檢查格式，不刪除資料
                 const safeParse = (key) => {
                     try {
                         const raw = localStorage.getItem(key);
                         if(raw) JSON.parse(raw);
                     } catch(e) {
-                        localStorage.setItem(key, '[]'); // 只有當資料完全壞掉(無法解析)時才重置該陣列
+                        localStorage.setItem(key, '[]');
                     }
                 };
                 safeParse('xq_deliveries');
@@ -114,7 +112,7 @@
                             <p className="text-sm text-[#a89689] mb-4 leading-relaxed">您的資料安全無虞，請點擊下方按鈕安全重新整理。</p>
                             <textarea className="w-full h-16 p-2 text-[9px] bg-white border border-[#f2e7df] rounded-xl mb-6 opacity-60 custom-scrollbar" readOnly value={this.state.errorStr}></textarea>
                             <button onClick={() => this.safeRepairAndReload()} className="w-full py-4 bg-[#bc9f8b] text-white font-bold rounded-xl shadow-md">
-                                安全修復並重新整理
+                                安全重新整理
                             </button>
                         </div>
                     );
@@ -136,15 +134,10 @@
                     return initialValue; 
                 }
             });
-
             useEffect(() => {
-                try { 
-                    window.localStorage.setItem(key, JSON.stringify(value)); 
-                } catch (error) { 
-                    console.warn("寫入失敗", error); 
-                }
+                try { window.localStorage.setItem(key, JSON.stringify(value)); } 
+                catch (error) { console.warn("寫入失敗", error); }
             }, [key, value]);
-
             return [value, setValue];
         };
 
@@ -198,7 +191,7 @@
             const [formMode, setFormMode] = useState('delivery'); 
             const [editingId, setEditingId] = useState(null);
             
-            // 寄件表單
+            // 寄件表單 State
             const [dDate, setDDate] = useState(new Date().toISOString().split('T')[0]);
             const [dCustomerName, setDCustomerName] = useState('');
             const [dRevenue, setDRevenue] = useState('');
@@ -208,14 +201,14 @@
             const [dHasGift, setDHasGift] = useState(false);
             const [dGiftCount, setDGiftCount] = useState('');
 
-            // 留貨表單
+            // 留貨表單 State
             const [rDate, setRDate] = useState(new Date().toISOString().split('T')[0]);
             const [rCustomerName, setRCustomerName] = useState('');
             const [rItemsCount, setRItemsCount] = useState('');
             const [rRevenue, setRRevenue] = useState(''); 
             const [rNote, setRNote] = useState('');
 
-            // 轉單 Modal
+            // 轉單 Modal State
             const [transferRecord, setTransferRecord] = useState(null);
             const [tDate, setTDate] = useState('');
             const [tRevenue, setTRevenue] = useState('');
@@ -317,7 +310,7 @@
             const pending = deliveries.filter(d => d.status === 'pending');
             const shipped = deliveries.filter(d => d.status === 'shipped');
             
-            // 按月份分組
+            // 將已寄出的資料按月份分組
             const groupedShipped = useMemo(() => {
                 const groups = {};
                 shipped.forEach(d => {
@@ -327,7 +320,6 @@
                 });
                 return groups;
             }, [shipped]);
-            
             const sortedMonths = Object.keys(groupedShipped).sort((a, b) => b.localeCompare(a));
             const toggleMonth = (month) => setExpandedMonths(prev => ({ ...prev, [month]: !prev[month] }));
             
@@ -339,8 +331,10 @@
                     
                     {!editingId && (
                         <div className="flex bg-[#fdfaf7] rounded-xl p-1.5 mb-4 border border-[#f2e7df] shadow-inner">
-                            <button className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${formMode === 'delivery' ? 'bg-white shadow text-[#bc9f8b]' : 'text-[#c4b5aa]'}`} onClick={() => { setFormMode('delivery'); resetDeliveryForm(); }}>📦 新增超商寄件</button>
-                            <button className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${formMode === 'reserve' ? 'bg-[#e3f2fd] shadow-sm text-[#1976d2]' : 'text-[#c4b5aa]'}`} onClick={() => { setFormMode('reserve'); resetReserveForm(); }}>💎 新增現貨保留</button>
+                            <button className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${formMode === 'delivery' ? 'bg-white shadow text-[#bc9f8b]' : 'text-[#c4b5aa]'}`} 
+                                    onClick={() => { setFormMode('delivery'); resetDeliveryForm(); }}>📦 新增超商寄件</button>
+                            <button className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${formMode === 'reserve' ? 'bg-[#e3f2fd] shadow-sm text-[#1976d2]' : 'text-[#c4b5aa]'}`} 
+                                    onClick={() => { setFormMode('reserve'); resetReserveForm(); }}>💎 新增現貨保留</button>
                         </div>
                     )}
 
@@ -410,7 +404,7 @@
                         )}
                     </Card>
 
-                    {/* 現貨保留清單 */}
+                    {/* 現貨保留區 */}
                     <div className="mb-6 animate-fade-in">
                         <div className="flex items-center text-[#1976d2] font-bold px-2 text-lg mb-2">
                             <Icon name="diamond" className="mr-1 text-[20px]" /> 現貨保留區 
@@ -418,9 +412,7 @@
                             {reserveAmount > 0 && <span className="ml-auto text-sm text-[#64b5f6] font-black tracking-wide">總額 ${reserveAmount.toLocaleString()}</span>}
                         </div>
                         {reservations.length === 0 ? (
-                            <div className="text-center text-[#90caf9] text-sm py-6 bg-white rounded-xl border border-dashed border-[#e3f2fd] mx-1">
-                                目前沒有保留清單喔！
-                            </div>
+                            <div className="text-center text-[#90caf9] text-sm py-6 bg-white rounded-xl border border-dashed border-[#e3f2fd] mx-1">目前沒有保留清單喔！</div>
                         ) : (
                             <div className="space-y-2">
                             {reservations.map(r => (
@@ -448,7 +440,7 @@
                         )}
                     </div>
 
-                    {/* 未寄出清單 */}
+                    {/* 未寄出區 */}
                     <div className="mt-6 mb-2 flex items-center text-[#9b4949] font-bold px-2 text-lg">
                         <Icon name="push_pin" className="mr-1 text-[20px]" /> 現貨未寄出 
                         <span className="ml-2 bg-[#d6aba3] text-white text-xs px-2 py-0.5 rounded-full">{pending.length}筆</span>
@@ -468,7 +460,7 @@
                         </div>
                     ))}
 
-                    {/* 已寄出清單 (手風琴按月分組) */}
+                    {/* 已寄出紀錄 (手風琴按月分組) */}
                     <div className="mt-6 mb-2 flex items-center text-[#4caf50] font-bold px-2 text-lg">
                         <Icon name="check_box" className="mr-1 text-[20px]" /> 已寄出紀錄 
                         <span className="ml-2 bg-[#a5d6a7] text-white text-xs px-2 py-0.5 rounded-full">{shipped.length}筆</span>
@@ -518,7 +510,7 @@
                         </div>
                     )}
 
-                    {/* 轉單 Modal */}
+                    {/* 轉單專用 Modal */}
                     {transferRecord && (
                         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-[80] animate-fade-in px-4">
                             <div className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-xl max-h-[90vh] overflow-y-auto custom-scrollbar">
@@ -531,12 +523,12 @@
                                     <Input type="number" value={tSoldQty} onChange={e => setTSoldQty(e.target.value)} placeholder="售出服飾件數" />
                                 </div>
                                 
-                                {/* 運費快捷鍵 (轉單 Modal 內) */}
+                                {/* 運費快捷鍵 */}
                                 <div className="flex gap-2 mb-3 -mt-2 px-1 overflow-x-auto custom-scrollbar">
-                                    <button type="button" onClick={() => {setTShippingExpense(38); setTShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm">⚡ 7-11本38收60</button>
-                                    <button type="button" onClick={() => {setTShippingExpense(39); setTShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm">⚡ 全家本39收60</button>
-                                    <button type="button" onClick={() => {setTShippingExpense(38); setTShippingIncome(38);}} className="shrink-0 text-[11px] bg-[#fdfaf7] border border-[#d6ccc2] text-[#8d6e63] px-2 py-1.5 rounded-lg font-bold shadow-sm">7-11本38</button>
-                                    <button type="button" onClick={() => {setTShippingExpense(39); setTShippingIncome(39);}} className="shrink-0 text-[11px] bg-[#fdfaf7] border border-[#d6ccc2] text-[#8d6e63] px-2 py-1.5 rounded-lg font-bold shadow-sm">全家本39</button>
+                                    <button type="button" onClick={() => {setTShippingExpense(38); setTShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">⚡ 7-11本38收60</button>
+                                    <button type="button" onClick={() => {setTShippingExpense(39); setTShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">⚡ 全家本39收60</button>
+                                    <button type="button" onClick={() => {setTShippingExpense(38); setTShippingIncome(38);}} className="shrink-0 text-[11px] bg-[#fdfaf7] border border-[#d6ccc2] text-[#8d6e63] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#f2e7df] transition-colors">7-11本38</button>
+                                    <button type="button" onClick={() => {setTShippingExpense(39); setTShippingIncome(39);}} className="shrink-0 text-[11px] bg-[#fdfaf7] border border-[#d6ccc2] text-[#8d6e63] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#f2e7df] transition-colors">全家本39</button>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-3">
@@ -545,7 +537,9 @@
                                 </div>
                                 <div className="grid grid-cols-2 gap-3 mb-2">
                                     <button className={`w-full h-[48px] rounded-xl border text-[15px] transition-colors font-wawa font-bold flex items-center justify-center ${tHasGift ? 'border-[#bc9f8b] bg-[#fdfaf7] text-[#bc9f8b]' : 'border-[#f0e6e0] bg-[#fdfdfd] text-[#a89689]'}`} onClick={(e) => { e.preventDefault(); setTHasGift(!tHasGift); }}>🎁 {tHasGift ? '有贈品' : '無贈品'}</button>
-                                    <Input type="number" placeholder="贈品數量" value={tGiftCount} onChange={e => setTGiftCount(e.target.value)} disabled={!tHasGift} />
+                                    <div className={`flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 h-[48px] focus-within:border-[#bc9f8b] transition-colors ${!tHasGift ? 'opacity-60 bg-[#f9f9f9]' : ''}`}>
+                                        <input type="number" placeholder="贈品數量" value={tGiftCount} onChange={e => setTGiftCount(e.target.value)} disabled={!tHasGift} className="bg-transparent w-full h-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
+                                    </div>
                                 </div>
                                 <div className="flex gap-3 mt-5">
                                     <button onClick={() => setTransferRecord(null)} className="flex-1 py-3.5 rounded-xl bg-[#f2e7df] text-[#7a6453] font-bold font-wawa">取消</button>
@@ -558,7 +552,7 @@
             );
         };
 
-        // --- 分頁 2：市場 ---
+        // --- 分頁 2：現貨市場 ---
         const MarketTab = ({ marketSales, setMarketSales, setConfirmDialog }) => {
             const currentDate = new Date().toISOString().split('T')[0];
             const [editingId, setEditingId] = useState(null);
@@ -614,8 +608,13 @@
                     electricity: Number(electricity) || 0, cleaning: Number(cleaning) || 0, toll: Number(toll) || 0, parking: Number(parking) || 0, gas: 0, 
                     hasGift, giftCount: hasGift ? (Number(giftCount) || 0) : 0, accessories: { necklace: Number(acc.necklace) || 0, hat: Number(acc.hat) || 0, bag: Number(acc.bag) || 0, other: Number(acc.other) || 0 }
                 };
-                if (editingId) { setMarketSales(prev => prev.map(m => m.id === editingId ? { ...m, ...recordData } : m).sort((a,b)=> safeTime(b.date) - safeTime(a.date))); } 
-                else { setMarketSales(prev => [{ id: Date.now().toString(), ...recordData }, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date))); }
+                
+                if (editingId) {
+                    setMarketSales(prev => prev.map(m => m.id === editingId ? { ...m, ...recordData } : m).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
+                } else {
+                    const newRecord = { id: Date.now().toString(), ...recordData };
+                    setMarketSales(prev => [{ ...newRecord }, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
+                }
                 resetForm();
             };
 
@@ -725,14 +724,27 @@
                         <Input type="date" value={date} onChange={e => { setDate(e.target.value); setSelectedDay(e.target.value); setViewMonthStr(safeStr(e.target.value).substring(0,7)); }} />
                         
                         {/* 排序：地點 | 位租 */}
-                        <div className="grid grid-cols-2 gap-3"><Input placeholder="地點" value={location} onChange={e => setLocation(e.target.value)} /><Input type="number" placeholder="位租" value={rent} onChange={e => setRent(e.target.value)} /></div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <Input placeholder="地點" value={location} onChange={e => setLocation(e.target.value)} />
+                            <Input type="number" placeholder="位租" value={rent} onChange={e => setRent(e.target.value)} />
+                        </div>
                         {/* 排序：當日業績 | 售出件數 */}
-                        <div className="grid grid-cols-2 gap-3"><Input type="number" placeholder="當日業績" value={revenue} onChange={handleRevenueChange} /><Input type="number" placeholder="售出件數 (自動推算)" value={soldQty} onChange={e => setSoldQty(e.target.value)} /></div>
-                        
+                        <div className="grid grid-cols-2 gap-3">
+                            <Input type="number" placeholder="當日業績" value={revenue} onChange={handleRevenueChange} />
+                            <Input type="number" placeholder="售出件數 (自動推算)" value={soldQty} onChange={e => setSoldQty(e.target.value)} />
+                        </div>
+                        {/* 獨立備註列 */}
                         <Input placeholder="備註 (選填)" value={note} onChange={e => setNote(e.target.value)} />
                         
-                        <div className="grid grid-cols-2 gap-3 mt-1"><Input type="number" placeholder="電費 (選填)" value={electricity} onChange={e => setElectricity(e.target.value)} /><Input type="number" placeholder="清潔費 (選填)" value={cleaning} onChange={e => setCleaning(e.target.value)} /></div>
-                        <div className="grid grid-cols-2 gap-3"><Input type="number" placeholder="過路費 (選填)" value={toll} onChange={e => setToll(e.target.value)} /><Input type="number" placeholder="停車費 (選填)" value={parking} onChange={e => setParking(e.target.value)} /></div>
+                        <div className="grid grid-cols-2 gap-3 mt-1">
+                            <Input type="number" placeholder="電費 (選填)" value={electricity} onChange={e => setElectricity(e.target.value)} />
+                            <Input type="number" placeholder="清潔費 (選填)" value={cleaning} onChange={e => setCleaning(e.target.value)} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <Input type="number" placeholder="過路費 (選填)" value={toll} onChange={e => setToll(e.target.value)} />
+                            <Input type="number" placeholder="停車費 (選填)" value={parking} onChange={e => setParking(e.target.value)} />
+                        </div>
+                        
                         <div className="flex items-center justify-center text-[11px] text-[#a89689] bg-[#fdfaf7] rounded-xl border border-[#f2e7df] border-dashed py-2 mb-3">※交通油資請至「現貨支出」紀錄</div>
                         
                         <div className="grid grid-cols-2 gap-3 mb-4 mt-1">
@@ -752,6 +764,7 @@
                         <div className="flex gap-3">{editingId && <Button onClick={resetForm} className="flex-1 bg-[#f2e7df] !text-[#7a6453]">取消</Button>}<Button onClick={handleAddMarket} className={editingId ? 'flex-[2] bg-[#bc9f8b] text-white' : 'w-full bg-[#bc9f8b] text-white'}>{editingId ? '儲存修改' : '儲存紀錄'}</Button></div>
                     </Card>
 
+                    {/* 地點績效搜尋器 */}
                     <div className="mb-4 px-1">
                         <div className={`flex items-center bg-white border ${searchTerm ? 'border-[#bc9f8b] shadow-sm' : 'border-[#e0d6ce]'} rounded-xl px-3 h-[48px] transition-colors`}>
                             <Icon name="search" className={`mr-2 text-[20px] ${searchTerm ? 'text-[#bc9f8b]' : 'text-[#c4b5aa]'}`} />
@@ -776,7 +789,9 @@
                                 <Icon name="location_on" className="mr-1 text-[20px]" /> {parseInt(safeStr(selectedDay).split('-')[1]||0, 10)}/{parseInt(safeStr(selectedDay).split('-')[2]||0, 10)} 營業紀錄 
                                 <span className="ml-2 bg-[#f2e7df] text-[#7a6453] text-xs px-2.5 py-1 rounded-full font-bold">{filteredSales.length} 筆</span>
                             </div>
-                            {filteredSales.length === 0 ? <div className="bg-white rounded-2xl border border-dashed border-[#e0d6ce] text-center text-[#c4b5aa] text-sm py-8 mx-2 mt-4">這天沒有擺攤，是休息日喔 ☕</div> : filteredSales.map(m => {
+                            {filteredSales.length === 0 ? (
+                                <div className="bg-white rounded-2xl border border-dashed border-[#e0d6ce] text-center text-[#c4b5aa] text-sm py-8 mx-2 mt-4">這天沒有擺攤，是休息日喔 ☕</div>
+                            ) : filteredSales.map(m => {
                                 const dailyMisc = (Number(m.electricity) || 0) + (Number(m.cleaning) || 0) + (Number(m.toll) || 0) + (Number(m.parking) || 0);
                                 const operatingProfit = (Number(m.revenue)||0) - (Number(m.rent)||0) - dailyMisc; 
                                 return (
@@ -859,14 +874,18 @@
                                 return ( <button key={tKey} onClick={() => { setType(tKey); setQty(''); setIsArrived(true); }} className={`py-2 rounded-xl text-[12px] font-bold transition-all border ${type === tKey ? `${tConf.color} text-white border-transparent shadow-md` : 'bg-white border-[#f0e6e0] text-[#a89689]'}`}> {tConf.label.split(' ')[0]} </button> );
                             })}
                         </div>
+
                         <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
+                        
                         {type === 'financing' && (
                             <div className="flex items-center gap-3 mb-4">
                                 <button className={`flex-1 h-[48px] rounded-xl border text-[13px] transition-colors font-wawa font-bold flex items-center justify-center shadow-sm ${flowType === 'in' ? 'border-[#4caf50] bg-[#f0f9f0] text-[#4caf50]' : 'border-[#e0e0e0] bg-[#fdfdfd] text-[#9e9e9e]'}`} onClick={(e) => { e.preventDefault(); setFlowType('in'); }}>📥 借入週轉金 (現金+)</button>
                                 <button className={`flex-1 h-[48px] rounded-xl border text-[13px] transition-colors font-wawa font-bold flex items-center justify-center shadow-sm ${flowType === 'out' ? 'border-[#e57373] bg-[#fff2f2] text-[#e57373]' : 'border-[#e0e0e0] bg-[#fdfdfd] text-[#9e9e9e]'}`} onClick={(e) => { e.preventDefault(); setFlowType('out'); }}>📤 償還本金 (現金-)</button>
                             </div>
                         )}
+
                         <Input placeholder={typeConfig[type] ? typeConfig[type].placeholder : '名稱'} value={name} onChange={e => setName(e.target.value)} />
+                        
                         {type === 'wholesale' ? (
                             <React.Fragment>
                                 <div className="grid grid-cols-2 gap-3 mb-3"><Input type="number" placeholder="現貨支出總額" value={amount} onChange={e => setAmount(e.target.value)} /><Input type="number" placeholder="進貨總件數" value={qty} onChange={e => setQty(e.target.value)} /></div>
@@ -875,6 +894,7 @@
                         ) : (
                             <Input type="number" placeholder={type === 'financing' ? (flowType === 'in' ? '借入金額' : '償還金額') : "支出總金額"} value={amount} onChange={e => setAmount(e.target.value)} />
                         )}
+
                         {type === 'wholesale' && amount && qty && <div className="text-right text-xs text-[#e57373] font-bold mb-3 px-1">單筆平均進價：${(Number(amount) / Number(qty)).toFixed(1)} /件</div>}
                         <div className="flex gap-3">{editingId && <Button onClick={resetForm} className="flex-1 bg-[#f2e7df] !text-[#7a6453]">取消</Button>}<Button onClick={handleAddExpense} className={`${typeConfig[type] ? typeConfig[type].color : 'bg-gray-400'} hover:opacity-90 text-white ${editingId ? 'flex-[2]' : 'w-full'}`}>{editingId ? '儲存修改' : (type === 'financing' ? '儲存借還紀錄' : '儲存支出')}</Button></div>
                     </Card>
@@ -885,28 +905,41 @@
                             const mTot = currentMonthExpenses.filter(e=>e.type===c.k).reduce((s,e)=>s+(Number(e.amount)||0),0);
                             return (
                                 <div key={c.k} className="bg-white rounded-xl p-3 shadow-sm border border-[#f2e7df] text-center flex flex-col justify-between">
-                                    <div><div className="text-[11px] text-[#a89689] font-bold mb-1">歷史總{c.t}</div><div className={`text-lg font-black text-[#${c.l}]`}>${tot.toLocaleString()}</div>{c.k==='wholesale' && inTransitTotal > 0 && <div className="text-[9px] text-[#f57f17] font-bold mt-0.5">含在途未入庫 ${inTransitTotal.toLocaleString()}</div>}</div>
-                                    <div className="text-[10px] text-[#7a6453] font-bold mt-1.5 pt-1.5 border-t border-[#fdfaf7] bg-[#fdfaf7] rounded -mx-1 -mb-1 pb-1">本月: <span className={`text-[#${c.l}]`}>${mTot.toLocaleString()}</span></div>
+                                    <div>
+                                        <div className="text-[11px] text-[#a89689] font-bold mb-1">歷史總{c.t}</div>
+                                        <div className={`text-lg font-black text-[#${c.l}]`}>${tot.toLocaleString()}</div>
+                                        {c.k==='wholesale' && inTransitTotal > 0 && <div className="text-[9px] text-[#f57f17] font-bold mt-0.5">含在途未入庫 ${inTransitTotal.toLocaleString()}</div>}
+                                    </div>
+                                    <div className="text-[10px] text-[#7a6453] font-bold mt-1.5 pt-1.5 border-t border-[#fdfaf7] bg-[#fdfaf7] rounded -mx-1 -mb-1 pb-1">本月 ({parseInt(currentMonth.substring(5,7))}月): <span className={`text-[#${c.l}]`}>${mTot.toLocaleString()}</span></div>
                                 </div>
                             );
                         })}
                         <div className="bg-white rounded-xl p-3 shadow-sm border border-[#f2e7df] text-center flex flex-col justify-between bg-gray-50 border-gray-200">
-                            <div><div className="text-[11px] text-[#a89689] font-bold mb-1">歷史淨借入週轉金</div><div className={`text-lg font-black ${(expenses.filter(e=>e.type==='financing'&&e.flowType==='in').reduce((s,e)=>s+(Number(e.amount)||0),0) - expenses.filter(e=>e.type==='financing'&&e.flowType!=='in').reduce((s,e)=>s+(Number(e.amount)||0),0)) >= 0 ? 'text-[#4caf50]' : 'text-[#e57373]'}`}>${(expenses.filter(e=>e.type==='financing'&&e.flowType==='in').reduce((s,e)=>s+(Number(e.amount)||0),0) - expenses.filter(e=>e.type==='financing'&&e.flowType!=='in').reduce((s,e)=>s+(Number(e.amount)||0),0)).toLocaleString()}</div></div>
+                            <div>
+                                <div className="text-[11px] text-[#a89689] font-bold mb-1">歷史淨借入週轉金</div>
+                                <div className={`text-lg font-black ${(expenses.filter(e=>e.type==='financing'&&e.flowType==='in').reduce((s,e)=>s+(Number(e.amount)||0),0) - expenses.filter(e=>e.type==='financing'&&e.flowType!=='in').reduce((s,e)=>s+(Number(e.amount)||0),0)) >= 0 ? 'text-[#4caf50]' : 'text-[#e57373]'}`}>${(expenses.filter(e=>e.type==='financing'&&e.flowType==='in').reduce((s,e)=>s+(Number(e.amount)||0),0) - expenses.filter(e=>e.type==='financing'&&e.flowType!=='in').reduce((s,e)=>s+(Number(e.amount)||0),0)).toLocaleString()}</div>
+                            </div>
                             <div className="text-[10px] text-[#7a6453] font-bold mt-1.5 pt-1.5 border-t border-[#fdfaf7] bg-[#fdfaf7] rounded -mx-1 -mb-1 pb-1">(不計入損益計算)</div>
                         </div>
                     </div>
 
                     <div className="mt-8 mb-2 flex items-center text-[#7a6453] font-bold px-2 text-lg"><Icon name="folder_open" className="mr-1 text-[20px]" /> 支出明細分類庫</div>
-                    {expenses.length === 0 ? <div className="text-center text-[#c4b5aa] text-sm py-8 bg-white rounded-2xl border border-dashed border-[#e0d6ce] mt-4 mx-2">目前尚無支出紀錄</div> : (
+                    {expenses.length === 0 ? (
+                        <div className="text-center text-[#c4b5aa] text-sm py-8 bg-white rounded-2xl border border-dashed border-[#e0d6ce] mt-4 mx-2">目前尚無支出紀錄</div>
+                    ) : (
                         <div className="mt-4 space-y-3 px-1">
                             {Object.keys(typeConfig).map(tKey => {
-                                const items = groupedExpenses[tKey]; if (!items || items.length === 0) return null; const conf = typeConfig[tKey];
+                                const items = groupedExpenses[tKey];
+                                if (!items || items.length === 0) return null;
+                                const conf = typeConfig[tKey];
+                                
                                 return (
                                     <div key={tKey} className="bg-white rounded-xl shadow-sm border border-[#f2e7df] overflow-hidden">
                                         <button onClick={() => toggleType(tKey)} className={`w-full flex justify-between items-center p-3 ${conf.bgLight} ${conf.text} transition-colors`}>
                                             <div className="flex items-center font-bold text-sm tracking-wide"><Icon name={conf.icon} className="mr-2 text-[18px] opacity-80" />{conf.label} 紀錄</div>
                                             <div className="flex items-center"><span className={`text-[11px] bg-white ${conf.text} px-2 py-0.5 rounded-full mr-2 font-bold shadow-sm`}>{items.length} 筆</span><Icon name={expandedTypes[tKey] ? "expand_less" : "expand_more"} className="text-[20px] opacity-70" /></div>
                                         </button>
+                                        
                                         {expandedTypes[tKey] && (
                                             <div className="p-2 bg-[#fafafa] space-y-2 animate-expand border-t border-gray-100">
                                                 {items.map(e => {
@@ -943,7 +976,7 @@
         }
 
         // --- 4. 營運報表 ---
-        const ReportTab = ({ deliveries, marketSales, expenses, preorders, settings, setSettings, marketSoldStats, setMarketSoldStats }) => {
+        const ReportTab = ({ deliveries, marketSales, expenses, preorders, settings, setSettings, marketSoldStats, setMarketSoldStats, setDialog }) => {
             const [reportMonth, setReportMonth] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; });
             const [isCheckingInventory, setIsCheckingInventory] = useState(false);
             const [actualInv, setActualInv] = useState('');
@@ -961,9 +994,12 @@
             };
 
             const currentStartupCap = settings && settings.startupCapital !== undefined ? settings.startupCapital : 36284;
+
             const handleCapitalChange = () => {
                 const newCapital = window.prompt("請輸入您的「初期創業本金」(系統會自動幫您推算口袋現金！)：", currentStartupCap);
-                if (newCapital !== null && newCapital.trim() !== '' && !isNaN(Number(newCapital))) setSettings({ ...(settings || {}), startupCapital: Number(newCapital) });
+                if (newCapital !== null && newCapital.trim() !== '' && !isNaN(Number(newCapital))) {
+                    setSettings({ ...(settings || {}), startupCapital: Number(newCapital) });
+                }
             };
 
             // ---- 全期存摺 ----
@@ -980,7 +1016,7 @@
             const allTimeFinancingIn = expenses.filter(e => e.type === 'financing' && e.flowType === 'in').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const allTimeFinancingOut = expenses.filter(e => e.type === 'financing' && e.flowType !== 'in').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
 
-            // 代購金流計算 (依狀態自動結算：已到貨/已出貨算付成本，已出貨才算收客款)
+            // 代購金流 (已到貨/已出貨算付成本，已出貨算收客款)
             const allTimePreorderCost = preorders.filter(p => ['arrived', 'completed'].includes(p.status)).reduce((sum, p) => sum + (Number(p.wholesaleCost)||0), 0);
             const allTimePreorderRev = preorders.filter(p => p.status === 'completed').reduce((sum, p) => sum + (Number(p.revenue)||0), 0);
             const preorderUnpaidRev = preorders.filter(p => p.status !== 'completed').reduce((sum, p) => sum + (Number(p.revenue)||0), 0);
@@ -1014,6 +1050,7 @@
             const monthlyShippingProfit = storeShippingNetExp < 0 ? Math.abs(storeShippingNetExp) : 0; 
             const frontlineNetIncome = monthlyTotalRev - monthlyMarketExp + monthlyShippingProfit;
 
+            // 庫存成本
             const wholesaleToMonth = expenses.filter(e => e.type === 'wholesale' && safeStr(e.date).substring(0, 7) <= reportMonth && e.isArrived !== false);
             const accumulatedWholesaleCost = wholesaleToMonth.reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const accumulatedWholesaleQty = wholesaleToMonth.reduce((sum, e) => sum + (Number(e.qty)||0), 0);
@@ -1051,6 +1088,9 @@
             const monthlySalary = currentExpenses.filter(e => e.type === 'salary').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const monthlyOtherTotal = monthlySupplyExp + monthlyFixedExp + monthlyTrafficExp;
             const monthlyNetProfit = grossProfit - monthlyOtherTotal - monthlySalary;
+
+            const storeGifts = currentDeliveries.reduce((sum, d) => sum + (Number(d.giftCount) || 0), 0);
+            const marketGifts = currentMarket.reduce((sum, m) => sum + (Number(m.giftCount) || 0), 0);
 
             return (
                 <div className="animate-fade-in pb-20">
@@ -1090,8 +1130,8 @@
                                     <div className="flex justify-between"><span>└ 代購已收客款 (已出貨)</span><span className="text-[#4caf50]">+$ {allTimePreorderRev.toLocaleString()}</span></div>
                                     <div className="flex justify-between"><span>└ 代購已支批價 (已到/出貨)</span><span className="text-[#e57373]">-$ {allTimePreorderCost.toLocaleString()}</span></div>
                                     <div className="border-t border-[#c5cae9] my-1"></div>
-                                    <div className="flex justify-between"><span>└ 代購未收帳款 (未出貨)</span><span className="text-[#f57f17]">${preorderUnpaidRev.toLocaleString()}</span></div>
-                                    <div className="flex justify-between"><span>└ 代購未付帳款 (待/已叫貨)</span><span className="text-[#f57f17]">${preorderUnpaidCost.toLocaleString()}</span></div>
+                                    <div className="flex justify-between"><span>└ 代購待收帳款 (未出貨)</span><span className="text-[#f57f17]">${preorderUnpaidRev.toLocaleString()}</span></div>
+                                    <div className="flex justify-between"><span>└ 代購待付帳款 (待叫貨/已叫貨)</span><span className="text-[#f57f17]">${preorderUnpaidCost.toLocaleString()}</span></div>
                                 </div>
                             )}
 
@@ -1289,8 +1329,6 @@
                         {filteredList.map(p => {
                             const conf = getStatusConfig(p.status);
                             const profit = (Number(p.revenue)||0) - (Number(p.wholesaleCost)||0);
-                            
-                            // 自動化判定：已到貨/已出貨=已扣款；已出貨=已入帳
                             const isCostPaid = ['arrived', 'completed'].includes(p.status);
                             const isRevReceived = p.status === 'completed';
 
@@ -1298,7 +1336,7 @@
                                 <div key={p.id} className="bg-white rounded-xl p-4 shadow-sm border border-[#e8eaf6] relative">
                                     <div className="absolute top-4 right-4 flex gap-1">
                                         <button onClick={() => handleEditClick(p)} className="p-1.5 text-[#5c6bc0] bg-[#e8eaf6] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
-                                        <button onClick={() => setConfirmDialog({isOpen: true, id: p.id, collection: 'preorders', message: "確定刪除這筆代購紀錄嗎？"})} className="p-1.5 text-[#e57373] bg-[#fdf2f2] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
+                                        <button onClick={() => setConfirmDialog({isOpen: true, id: p.id, collection: 'preorders', message: "確定要刪除這筆代購紀錄嗎？"})} className="p-1.5 text-[#e57373] bg-[#fdf2f2] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
                                     </div>
                                     <div className="flex items-center gap-2 mb-2"><div className="font-bold text-[#3949ab] text-lg">{p.customerName}</div><div className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${conf.color}`}>{conf.text}</div></div>
                                     <div className="text-xs text-gray-400 mb-2">{p.date} 建立 {p.itemsCount > 1 ? `| 共 ${p.itemsCount} 件` : ''}</div>
@@ -1309,7 +1347,6 @@
                                         <div>實收售價: <span className="text-[#3949ab] font-bold">${p.revenue}</span>{isRevReceived ? <span className="text-[9px] bg-green-50 text-green-600 px-1 ml-1 rounded font-bold">已入帳</span> : <span className="text-[9px] bg-orange-50 text-orange-500 px-1 ml-1 rounded font-bold">待收</span>}</div>
                                     </div>
                                     <div className="text-right text-xs mt-1 font-bold text-[#4caf50]">單筆利潤: +${profit}</div>
-
                                     {conf.nextBtn && <button onClick={() => changeStatus(p.id, conf.nextStatus)} className={`w-full mt-3 py-2.5 rounded-xl font-bold flex justify-center items-center text-sm shadow-sm transition-colors ${conf.nextColor}`}>{conf.nextBtn} <Icon name="arrow_forward_ios" className="ml-1 text-[12px]" /></button>}
                                 </div>
                             )
@@ -1415,19 +1452,27 @@
                     <div className="flex flex-col h-screen custom-scrollbar text-[#5c4d43] max-w-lg mx-auto bg-[#fdfaf7] shadow-2xl relative">
                         <header className="bg-[#bc9f8b] text-white pt-6 pb-4 px-5 flex justify-between items-center shadow-md sticky top-0 z-10">
                             <div className="flex items-center text-2xl font-bold tracking-widest drop-shadow-sm">💰 200%森衣好</div>
-                            <button onClick={() => setShowSettings(true)} className="p-1.5 bg-white bg-opacity-20 rounded-full hover:bg-opacity-30 transition-colors"><Icon name="settings" className="text-[20px]" /></button>
+                            <button onClick={() => setShowSettings(true)} className="p-1.5 bg-white bg-opacity-20 rounded-full hover:bg-opacity-30 transition-colors">
+                                <Icon name="settings" className="text-[20px]" />
+                            </button>
                         </header>
                         
                         <main id="main-content" className="flex-1 overflow-y-auto p-4 relative custom-scrollbar">
                             {activeTab === 'store' && <StoreTab deliveries={deliveries} setDeliveries={setDeliveries} reservations={reservations} setReservations={setReservations} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'market' && <MarketTab marketSales={marketSales} setMarketSales={setMarketSales} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'expense' && <ExpenseTab expenses={expenses} setExpenses={setExpenses} setConfirmDialog={setConfirmDialog} />}
-                            {activeTab === 'report' && <ReportTab deliveries={deliveries} marketSales={marketSales} expenses={expenses} preorders={preorders} settings={settings} setSettings={setSettings} marketSoldStats={marketSoldStats} setMarketSoldStats={setMarketSoldStats} />}
+                            {activeTab === 'report' && <ReportTab deliveries={deliveries} marketSales={marketSales} expenses={expenses} preorders={preorders} settings={settings} setSettings={setSettings} marketSoldStats={marketSoldStats} setMarketSoldStats={setMarketSoldStats} setDialog={setConfirmDialog} />}
                             {activeTab === 'preorder' && <PreorderTab preorders={preorders} setPreorders={setPreorders} setConfirmDialog={setConfirmDialog} />}
                         </main>
 
                         <nav className="bg-white border-t border-[#f2e7df] flex justify-around pb-safe pt-2 fixed bottom-0 w-full max-w-lg z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] px-1">
-                            {[ { id: 'store', icon: 'inventory_2', label: '現貨超商' }, { id: 'market', icon: 'storefront', label: '現貨市場' }, { id: 'expense', icon: 'payments', label: '現貨支出' }, { id: 'report', icon: 'bar_chart', label: '營運報表' }, { id: 'preorder', icon: 'local_shipping', label: '代購', color: 'text-[#5c6bc0]' }].map(t => {
+                            {[ 
+                               { id: 'store', icon: 'inventory_2', label: '現貨超商' }, 
+                               { id: 'market', icon: 'storefront', label: '現貨市場' },
+                               { id: 'expense', icon: 'payments', label: '現貨支出' },
+                               { id: 'report', icon: 'bar_chart', label: '營運報表' },
+                               { id: 'preorder', icon: 'local_shipping', label: '代購', color: 'text-[#5c6bc0]' }
+                            ].map(t => {
                                 const isActive = activeTab === t.id;
                                 return (
                                     <button key={t.id} onClick={() => { setActiveTab(t.id); scrollToTop(); }} className={`flex flex-col items-center justify-center py-1 w-full transition-colors relative ${isActive ? (t.color||'text-[#bc9f8b]') : 'text-[#c4b5aa]'}`}>
@@ -1439,7 +1484,7 @@
                             })}
                         </nav>
                         <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
-                        <ConfirmModal isOpen={confirmDialog.isOpen} message={confirmDialog.message} onConfirm={executeDelete} onCancel={() => setConfirmDialog({isOpen: false, id: null, collection: '', message: ''})} />
+                        <ConfirmModal isOpen={confirmDialog.isOpen} message={confirmDialog.message || "確定要刪除這筆紀錄嗎？"} onConfirm={executeDelete} onCancel={() => setConfirmDialog({isOpen: false, id: null, collection: '', message: ''})} />
                     </div>
                 </ErrorBoundary>
             );
