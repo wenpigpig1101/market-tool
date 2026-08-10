@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>200%森衣好</title>
+    <title>200%森衣好 (整合版)</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -168,10 +168,10 @@
         const Icon = ({ name, className = "" }) => <span className={`material-symbols-outlined ${className}`}>{name}</span>;
         const Card = ({ children, className = "" }) => <div className={`bg-white rounded-2xl p-4 shadow-sm border border-[#f2e7df] mb-4 ${className}`}>{children}</div>;
         
-        const Input = ({ label, value, onChange, type = "text", placeholder, disabled }) => (
+        const Input = ({ label, value, onChange, type = "text", placeholder, disabled, list }) => (
             <div className="mb-3 w-full">
                 <div className={`flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 h-[48px] focus-within:border-[#bc9f8b] transition-colors ${disabled ? 'opacity-60 bg-[#f9f9f9]' : ''}`}>
-                    <input type={type} value={value} onChange={onChange} placeholder={placeholder || label} disabled={disabled}
+                    <input type={type} value={value} onChange={onChange} placeholder={placeholder || label} disabled={disabled} list={list}
                         className="bg-transparent w-full h-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
                 </div>
             </div>
@@ -183,7 +183,6 @@
             </button>
         );
 
-        // 穩定版刪除確認視窗
         const ConfirmModal = ({ isOpen, message, onConfirm, onCancel }) => {
             if (!isOpen) return null;
             return (
@@ -207,8 +206,8 @@
         };
 
         // --- 分頁 1：超商 & 留貨 (完美整合版) ---
-        const StoreTab = ({ deliveries, setDeliveries, reservations, setReservations, setConfirmDialog }) => {
-            const [formMode, setFormMode] = useState('delivery'); // 'delivery' 或 'reserve'
+        const StoreTab = ({ deliveries, setDeliveries, reservations, setReservations, setConfirmDialog, daigouOrders, daigouProducts }) => {
+            const [formMode, setFormMode] = useState('delivery'); 
             const [editingId, setEditingId] = useState(null);
             
             // 寄件表單 State
@@ -238,8 +237,39 @@
             const [tHasGift, setTHasGift] = useState(false);
             const [tGiftCount, setTGiftCount] = useState('');
 
-            // 月份展開 State (針對已寄出清單)
             const [expandedMonths, setExpandedMonths] = useState({});
+
+            // 🌟 【跨系統整合】整理代購系統的顧客名單與未結金額
+            const { uniqueCustomers, unpaidDaigou } = useMemo(() => {
+                const names = new Set();
+                const unpaid = {};
+
+                // 收集森衣好的客人
+                reservations.forEach(r => names.add(r.customerName));
+                deliveries.forEach(d => names.add(d.customerName));
+
+                // 收集代購系統的客人與未結算金額
+                daigouOrders.forEach(order => {
+                    if (order.customer) {
+                        names.add(order.customer);
+                        
+                        // status !== 'completed' 代表還沒結帳收款
+                        if (order.status !== 'completed') {
+                            const product = daigouProducts.find(p => p.id === order.productId);
+                            if (product) {
+                                if (!unpaid[order.customer]) unpaid[order.customer] = { total: 0, items: 0 };
+                                unpaid[order.customer].total += (product.price * order.quantity);
+                                unpaid[order.customer].items += order.quantity;
+                            }
+                        }
+                    }
+                });
+
+                return { 
+                    uniqueCustomers: Array.from(names).sort(),
+                    unpaidDaigou: unpaid
+                };
+            }, [reservations, deliveries, daigouOrders, daigouProducts]);
 
             const resetDeliveryForm = () => {
                 setEditingId(null); setDDate(new Date().toISOString().split('T')[0]);
@@ -272,11 +302,8 @@
             const handleAddReserve = () => {
                 if (!rCustomerName) return;
                 const recordData = { 
-                    date: rDate, 
-                    customerName: rCustomerName, 
-                    itemsCount: Number(rItemsCount) || 1, 
-                    revenue: Number(rRevenue) || 0, 
-                    note: rNote 
+                    date: rDate, customerName: rCustomerName, 
+                    itemsCount: Number(rItemsCount) || 1, revenue: Number(rRevenue) || 0, note: rNote 
                 };
                 
                 if (editingId && formMode === 'reserve') {
@@ -311,7 +338,6 @@
 
             const openTransferModal = (record) => {
                 setTransferRecord(record); setTDate(new Date().toISOString().split('T')[0]);
-                // 將留貨的預估金額與件數直接帶入
                 setTRevenue(record.revenue || ''); setTSoldQty(record.itemsCount); 
                 setTShippingExpense(''); setTShippingIncome(''); setTHasGift(false); setTGiftCount('');
             };
@@ -332,7 +358,6 @@
             const pending = deliveries.filter(d => d.status === 'pending');
             const shipped = deliveries.filter(d => d.status === 'shipped');
             
-            // 將已寄出的資料按月份分組
             const groupedShipped = useMemo(() => {
                 const groups = {};
                 shipped.forEach(d => {
@@ -342,21 +367,23 @@
                 });
                 return groups;
             }, [shipped]);
-            // 按月份排序 (新到舊)
             const sortedMonths = Object.keys(groupedShipped).sort((a, b) => b.localeCompare(a));
 
             const toggleMonth = (month) => {
                 setExpandedMonths(prev => ({ ...prev, [month]: !prev[month] }));
             };
             
-            // 計算未寄出總額與保留區總額
             const pendingAmount = pending.reduce((sum, d) => sum + (Number(d.revenue) || 0), 0);
             const reserveAmount = reservations.reduce((sum, r) => sum + (Number(r.revenue) || 0), 0);
 
             return (
                 <div className="animate-fade-in pb-20">
                     
-                    {/* 表單切換器 (只有在新增模式下顯示) */}
+                    {/* 🌟 建立全域顧客清單 Datalist 供自動完成使用 */}
+                    <datalist id="all-customers-list">
+                        {uniqueCustomers.map(name => <option key={name} value={name} />)}
+                    </datalist>
+
                     {!editingId && (
                         <div className="flex bg-[#fdfaf7] rounded-xl p-1.5 mb-4 border border-[#f2e7df] shadow-inner">
                             <button className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${formMode === 'delivery' ? 'bg-white shadow text-[#bc9f8b]' : 'text-[#c4b5aa]'}`} 
@@ -366,7 +393,6 @@
                         </div>
                     )}
 
-                    {/* 編輯模式標題 */}
                     {editingId && (
                         <div className={`flex items-center mb-4 font-bold text-lg ${formMode === 'reserve' ? 'text-[#1976d2]' : 'text-[#bc9f8b]'}`}>
                             <Icon name="edit" className="mr-2" />
@@ -378,13 +404,13 @@
                         {formMode === 'delivery' ? (
                             <React.Fragment>
                                 <Input type="date" value={dDate} onChange={e => setDDate(e.target.value)} />
-                                <Input placeholder="顧客姓名" value={dCustomerName} onChange={e => setDCustomerName(e.target.value)} />
+                                {/* 🌟 綁定 list 達成自動完成 */}
+                                <Input placeholder="顧客姓名 (點擊可選代購/歷史客人)" value={dCustomerName} onChange={e => setDCustomerName(e.target.value)} list="all-customers-list" />
                                 <div className="grid grid-cols-2 gap-3">
                                     <Input type="number" placeholder="商品售價(總額)" value={dRevenue} onChange={e => setDRevenue(e.target.value)} />
                                     <Input type="number" placeholder="售出服飾件數" value={dSoldQty} onChange={e => setDSoldQty(e.target.value)} />
                                 </div>
                                 
-                                {/* 運費快捷鍵 */}
                                 <div className="flex gap-2 mb-3 -mt-2 px-1 overflow-x-auto custom-scrollbar">
                                     <button type="button" onClick={() => {setDShippingExpense(38); setDShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">
                                         ⚡ 7-11本38收60
@@ -419,7 +445,8 @@
                         ) : (
                             <React.Fragment>
                                 <Input type="date" value={rDate} onChange={e => setRDate(e.target.value)} />
-                                <Input placeholder="訂購人姓名" value={rCustomerName} onChange={e => setRCustomerName(e.target.value)} />
+                                {/* 🌟 綁定 list 達成自動完成 */}
+                                <Input placeholder="訂購人姓名 (點擊可選代購/歷史客人)" value={rCustomerName} onChange={e => setRCustomerName(e.target.value)} list="all-customers-list" />
                                 <div className="grid grid-cols-2 gap-3">
                                     <Input type="number" placeholder="預估售價(總額)" value={rRevenue} onChange={e => setRRevenue(e.target.value)} />
                                     <Input type="number" placeholder="保留件數" value={rItemsCount} onChange={e => setRItemsCount(e.target.value)} />
@@ -433,7 +460,7 @@
                         )}
                     </Card>
 
-                    {/* 清單 1：現貨保留區 (留貨) 永遠顯示標題 */}
+                    {/* 清單 1：現貨保留區 (留貨) */}
                     <div className="mb-6 animate-fade-in">
                         <div className="flex items-center text-[#1976d2] font-bold px-2 text-lg mb-2">
                             <Icon name="diamond" className="mr-1 text-[20px]" /> 現貨保留區 
@@ -446,30 +473,62 @@
                             </div>
                         ) : (
                             <div className="space-y-2">
-                            {reservations.map(r => (
-                                <div key={r.id} className="bg-white rounded-xl p-3 shadow-sm border-l-4 border-[#64b5f6] relative mx-1 px-4">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div>
-                                            <div className="font-bold text-[#5c4d43] text-base">
-                                                {r.customerName} 
-                                                <span className="text-xs font-normal text-[#1976d2] ml-2 bg-[#e3f2fd] px-1.5 py-0.5 rounded">{r.itemsCount}件</span>
-                                                {Number(r.revenue) > 0 && <span className="text-xs font-bold text-[#1976d2] ml-1">${r.revenue}</span>}
+                            {reservations.map(r => {
+                                // 🌟 檢查這位客人有沒有代購未結
+                                const daigouInfo = unpaidDaigou[r.customerName];
+                                return (
+                                    <div key={r.id} className="bg-white rounded-xl p-3 shadow-sm border-l-4 border-[#64b5f6] relative mx-1 px-4">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div>
+                                                <div className="font-bold text-[#5c4d43] text-base flex flex-wrap items-center gap-1 mb-1">
+                                                    {r.customerName} 
+                                                    <span className="text-xs font-normal text-[#1976d2] bg-[#e3f2fd] px-1.5 py-0.5 rounded">{r.itemsCount}件</span>
+                                                    {Number(r.revenue) > 0 && <span className="text-xs font-bold text-[#1976d2] ml-1">${r.revenue}</span>}
+                                                </div>
+                                                
+                                                {/* 🌟 跨系統防漏接：顯示代購未結提示 */}
+                                                {daigouInfo && (
+                                                    <div className="inline-flex items-center bg-[#fff3e0] border border-[#ffe0b2] text-[#f57c00] text-[11px] px-2 py-0.5 rounded mb-1 font-bold">
+                                                        <Icon name="link" className="text-[12px] mr-0.5" /> 代購未結: ${daigouInfo.total.toLocaleString()} ({daigouInfo.items}件)
+                                                    </div>
+                                                )}
+
+                                                <div className="text-[11px] text-[#a89689]">{r.date}保留 {r.note && <span className="ml-1 text-[#7a6453]">({r.note})</span>}</div>
                                             </div>
-                                            <div className="text-[11px] text-[#a89689] mt-0.5">{r.date}保留 {r.note && <span className="ml-1 text-[#7a6453]">({r.note})</span>}</div>
+                                            <div className="flex gap-1 shrink-0 ml-2">
+                                                <button onClick={() => handleEditReserve(r)} className="p-1.5 text-[#64b5f6] bg-[#f5f9ff] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
+                                                <button onClick={() => setConfirmDialog({isOpen: true, id: r.id, collection: 'reservations'})} className="p-1.5 text-[#e57373] bg-[#fdf2f2] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
+                                            </div>
                                         </div>
-                                        <div className="flex gap-1 shrink-0">
-                                            <button onClick={() => handleEditReserve(r)} className="p-1.5 text-[#64b5f6] bg-[#f5f9ff] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
-                                            <button onClick={() => setConfirmDialog({isOpen: true, id: r.id, collection: 'reservations'})} className="p-1.5 text-[#e57373] bg-[#fdf2f2] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
-                                        </div>
+                                        <button onClick={() => openTransferModal(r)} className="w-full py-2 bg-[#e8f5e9] text-[#2e7d32] rounded-lg font-bold flex justify-center items-center text-sm shadow-sm transition-colors active:bg-[#c8e6c9]">
+                                            <Icon name="check_circle" className="mr-1 text-[16px]" /> 客人已結單，轉入準備寄件
+                                        </button>
                                     </div>
-                                    <button onClick={() => openTransferModal(r)} className="w-full py-2 bg-[#e8f5e9] text-[#2e7d32] rounded-lg font-bold flex justify-center items-center text-sm shadow-sm transition-colors active:bg-[#c8e6c9]">
-                                        <Icon name="check_circle" className="mr-1 text-[16px]" /> 客人已結單，轉入準備寄件
-                                    </button>
-                                </div>
-                            ))}
+                                );
+                            })}
                             </div>
                         )}
                     </div>
+
+                    {/* 🌟 跨系統：代購未結專區 (只顯示沒有留現貨、但有代購未結的客人，避免遺漏) */}
+                    {Object.keys(unpaidDaigou).filter(name => !reservations.some(r => r.customerName === name)).length > 0 && (
+                        <div className="mb-6 animate-fade-in border-t border-dashed border-[#e0d6ce] pt-4">
+                            <div className="flex items-center text-[#f57c00] font-bold px-2 text-sm mb-2">
+                                <Icon name="shopping_bag" className="mr-1 text-[16px]" /> 跨系統提醒：純代購待結帳客人
+                            </div>
+                            <div className="flex flex-wrap gap-2 px-1">
+                                {Object.keys(unpaidDaigou)
+                                    .filter(name => !reservations.some(r => r.customerName === name))
+                                    .map(name => (
+                                        <div key={name} className="bg-white border border-[#ffe0b2] rounded-lg px-3 py-1.5 shadow-sm">
+                                            <span className="font-bold text-[#5c4d43] text-sm">{name}</span>
+                                            <span className="text-[#f57c00] font-bold text-xs ml-2">${unpaidDaigou[name].total.toLocaleString()}</span>
+                                            <span className="text-[#a89689] text-[10px] ml-1">({unpaidDaigou[name].items}件)</span>
+                                        </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* 清單 2：未寄出 */}
                     <div className="mt-6 mb-2 flex items-center text-[#9b4949] font-bold px-2 text-lg">
@@ -491,7 +550,7 @@
                         </div>
                     ))}
 
-                    {/* 清單 3：已寄出 (手風琴按月分組，含當月總額) */}
+                    {/* 清單 3：已寄出 */}
                     <div className="mt-6 mb-2 flex items-center text-[#4caf50] font-bold px-2 text-lg">
                         <Icon name="check_box" className="mr-1 text-[20px]" /> 已寄出紀錄 
                         <span className="ml-2 bg-[#a5d6a7] text-white text-xs px-2 py-0.5 rounded-full">{shipped.length}筆</span>
@@ -561,7 +620,6 @@
                                     </div>
                                 </div>
                                 
-                                {/* 運費快捷鍵 (轉單 Modal 內) */}
                                 <div className="flex gap-2 mb-3 -mt-2 px-1 overflow-x-auto custom-scrollbar">
                                     <button type="button" onClick={() => {setTShippingExpense(38); setTShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">
                                         ⚡ 7-11本38收60
@@ -796,12 +854,10 @@
                         </div>
                         <Input type="date" value={date} onChange={e => { setDate(e.target.value); setSelectedDay(e.target.value); setViewMonthStr(safeStr(e.target.value).substring(0,7)); }} />
                         
-                        {/* 修改欄位順序：地點 | 位租 */}
                         <div className="grid grid-cols-2 gap-3">
                             <Input placeholder="地點" value={location} onChange={e => setLocation(e.target.value)} />
                             <Input type="number" placeholder="位租" value={rent} onChange={e => setRent(e.target.value)} />
                         </div>
-                        {/* 修改欄位順序：當日業績 | 售出件數 */}
                         <div className="grid grid-cols-2 gap-3">
                             <div className="mb-3 w-full">
                                 <div className="flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 h-[48px] focus-within:border-[#bc9f8b] transition-colors">
@@ -814,7 +870,6 @@
                                 </div>
                             </div>
                         </div>
-                        {/* 獨立備註列 */}
                         <Input placeholder="備註 (選填)" value={note} onChange={e => setNote(e.target.value)} />
                         
                         <div className="grid grid-cols-2 gap-3 mt-1">
@@ -866,7 +921,6 @@
                         </div>
                     </Card>
 
-                    {/* 地點績效搜尋器 */}
                     <div className="mb-4 px-1">
                         <div className={`flex items-center bg-white border ${searchTerm ? 'border-[#bc9f8b] shadow-sm' : 'border-[#e0d6ce]'} rounded-xl px-3 h-[48px] transition-colors`}>
                             <Icon name="search" className={`mr-2 text-[20px] ${searchTerm ? 'text-[#bc9f8b]' : 'text-[#c4b5aa]'}`} />
@@ -922,7 +976,7 @@
             );
         };
 
-        // --- 分頁 3：支出紀錄 (資料夾收折版) ---
+        // --- 分頁 3：支出紀錄 ---
         const ExpenseTab = ({ expenses, setExpenses, setConfirmDialog }) => {
             const [editingId, setEditingId] = useState(null);
             const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -933,7 +987,6 @@
             const [isArrived, setIsArrived] = useState(true);
             const [flowType, setFlowType] = useState('in');
             
-            // 支出分類展開狀態
             const [expandedTypes, setExpandedTypes] = useState({});
 
             const resetForm = () => {
@@ -1003,7 +1056,6 @@
                 financing: { label: '資金借還', color: 'bg-[#9e9e9e]', text: 'text-[#757575]', bgLight: 'bg-[#f5f5f5]', placeholder: '如: 借入週轉金 / 償還欠款', icon: 'swap_horiz' }
             };
 
-            // 將支出依據類型分組 (陣列本身已是最新到最舊)
             const groupedExpenses = useMemo(() => {
                 const groups = {};
                 expenses.forEach(e => {
@@ -1271,11 +1323,10 @@
                 }
             };
 
-            // ---- 1. 全期存摺加減法 ----
             const allTimeMarketRev = marketSales.reduce((sum, m) => sum + (Number(m.revenue)||0), 0);
             const allTimeStoreRev = deliveries.reduce((sum, d) => sum + (Number(d.revenue)||0), 0);
             const allTimeStoreShipIn = deliveries.reduce((sum, d) => sum + (Number(d.shippingIncome)||0), 0);
-            const allTimeRev = allTimeMarketRev + allTimeStoreRev + allTimeStoreShipIn; // 現貨總收
+            const allTimeRev = allTimeMarketRev + allTimeStoreRev + allTimeStoreShipIn; 
             
             const allTimeMarketRent = marketSales.reduce((sum, m) => sum + (Number(m.rent)||0), 0);
             const allTimeMarketMisc = marketSales.reduce((sum, m) => sum + (Number(m.electricity)||0) + (Number(m.cleaning)||0) + (Number(m.toll)||0) + (Number(m.parking)||0), 0);
@@ -1295,7 +1346,6 @@
             const allTimeFinancingIn = expenses.filter(e => e.type === 'financing' && e.flowType === 'in').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const allTimeFinancingOut = expenses.filter(e => e.type === 'financing' && e.flowType !== 'in').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
 
-            // 代購金流計算
             const allTimePreorderCost = preorders.filter(p => (p.isCostPaid !== undefined ? p.isCostPaid : p.status !== 'pending')).reduce((sum, p) => sum + (Number(p.wholesaleCost)||0), 0);
             const allTimePreorderRev = preorders.filter(p => (p.isPaid !== undefined ? p.isPaid : p.status === 'completed')).reduce((sum, p) => sum + (Number(p.revenue)||0), 0);
 
@@ -1307,13 +1357,11 @@
                 + allTimeFinancingIn - allTimeFinancingOut
                 - allTimePreorderCost + allTimePreorderRev;
 
-            // ---- 2. 計算本月瀑布流損益 ----
             const currentDeliveries = deliveries.filter(d => safeStr(d.date).startsWith(reportMonth) && d.status === 'shipped');
             const currentMarket = marketSales.filter(m => safeStr(m.date).startsWith(reportMonth));
             const currentExpenses = expenses.filter(e => safeStr(e.date).startsWith(reportMonth));
             const currentCompletedPreorders = preorders.filter(p => safeStr(p.date).startsWith(reportMonth) && p.status === 'completed');
 
-            // 代購當月損益
             const monthlyPreorderRev = currentCompletedPreorders.reduce((sum, p) => sum + (Number(p.revenue)||0), 0);
             const monthlyPreorderCost = currentCompletedPreorders.reduce((sum, p) => sum + (Number(p.wholesaleCost)||0), 0);
             const monthlyPreorderProfit = monthlyPreorderRev - monthlyPreorderCost;
@@ -1336,7 +1384,6 @@
             
             const frontlineNetIncome = monthlyTotalRev - monthlyMarketExp + monthlyShippingProfit;
 
-            // ---- 3. 庫存與進貨成本 (僅現貨) ----
             const wholesaleToMonth = expenses.filter(e => e.type === 'wholesale' && safeStr(e.date).substring(0, 7) <= reportMonth && e.isArrived !== false);
             const accumulatedWholesaleCost = wholesaleToMonth.reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const accumulatedWholesaleQty = wholesaleToMonth.reduce((sum, e) => sum + (Number(e.qty)||0), 0);
@@ -1371,7 +1418,7 @@
             const currentMonthTotalSoldQty = currentMonthStoreSold + currentMonthMarketDailySold + currentMonthAdj;
             
             const monthlyCOGS = Math.round(currentMonthTotalSoldQty * avgUnitCost);
-            const grossProfit = frontlineNetIncome - monthlyCOGS + monthlyPreorderProfit; // 加上代購利潤
+            const grossProfit = frontlineNetIncome - monthlyCOGS + monthlyPreorderProfit; 
 
             const monthlySupplyExp = currentExpenses.filter(e => e.type === 'supply').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const monthlyFixedExp = currentExpenses.filter(e => e.type === 'fixed').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
@@ -1393,7 +1440,6 @@
                         <button onClick={() => changeMonth(1)} className="p-2 text-[#a89689]"><Icon name="chevron_right" /></button>
                     </div>
 
-                    {/* 🎯 極簡口袋現金存摺 */}
                     <Card className="bg-[#fffde7] border-[#fff59d] mb-4 shadow-md">
                         <div className="flex justify-between items-start mb-2">
                             <div className="flex items-center text-[#f57f17] font-bold text-lg">
@@ -1411,7 +1457,6 @@
                             </div>
                         </div>
 
-                        {/* 直白存摺明細 */}
                         <div className="bg-white bg-opacity-60 rounded-xl p-3 text-sm text-[#7a6453] font-bold border border-[#fff59d]">
                             <div className="flex justify-between items-center text-[11px] text-[#c4b5aa] mb-2"><span>=== 資金流向明細 ===</span><span>(歷史總累計)</span></div>
                             
@@ -1420,7 +1465,6 @@
                                 <span>$ {currentStartupCap.toLocaleString()}</span>
                             </div>
                             
-                            {/* 資金週轉折疊 */}
                             <div className="flex justify-between items-center cursor-pointer mb-1.5" onClick={() => setExpAllFin(!expAllFin)}>
                                 <span className="flex items-center text-[#5c4d43]">
                                     <Icon name="swap_horiz" className="text-[16px] mr-1"/> 資金週轉 (借貸/還款)
@@ -1437,7 +1481,6 @@
                                 </div>
                             )}
 
-                            {/* 預購代購金流折疊 */}
                             <div className="flex justify-between items-center cursor-pointer mb-1.5 border-l-2 border-[#5c6bc0] pl-1.5" onClick={() => setExpAllPreorder(!expAllPreorder)}>
                                 <span className="flex items-center text-[#5c6bc0]">
                                     <Icon name="local_shipping" className="text-[16px] mr-1"/> 預購/代購資金
@@ -1457,7 +1500,6 @@
                                 </div>
                             )}
 
-                            {/* 賣衣總收折疊 */}
                             <div className="flex justify-between items-center cursor-pointer mb-1.5" onClick={() => setExpAllRev(!expAllRev)}>
                                 <span className="flex items-center text-[#4caf50]">
                                     <Icon name="add" className="text-[16px] mr-1"/> 現貨總收現金
@@ -1473,7 +1515,6 @@
                                 </div>
                             )}
 
-                            {/* 買衣服進貨折疊 */}
                             <div className="flex justify-between items-center text-[#e57373] cursor-pointer mb-1.5" onClick={() => setExpAllWhole(!expAllWhole)}>
                                 <span className="flex items-center"><Icon name="remove" className="text-[16px] mr-1"/> 現貨進貨花費<Icon name={expAllWhole ? "expand_less" : "expand_more"} className="text-[14px] ml-0.5 opacity-60"/></span>
                                 <span>-$ {allTimeWholesale.toLocaleString()}</span>
@@ -1485,7 +1526,6 @@
                                 </div>
                             )}
 
-                            {/* 包材水電折疊 */}
                             <div className="flex justify-between items-center text-[#e57373] cursor-pointer mb-1.5" onClick={() => setExpAllOther(!expAllOther)}>
                                 <span className="flex items-center"><Icon name="remove" className="text-[16px] mr-1"/> 公司後勤開銷<Icon name={expAllOther ? "expand_less" : "expand_more"} className="text-[14px] ml-0.5 opacity-60"/></span>
                                 <span>-$ {allTimeOtherExp.toLocaleString()}</span>
@@ -1499,7 +1539,6 @@
                                 </div>
                             )}
 
-                            {/* 擺攤租金折疊 */}
                             <div className="flex justify-between items-center text-[#e57373] cursor-pointer" onClick={() => setExpAllMarket(!expAllMarket)}>
                                 <span className="flex items-center"><Icon name="remove" className="text-[16px] mr-1"/> 擺攤租金與運費<Icon name={expAllMarket ? "expand_less" : "expand_more"} className="text-[14px] ml-0.5 opacity-60"/></span>
                                 <span>-$ {allTimeMarketExp.toLocaleString()}</span>
@@ -1514,7 +1553,6 @@
                         </div>
                     </Card>
 
-                    {/* 📊 瀑布流損益表 */}
                     <Card>
                         <div className="flex items-center font-bold text-[#7a6453] text-lg mb-4 pb-2 border-b border-[#f2e7df]">
                             <Icon name="request_quote" className="mr-2 text-[#e57373]" /> 本月損益表 <span className="text-xs text-[#a89689] font-normal ml-2">(真實賺賠)</span>
@@ -1558,7 +1596,6 @@
                                 </div>
                             )}
 
-                            {/* 第一階段結論 */}
                             <div className="bg-[#fdfaf7] p-2 rounded-lg flex justify-between text-base border border-[#f2e7df]">
                                 <span className="text-[#7a6453]">💰 現貨前端淨收</span><span className="text-[#bc9f8b]">${frontlineNetIncome.toLocaleString()}</span>
                             </div>
@@ -1575,7 +1612,6 @@
                                 ( 本月共銷出現貨 {currentMonthTotalSoldQty} 件 )
                             </div>
 
-                            {/* 代購利潤獨立區塊 */}
                             <div className="flex justify-between items-center text-[#5c6bc0] mt-3 pt-3 border-t border-dashed border-[#e8eaf6]">
                                 <span className="flex items-center">
                                     <Icon name="add" className="text-[14px] mr-1"/> 加：代購 / 預購淨利
@@ -1586,7 +1622,6 @@
                                 ( 總營收 ${monthlyPreorderRev} - 總批價 ${monthlyPreorderCost} )
                             </div>
 
-                            {/* 第二階段結論 */}
                             <div className="bg-[#e8f5e9] bg-opacity-40 p-2 rounded-lg flex justify-between text-base border border-[#c8e6c9] mt-2">
                                 <span className="text-[#4caf50]">💎 總營業毛利</span><span className="text-[#4caf50]">${grossProfit.toLocaleString()}</span>
                             </div>
@@ -1612,7 +1647,6 @@
 
                             <div className="border-t-2 border-[#bc9f8b] pt-3 mt-4"></div>
 
-                            {/* 最終淨利 */}
                             <div className="flex justify-between items-end mt-1">
                                 <span className="text-lg text-[#bc9f8b]">🏦 本月最終淨利</span>
                                 <span className={`text-3xl font-black ${monthlyNetProfit < 0 ? 'text-red-500' : 'text-[#bc9f8b]'}`}>
@@ -1626,7 +1660,6 @@
                         </div>
                     </Card>
 
-                    {/* 📦 庫存盤點模組 */}
                     <Card className="bg-white border-dashed border-2 border-[#c8e6c9] mb-4">
                         <div className="flex items-center text-[#4caf50] font-bold text-lg mb-3"><Icon name="inventory_2" className="mr-2" /> 現貨庫存與盤點</div>
                         <div className="flex items-center justify-between mb-3 text-sm">
@@ -1648,7 +1681,6 @@
                             </div>
                         </div>
 
-                        {/* 盤點區塊 */}
                         <div className="mt-2 pt-2 border-t border-[#f2e7df]">
                             {isCheckingInventory ? (
                                 <div className="animate-fade-in pt-2">
@@ -1799,7 +1831,6 @@
                         </div>
                     </Card>
 
-                    {/* 狀態過濾列 */}
                     <div className="flex overflow-x-auto gap-2 mb-4 custom-scrollbar px-1">
                         {filters.map(f => (
                             <button key={f.id} onClick={() => setActiveFilter(f.id)} className={`px-4 py-2 rounded-full whitespace-nowrap text-sm font-bold transition-colors shadow-sm ${activeFilter === f.id ? 'bg-[#3949ab] text-white' : 'bg-white text-[#7986cb] border border-[#c5cae9]'}`}>
@@ -1808,7 +1839,6 @@
                         ))}
                     </div>
 
-                    {/* 統計 Summary */}
                     <Card className="bg-[#f8f9fa] border-none mb-4 p-3 shadow-inner">
                         <div className="flex justify-between items-center text-sm font-bold">
                             <div className="text-[#5c6bc0]">合計 <span className="text-lg">{totalItems}</span> 件</div>
@@ -1855,7 +1885,6 @@
                                         單筆利潤: +${profit}
                                     </div>
 
-                                    {/* 獨立付款狀態追蹤器 */}
                                     <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
                                         <button onClick={() => toggleIsPaid(p)} className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm flex items-center justify-center ${isPaid ? 'bg-[#e8f5e9] text-[#2e7d32] border border-[#c8e6c9]' : 'bg-[#fff8e1] text-[#f57f17] border border-[#ffecb3]'}`}>
                                             {isPaid ? '💰 已收客款' : '⏳ 未收款'}
@@ -1879,7 +1908,6 @@
             );
         };
 
-        // --- 設定與備份 Modal ---
         const SettingsModal = ({ isOpen, onClose }) => {
             if (!isOpen) return null;
 
@@ -1958,7 +1986,6 @@
             );
         };
 
-        // --- 應用程式主體 ---
         const App = () => {
             const [activeTab, setActiveTab] = useState('store');
             const [showSettings, setShowSettings] = useState(false);
@@ -1971,6 +1998,10 @@
             const [settingsRaw, setSettingsRaw] = useLocalStorage('xq_settings', { monthlyGoal: 100000, startupCapital: 36284 });
             const [marketSoldStatsRaw, setMarketSoldStatsRaw] = useLocalStorage('xq_market_sold', {});
 
+            // 🌟 讀取《代購系統》的資料庫
+            const [daigouOrdersRaw] = useLocalStorage('daigou_orders_v1', []);
+            const [daigouProductsRaw] = useLocalStorage('daigou_products_v1', []);
+
             const deliveries = getSafeArr(deliveriesRaw);
             const marketSales = getSafeArr(marketSalesRaw);
             const expenses = getSafeArr(expensesRaw);
@@ -1978,6 +2009,9 @@
             const preorders = getSafeArr(preordersRaw);
             const settings = (typeof settingsRaw === 'object' && settingsRaw !== null && !Array.isArray(settingsRaw)) ? settingsRaw : { monthlyGoal: 100000, startupCapital: 36284 };
             const marketSoldStats = (typeof marketSoldStatsRaw === 'object' && marketSoldStatsRaw !== null && !Array.isArray(marketSoldStatsRaw)) ? marketSoldStatsRaw : {};
+            
+            const daigouOrders = getSafeArr(daigouOrdersRaw);
+            const daigouProducts = getSafeArr(daigouProductsRaw);
 
             const setDeliveries = (updater) => setDeliveriesRaw(prev => typeof updater === 'function' ? updater(getSafeArr(prev)) : updater);
             const setMarketSales = (updater) => setMarketSalesRaw(prev => typeof updater === 'function' ? updater(getSafeArr(prev)) : updater);
@@ -2012,14 +2046,13 @@
                         </header>
                         
                         <main id="main-content" className="flex-1 overflow-y-auto p-4 relative custom-scrollbar">
-                            {activeTab === 'store' && <StoreTab deliveries={deliveries} setDeliveries={setDeliveries} reservations={reservations} setReservations={setReservations} setConfirmDialog={setConfirmDialog} />}
+                            {activeTab === 'store' && <StoreTab deliveries={deliveries} setDeliveries={setDeliveries} reservations={reservations} setReservations={setReservations} setConfirmDialog={setConfirmDialog} daigouOrders={daigouOrders} daigouProducts={daigouProducts} />}
                             {activeTab === 'market' && <MarketTab marketSales={marketSales} setMarketSales={setMarketSales} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'expense' && <ExpenseTab expenses={expenses} setExpenses={setExpenses} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'report' && <ReportTab deliveries={deliveries} marketSales={marketSales} expenses={expenses} preorders={preorders} settings={settings} setSettings={setSettings} marketSoldStats={marketSoldStats} setMarketSoldStats={setMarketSoldStats} setDialog={setConfirmDialog} />}
                             {activeTab === 'preorder' && <PreorderTab preorders={preorders} setPreorders={setPreorders} setConfirmDialog={setConfirmDialog} />}
                         </main>
 
-                        {/* 回歸完美的 5 分頁底部導覽列 */}
                         <nav className="bg-white border-t border-[#f2e7df] flex justify-around pb-safe pt-2 fixed bottom-0 w-full max-w-lg z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] px-1">
                             {[ 
                                { id: 'store', icon: 'inventory_2', label: '現貨超商' }, 
@@ -2054,5 +2087,4 @@
     </script>
 </body>
 </html>
-
 
