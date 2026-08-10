@@ -183,6 +183,7 @@
             </button>
         );
 
+        // 穩定版刪除確認視窗
         const ConfirmModal = ({ isOpen, message, onConfirm, onCancel }) => {
             if (!isOpen) return null;
             return (
@@ -207,7 +208,7 @@
 
         // --- 分頁 1：超商 & 留貨 (完美整合版) ---
         const StoreTab = ({ deliveries, setDeliveries, reservations, setReservations, setConfirmDialog }) => {
-            const [formMode, setFormMode] = useState('delivery'); // 'delivery' 或 'reserve'
+            const [formMode, setFormMode] = useState('delivery'); 
             const [editingId, setEditingId] = useState(null);
             
             // 寄件表單 State
@@ -224,7 +225,7 @@
             const [rDate, setRDate] = useState(new Date().toISOString().split('T')[0]);
             const [rCustomerName, setRCustomerName] = useState('');
             const [rItemsCount, setRItemsCount] = useState('');
-            const [rRevenue, setRRevenue] = useState(''); // 新增：預估金額
+            const [rRevenue, setRRevenue] = useState(''); 
             const [rNote, setRNote] = useState('');
 
             // 轉單 Modal State
@@ -274,7 +275,7 @@
                     date: rDate, 
                     customerName: rCustomerName, 
                     itemsCount: Number(rItemsCount) || 1, 
-                    revenue: Number(rRevenue) || 0, // 儲存預估金額
+                    revenue: Number(rRevenue) || 0, 
                     note: rNote 
                 };
                 
@@ -310,7 +311,6 @@
 
             const openTransferModal = (record) => {
                 setTransferRecord(record); setTDate(new Date().toISOString().split('T')[0]);
-                // 將留貨的預估金額與件數直接帶入
                 setTRevenue(record.revenue || ''); setTSoldQty(record.itemsCount); 
                 setTShippingExpense(''); setTShippingIncome(''); setTHasGift(false); setTGiftCount('');
             };
@@ -331,7 +331,7 @@
             const pending = deliveries.filter(d => d.status === 'pending');
             const shipped = deliveries.filter(d => d.status === 'shipped');
             
-            // 將已寄出的資料按月份分組
+            // 按月份分組
             const groupedShipped = useMemo(() => {
                 const groups = {};
                 shipped.forEach(d => {
@@ -341,21 +341,18 @@
                 });
                 return groups;
             }, [shipped]);
-            // 按月份排序 (新到舊)
+            
             const sortedMonths = Object.keys(groupedShipped).sort((a, b) => b.localeCompare(a));
-
             const toggleMonth = (month) => {
                 setExpandedMonths(prev => ({ ...prev, [month]: !prev[month] }));
             };
             
-            // 計算未寄出總額與保留區總額
             const pendingAmount = pending.reduce((sum, d) => sum + (Number(d.revenue) || 0), 0);
             const reserveAmount = reservations.reduce((sum, r) => sum + (Number(r.revenue) || 0), 0);
 
             return (
                 <div className="animate-fade-in pb-20">
                     
-                    {/* 表單切換器 (只有在新增模式下顯示) */}
                     {!editingId && (
                         <div className="flex bg-[#fdfaf7] rounded-xl p-1.5 mb-4 border border-[#f2e7df] shadow-inner">
                             <button className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${formMode === 'delivery' ? 'bg-white shadow text-[#bc9f8b]' : 'text-[#c4b5aa]'}`} 
@@ -365,7 +362,6 @@
                         </div>
                     )}
 
-                    {/* 編輯模式標題 */}
                     {editingId && (
                         <div className={`flex items-center mb-4 font-bold text-lg ${formMode === 'reserve' ? 'text-[#1976d2]' : 'text-[#bc9f8b]'}`}>
                             <Icon name="edit" className="mr-2" />
@@ -432,7 +428,7 @@
                         )}
                     </Card>
 
-                    {/* 清單 1：現貨保留區 (留貨) 永遠顯示標題 */}
+                    {/* 現貨保留區 */}
                     <div className="mb-6 animate-fade-in">
                         <div className="flex items-center text-[#1976d2] font-bold px-2 text-lg mb-2">
                             <Icon name="diamond" className="mr-1 text-[20px]" /> 現貨保留區 
@@ -470,7 +466,7 @@
                         )}
                     </div>
 
-                    {/* 清單 2：未寄出 */}
+                    {/* 未寄出 */}
                     <div className="mt-6 mb-2 flex items-center text-[#9b4949] font-bold px-2 text-lg">
                         <Icon name="push_pin" className="mr-1 text-[20px]" /> 未寄出 
                         <span className="ml-2 bg-[#d6aba3] text-white text-xs px-2 py-0.5 rounded-full">{pending.length}筆</span>
@@ -490,7 +486,7 @@
                         </div>
                     ))}
 
-                    {/* 清單 3：已寄出 (手風琴按月分組，含當月總額) */}
+                    {/* 已寄出 (手風琴按月分組) */}
                     <div className="mt-6 mb-2 flex items-center text-[#4caf50] font-bold px-2 text-lg">
                         <Icon name="check_box" className="mr-1 text-[20px]" /> 已寄出紀錄 
                         <span className="ml-2 bg-[#a5d6a7] text-white text-xs px-2 py-0.5 rounded-full">{shipped.length}筆</span>
@@ -560,7 +556,7 @@
                                     </div>
                                 </div>
                                 
-                                {/* 運費快捷鍵 (轉單 Modal 內) */}
+                                {/* 運費快捷鍵 (轉單 Modal) */}
                                 <div className="flex gap-2 mb-3 -mt-2 px-1 overflow-x-auto custom-scrollbar">
                                     <button type="button" onClick={() => {setTShippingExpense(38); setTShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">
                                         ⚡ 7-11本38收60
@@ -926,7 +922,7 @@
             const [amount, setAmount] = useState('');
             const [qty, setQty] = useState(''); 
             const [isArrived, setIsArrived] = useState(true);
-            const [flowType, setFlowType] = useState('in'); // 針對資金借還：'in' (借入) 或 'out' (償還)
+            const [flowType, setFlowType] = useState('in');
 
             const resetForm = () => {
                 setEditingId(null); setDate(new Date().toISOString().split('T')[0]);
@@ -1216,7 +1212,7 @@
 
             const handleCapitalChange = () => {
                 const newCapital = window.prompt("請輸入您的「初期創業本金」(系統會自動幫您推算口袋現金！)：", currentStartupCap);
-                if (newCapital !== null && !isNaN(Number(newCapital))) {
+                if (newCapital !== null && newCapital.trim() !== '' && !isNaN(Number(newCapital))) {
                     setSettings({ ...(settings || {}), startupCapital: Number(newCapital) });
                 }
             };
@@ -1246,8 +1242,8 @@
             const allTimeFinancingOut = expenses.filter(e => e.type === 'financing' && e.flowType !== 'in').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
 
             // 代購金流計算
-            const allTimePreorderCost = preorders.filter(p => p.status !== 'pending').reduce((sum, p) => sum + (Number(p.wholesaleCost)||0), 0);
-            const allTimePreorderRev = preorders.filter(p => p.status === 'completed').reduce((sum, p) => sum + (Number(p.revenue)||0), 0);
+            const allTimePreorderCost = preorders.filter(p => (p.isCostPaid !== undefined ? p.isCostPaid : p.status !== 'pending')).reduce((sum, p) => sum + (Number(p.wholesaleCost)||0), 0);
+            const allTimePreorderRev = preorders.filter(p => (p.isPaid !== undefined ? p.isPaid : p.status === 'completed')).reduce((sum, p) => sum + (Number(p.revenue)||0), 0);
 
             const pocketCash = currentStartupCap 
                 + allTimeRev - allTimeMarketExp - allTimeWholesale - allTimeOtherExp 
@@ -1331,6 +1327,11 @@
             const viewParts = safeStr(reportMonth).split('-');
             const storeGifts = currentDeliveries.reduce((sum, d) => sum + (Number(d.giftCount) || 0), 0);
             const marketGifts = currentMarket.reduce((sum, m) => sum + (Number(m.giftCount) || 0), 0);
+            
+            // 應收應付帳款 (代購)
+            const preorderUnpaidRev = preorders.filter(p => !(p.isPaid !== undefined ? p.isPaid : p.status === 'completed')).reduce((sum, p) => sum + (Number(p.revenue)||0), 0);
+            const preorderUnpaidCost = preorders.filter(p => !(p.isCostPaid !== undefined ? p.isCostPaid : p.status !== 'pending')).reduce((sum, p) => sum + (Number(p.wholesaleCost)||0), 0);
+
 
             return (
                 <div className="animate-fade-in pb-20">
@@ -1396,8 +1397,11 @@
                             </div>
                             {expAllPreorder && (
                                 <div className="pl-6 pr-2 py-1 mb-2 space-y-1 bg-[#f5f6fa] rounded text-[11px] text-[#7986cb] animate-expand">
-                                    <div className="flex justify-between"><span>└ 代購總收回營收 (已出貨)</span><span className="text-[#4caf50]">+$ {allTimePreorderRev.toLocaleString()}</span></div>
-                                    <div className="flex justify-between"><span>└ 代購總支出批價 (已叫貨含以上)</span><span className="text-[#e57373]">-$ {allTimePreorderCost.toLocaleString()}</span></div>
+                                    <div className="flex justify-between"><span>└ 實際收回客款 (已收款)</span><span className="text-[#4caf50]">+$ {allTimePreorderRev.toLocaleString()}</span></div>
+                                    <div className="flex justify-between"><span>└ 實際支出批價 (已付款)</span><span className="text-[#e57373]">-$ {allTimePreorderCost.toLocaleString()}</span></div>
+                                    <div className="border-t border-[#c5cae9] my-1"></div>
+                                    <div className="flex justify-between"><span>└ 代購待收帳款 (未收款)</span><span className="text-[#f57f17]">${preorderUnpaidRev.toLocaleString()}</span></div>
+                                    <div className="flex justify-between"><span>└ 代購待付帳款 (未付批價)</span><span className="text-[#f57f17]">${preorderUnpaidCost.toLocaleString()}</span></div>
                                 </div>
                             )}
 
@@ -1649,7 +1653,9 @@
                     wholesaleCost: Number(wholesaleCost) || 0,
                     revenue: Number(revenue) || 0,
                     note, 
-                    status: editingId ? (preorders.find(p => p.id === editingId)?.status || 'pending') : 'pending'
+                    status: editingId ? (preorders.find(p => p.id === editingId)?.status || 'pending') : 'pending',
+                    isPaid: editingId ? preorders.find(p => p.id === editingId)?.isPaid : false,
+                    isCostPaid: editingId ? preorders.find(p => p.id === editingId)?.isCostPaid : false
                 };
                 
                 if (editingId) {
@@ -1672,6 +1678,19 @@
 
             const changeStatus = (id, newStatus) => {
                 setPreorders(prev => prev.map(p => p.id === id ? { ...p, status: newStatus } : p));
+            };
+
+            const getIsPaid = (p) => p.isPaid !== undefined ? p.isPaid : p.status === 'completed';
+            const getIsCostPaid = (p) => p.isCostPaid !== undefined ? p.isCostPaid : p.status !== 'pending';
+
+            const toggleIsPaid = (p) => {
+                const current = getIsPaid(p);
+                setPreorders(prev => prev.map(item => item.id === p.id ? { ...item, isPaid: !current } : item));
+            };
+
+            const toggleIsCostPaid = (p) => {
+                const current = getIsCostPaid(p);
+                setPreorders(prev => prev.map(item => item.id === p.id ? { ...item, isCostPaid: !current } : item));
             };
 
             const filteredList = preorders.filter(p => activeFilter === 'all' || p.status === activeFilter);
@@ -1713,8 +1732,8 @@
                         </div>
                         
                         <div className="grid grid-cols-2 gap-3">
-                            <Input type="number" placeholder="總批價(成本)" value={wholesaleCost} onChange={e => setWholesaleCost(e.target.value)} />
-                            <Input type="number" placeholder="總售價(實收)" value={revenue} onChange={e => setRevenue(e.target.value)} />
+                            <Input type="number" placeholder="單筆總批價(成本)" value={wholesaleCost} onChange={e => setWholesaleCost(e.target.value)} />
+                            <Input type="number" placeholder="單筆總售價(實收)" value={revenue} onChange={e => setRevenue(e.target.value)} />
                         </div>
                         <Input placeholder="備註(款式、顏色、尺寸)" value={note} onChange={e => setNote(e.target.value)} />
                         
@@ -1753,11 +1772,18 @@
                         {filteredList.map(p => {
                             const conf = getStatusConfig(p.status);
                             const profit = (Number(p.revenue)||0) - (Number(p.wholesaleCost)||0);
+                            const isPaid = getIsPaid(p);
+                            const isCostPaid = getIsCostPaid(p);
+
                             return (
                                 <div key={p.id} className="bg-white rounded-xl p-4 shadow-sm border border-[#e8eaf6] relative">
                                     <div className="absolute top-4 right-4 flex gap-1">
                                         <button onClick={() => handleEditClick(p)} className="p-1.5 text-[#5c6bc0] bg-[#e8eaf6] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
-                                        <button onClick={() => setConfirmDialog({isOpen: true, id: p.id, collection: 'preorders'})} className="p-1.5 text-[#e57373] bg-[#fdf2f2] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
+                                        <button onClick={() => setConfirmDialog({
+                                            isOpen: true, title: "刪除確認", message: "確定要刪除這筆代購紀錄嗎？", 
+                                            onConfirm: () => { setPreorders(prev => prev.filter(x => x.id !== p.id)); setConfirmDialog({isOpen: false}); },
+                                            onCancel: () => setConfirmDialog({isOpen: false}), isDanger: true
+                                        })} className="p-1.5 text-[#e57373] bg-[#fdf2f2] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
                                     </div>
                                     
                                     <div className="flex items-center gap-2 mb-2">
@@ -1777,8 +1803,18 @@
                                         單筆利潤: +${profit}
                                     </div>
 
+                                    {/* 獨立付款狀態追蹤器 */}
+                                    <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+                                        <button onClick={() => toggleIsPaid(p)} className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm flex items-center justify-center ${isPaid ? 'bg-[#e8f5e9] text-[#2e7d32] border border-[#c8e6c9]' : 'bg-[#fff8e1] text-[#f57f17] border border-[#ffecb3]'}`}>
+                                            {isPaid ? '💰 已收客款' : '⏳ 未收款'}
+                                        </button>
+                                        <button onClick={() => toggleIsCostPaid(p)} className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm flex items-center justify-center ${isCostPaid ? 'bg-[#e8f5e9] text-[#2e7d32] border border-[#c8e6c9]' : 'bg-[#ffebee] text-[#c62828] border border-[#ffcdd2]'}`}>
+                                            {isCostPaid ? '💸 已付批價' : '⏳ 未付批價'}
+                                        </button>
+                                    </div>
+
                                     {conf.nextBtn && (
-                                        <button onClick={() => changeStatus(p.id, conf.nextStatus)} className={`w-full mt-4 py-2.5 rounded-xl font-bold flex justify-center items-center text-sm shadow-sm transition-colors ${conf.nextColor}`}>
+                                        <button onClick={() => changeStatus(p.id, conf.nextStatus)} className={`w-full mt-3 py-2.5 rounded-xl font-bold flex justify-center items-center text-sm shadow-sm transition-colors ${conf.nextColor}`}>
                                             {conf.nextBtn} <Icon name="arrow_forward_ios" className="ml-1 text-[12px]" />
                                         </button>
                                     )}
