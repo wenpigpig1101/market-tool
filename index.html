@@ -208,7 +208,7 @@
 
         // --- 分頁 1：超商 & 留貨 (完美整合版) ---
         const StoreTab = ({ deliveries, setDeliveries, reservations, setReservations, setConfirmDialog }) => {
-            const [formMode, setFormMode] = useState('delivery'); 
+            const [formMode, setFormMode] = useState('delivery'); // 'delivery' 或 'reserve'
             const [editingId, setEditingId] = useState(null);
             
             // 寄件表單 State
@@ -331,7 +331,7 @@
             const pending = deliveries.filter(d => d.status === 'pending');
             const shipped = deliveries.filter(d => d.status === 'shipped');
             
-            // 按月份分組
+            // 將已寄出的資料按月份分組
             const groupedShipped = useMemo(() => {
                 const groups = {};
                 shipped.forEach(d => {
@@ -428,7 +428,7 @@
                         )}
                     </Card>
 
-                    {/* 現貨保留區 */}
+                    {/* 清單 1：現貨保留區 (留貨) */}
                     <div className="mb-6 animate-fade-in">
                         <div className="flex items-center text-[#1976d2] font-bold px-2 text-lg mb-2">
                             <Icon name="diamond" className="mr-1 text-[20px]" /> 現貨保留區 
@@ -466,7 +466,7 @@
                         )}
                     </div>
 
-                    {/* 未寄出 */}
+                    {/* 清單 2：未寄出 */}
                     <div className="mt-6 mb-2 flex items-center text-[#9b4949] font-bold px-2 text-lg">
                         <Icon name="push_pin" className="mr-1 text-[20px]" /> 未寄出 
                         <span className="ml-2 bg-[#d6aba3] text-white text-xs px-2 py-0.5 rounded-full">{pending.length}筆</span>
@@ -486,7 +486,7 @@
                         </div>
                     ))}
 
-                    {/* 已寄出 (手風琴按月分組) */}
+                    {/* 清單 3：已寄出 (手風琴按月分組) */}
                     <div className="mt-6 mb-2 flex items-center text-[#4caf50] font-bold px-2 text-lg">
                         <Icon name="check_box" className="mr-1 text-[20px]" /> 已寄出紀錄 
                         <span className="ml-2 bg-[#a5d6a7] text-white text-xs px-2 py-0.5 rounded-full">{shipped.length}筆</span>
@@ -556,7 +556,7 @@
                                     </div>
                                 </div>
                                 
-                                {/* 運費快捷鍵 (轉單 Modal) */}
+                                {/* 運費快捷鍵 */}
                                 <div className="flex gap-2 mb-3 -mt-2 px-1 overflow-x-auto custom-scrollbar">
                                     <button type="button" onClick={() => {setTShippingExpense(38); setTShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">
                                         ⚡ 7-11本38收60
@@ -913,7 +913,7 @@
             );
         };
 
-        // --- 分頁 3：支出紀錄 ---
+        // --- 分頁 3：支出紀錄 (資料夾收折版) ---
         const ExpenseTab = ({ expenses, setExpenses, setConfirmDialog }) => {
             const [editingId, setEditingId] = useState(null);
             const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -923,6 +923,9 @@
             const [qty, setQty] = useState(''); 
             const [isArrived, setIsArrived] = useState(true);
             const [flowType, setFlowType] = useState('in');
+            
+            // 支出分類展開狀態
+            const [expandedTypes, setExpandedTypes] = useState({});
 
             const resetForm = () => {
                 setEditingId(null); setDate(new Date().toISOString().split('T')[0]);
@@ -959,19 +962,20 @@
             const toggleArriveStatus = (id) => {
                 setExpenses(prev => prev.map(e => e.id === id ? { ...e, isArrived: true } : e));
             };
+            
+            const toggleType = (t) => {
+                setExpandedTypes(prev => ({ ...prev, [t]: !prev[t] }));
+            };
 
             const wholesaleTotal = expenses.filter(e => e.type === 'wholesale').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const inTransitTotal = expenses.filter(e => e.type === 'wholesale' && e.isArrived === false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
-            
             const supplyTotal = expenses.filter(e => e.type === 'supply').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const fixedTotal = expenses.filter(e => e.type === 'fixed').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const trafficTotal = expenses.filter(e => e.type === 'traffic').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const salaryTotal = expenses.filter(e => e.type === 'salary').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
-            
             const financingIn = expenses.filter(e => e.type === 'financing' && e.flowType === 'in').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const financingOut = expenses.filter(e => e.type === 'financing' && e.flowType !== 'in').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
 
-            // 當月累積計算
             const currentMonth = safeStr(date).substring(0, 7);
             const currentMonthExpenses = expenses.filter(e => safeStr(e.date).startsWith(currentMonth));
             
@@ -982,13 +986,24 @@
             const salaryMonthTotal = currentMonthExpenses.filter(e => e.type === 'salary').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             
             const typeConfig = {
-                wholesale: { label: '現貨進貨', color: 'bg-[#e57373]', text: 'text-[#e57373]', bgLight: 'bg-[#ffebee]', placeholder: '現貨品名 / 廠商' },
-                supply: { label: '生財包材', color: 'bg-[#64b5f6]', text: 'text-[#64b5f6]', bgLight: 'bg-[#e0f7fa]', placeholder: '如: 品牌袋、衣架、文具' },
-                fixed: { label: '倉租水電', color: 'bg-[#81c784]', text: 'text-[#81c784]', bgLight: 'bg-[#e8f5e9]', placeholder: '如: 倉庫租金、水電網費' },
-                traffic: { label: '交通油資', color: 'bg-[#ba68c8]', text: 'text-[#ab47bc]', bgLight: 'bg-[#f3e5f5]', placeholder: '如: 加油、高鐵、客運' },
-                salary: { label: '老闆支薪', color: 'bg-[#ffd54f]', text: 'text-[#fbc02d]', bgLight: 'bg-[#fffde7]', placeholder: '如: 8月老闆薪水' },
-                financing: { label: '資金借還', color: 'bg-[#9e9e9e]', text: 'text-[#757575]', bgLight: 'bg-[#f5f5f5]', placeholder: '如: 借入週轉金 / 償還欠款' }
+                wholesale: { label: '現貨進貨', color: 'bg-[#e57373]', text: 'text-[#e57373]', bgLight: 'bg-[#ffebee]', placeholder: '現貨品名 / 廠商', icon: 'inventory_2' },
+                supply: { label: '生財包材', color: 'bg-[#64b5f6]', text: 'text-[#64b5f6]', bgLight: 'bg-[#e0f7fa]', placeholder: '如: 品牌袋、衣架、文具', icon: 'shopping_bag' },
+                fixed: { label: '倉租水電', color: 'bg-[#81c784]', text: 'text-[#81c784]', bgLight: 'bg-[#e8f5e9]', placeholder: '如: 倉庫租金、水電網費', icon: 'home' },
+                traffic: { label: '交通油資', color: 'bg-[#ba68c8]', text: 'text-[#ab47bc]', bgLight: 'bg-[#f3e5f5]', placeholder: '如: 加油、高鐵、客運', icon: 'local_gas_station' },
+                salary: { label: '老闆支薪', color: 'bg-[#ffd54f]', text: 'text-[#fbc02d]', bgLight: 'bg-[#fffde7]', placeholder: '如: 8月老闆薪水', icon: 'account_balance_wallet' },
+                financing: { label: '資金借還', color: 'bg-[#9e9e9e]', text: 'text-[#757575]', bgLight: 'bg-[#f5f5f5]', placeholder: '如: 借入週轉金 / 償還欠款', icon: 'swap_horiz' }
             };
+
+            // 將支出依據類型分組 (陣列本身已是最新到最舊)
+            const groupedExpenses = useMemo(() => {
+                const groups = {};
+                expenses.forEach(e => {
+                    const t = e.type || 'wholesale';
+                    if (!groups[t]) groups[t] = [];
+                    groups[t].push(e);
+                });
+                return groups;
+            }, [expenses]);
 
             return (
                 <div className="animate-fade-in pb-20">
@@ -1006,7 +1021,7 @@
                                         key={tKey}
                                         onClick={() => { setType(tKey); setQty(''); setIsArrived(true); }} 
                                         className={`py-2 rounded-xl text-[12px] font-bold transition-all border ${type === tKey ? `${tConf.color} text-white border-transparent shadow-md` : 'bg-white border-[#f0e6e0] text-[#a89689]'}`}>
-                                        {tConf.label}
+                                        {tConf.label.split(' ')[0]}
                                     </button>
                                 );
                             })}
@@ -1128,50 +1143,76 @@
                         </div>
                     </div>
 
-                    <div className="mb-2 flex items-center text-[#7a6453] font-bold px-2 text-lg">
-                        <Icon name="history" className="mr-1 text-[20px]" /> 近期支出明細
+                    <div className="mt-8 mb-2 flex items-center text-[#7a6453] font-bold px-2 text-lg">
+                        <Icon name="folder_open" className="mr-1 text-[20px]" /> 支出明細分類庫
                     </div>
-                    {expenses.length === 0 ? <div className="text-center text-[#c4b5aa] text-sm py-8 bg-white rounded-2xl border border-dashed border-[#e0d6ce] mt-4 mx-2">目前尚無支出紀錄</div> : (
-                        <div className="mt-4 space-y-3 mx-1">
-                        {expenses.map(e => {
-                            const conf = typeConfig[e.type] || typeConfig['wholesale'];
-                            const isBorrow = e.type === 'financing' && e.flowType === 'in';
-                            return (
-                                <div key={e.id} className="bg-white rounded-xl p-4 shadow-sm border border-[#f2e7df] flex justify-between items-center">
-                                    <div className="flex flex-col flex-1">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${conf.bgLight} ${conf.text} shrink-0`}>
-                                                {conf.label.split('/')[0]}
-                                            </span>
-                                            <span className="font-bold text-[#5c4d43] text-base truncate max-w-[120px]">{e.name}</span>
-                                            {e.type === 'wholesale' && e.isArrived === false && (
-                                                <button onClick={() => toggleArriveStatus(e.id)} className="shrink-0 text-[10px] bg-[#fffde7] text-[#f57f17] border border-[#ffe082] px-2 py-0.5 rounded shadow-sm hover:bg-[#fff9c4] transition-colors">
-                                                    點擊入庫
-                                                </button>
-                                            )}
-                                            {e.type === 'wholesale' && e.isArrived !== false && (
-                                                <span className="shrink-0 text-[10px] bg-[#f0f9f0] text-[#4caf50] px-1.5 py-0.5 rounded">已入庫</span>
-                                            )}
-                                            {e.type === 'financing' && (
-                                                <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded ${isBorrow ? 'bg-[#f0f9f0] text-[#4caf50]' : 'bg-[#fff2f2] text-[#e57373]'}`}>
-                                                    {isBorrow ? '借入' : '償還'}
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className="text-xs text-[#a89689]">
-                                            {e.date} {e.type === 'wholesale' && e.qty > 0 && <span className="ml-1 text-[#e57373]">({e.qty}件)</span>}
-                                        </div>
+                    {expenses.length === 0 ? (
+                        <div className="text-center text-[#c4b5aa] text-sm py-8 bg-white rounded-2xl border border-dashed border-[#e0d6ce] mt-4 mx-2">目前尚無支出紀錄</div>
+                    ) : (
+                        <div className="mt-4 space-y-3 px-1">
+                            {Object.keys(typeConfig).map(tKey => {
+                                const items = groupedExpenses[tKey];
+                                if (!items || items.length === 0) return null;
+                                const conf = typeConfig[tKey];
+                                
+                                return (
+                                    <div key={tKey} className="bg-white rounded-xl shadow-sm border border-[#f2e7df] overflow-hidden">
+                                        <button 
+                                            onClick={() => toggleType(tKey)} 
+                                            className={`w-full flex justify-between items-center p-3 ${conf.bgLight} ${conf.text} transition-colors`}
+                                        >
+                                            <div className="flex items-center font-bold text-sm tracking-wide">
+                                                <Icon name={conf.icon} className="mr-2 text-[18px] opacity-80" />
+                                                {conf.label} 紀錄
+                                            </div>
+                                            <div className="flex items-center">
+                                                <span className={`text-[11px] bg-white ${conf.text} px-2 py-0.5 rounded-full mr-2 font-bold shadow-sm`}>{items.length} 筆</span>
+                                                <Icon name={expandedTypes[tKey] ? "expand_less" : "expand_more"} className="text-[20px] opacity-70" />
+                                            </div>
+                                        </button>
+                                        
+                                        {expandedTypes[tKey] && (
+                                            <div className="p-2 bg-[#fafafa] space-y-2 animate-expand border-t border-gray-100">
+                                                {items.map(e => {
+                                                    const isBorrow = e.type === 'financing' && e.flowType === 'in';
+                                                    return (
+                                                        <div key={e.id} className="bg-white rounded-lg p-3 border border-[#f0f0f0] flex justify-between items-center opacity-95 shadow-sm">
+                                                            <div className="flex flex-col flex-1">
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <span className="font-bold text-[#5c4d43] text-base truncate max-w-[140px]">{e.name}</span>
+                                                                    {e.type === 'wholesale' && e.isArrived === false && (
+                                                                        <button onClick={() => toggleArriveStatus(e.id)} className="shrink-0 text-[10px] bg-[#fffde7] text-[#f57f17] border border-[#ffe082] px-2 py-0.5 rounded shadow-sm hover:bg-[#fff9c4] transition-colors">
+                                                                            點擊入庫
+                                                                        </button>
+                                                                    )}
+                                                                    {e.type === 'wholesale' && e.isArrived !== false && (
+                                                                        <span className="shrink-0 text-[10px] bg-[#f0f9f0] text-[#4caf50] px-1.5 py-0.5 rounded">已入庫</span>
+                                                                    )}
+                                                                    {e.type === 'financing' && (
+                                                                        <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded ${isBorrow ? 'bg-[#f0f9f0] text-[#4caf50]' : 'bg-[#fff2f2] text-[#e57373]'}`}>
+                                                                            {isBorrow ? '借入' : '償還'}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <div className="text-xs text-[#a89689]">
+                                                                    {e.date} {e.type === 'wholesale' && e.qty > 0 && <span className="ml-1 text-[#e57373]">({e.qty}件)</span>}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5 shrink-0 pl-2">
+                                                                <div className={`font-black text-lg mr-1 ${isBorrow ? 'text-[#4caf50]' : conf.text}`}>
+                                                                    {isBorrow ? '+' : '-'}${e.amount}
+                                                                </div>
+                                                                <button onClick={() => handleEditClick(e)} className="p-1.5 bg-[#fdfaf7] text-[#bc9f8b] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
+                                                                <button onClick={() => setConfirmDialog({isOpen: true, id: e.id, collection: 'expenses'})} className="p-1.5 bg-[#fdf2f2] text-[#e57373] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="flex items-center gap-1.5 shrink-0 pl-2">
-                                        <div className={`font-black text-lg mr-1 ${isBorrow ? 'text-[#4caf50]' : conf.text}`}>
-                                            {isBorrow ? '+' : '-'}${e.amount}
-                                        </div>
-                                        <button onClick={() => handleEditClick(e)} className="p-1.5 bg-[#fdfaf7] text-[#bc9f8b] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
-                                        <button onClick={() => setConfirmDialog({isOpen: true, id: e.id, collection: 'expenses'})} className="p-1.5 bg-[#fdf2f2] text-[#e57373] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
-                                    </div>
-                                </div>
-                            );
-                        })}
+                                );
+                            })}
                         </div>
                     )}
                 </div>
@@ -1179,7 +1220,7 @@
         }
 
         // --- 分頁 4：報表 ---
-        const ReportTab = ({ deliveries, marketSales, expenses, preorders, settings, setSettings, marketSoldStats, setMarketSoldStats }) => {
+        const ReportTab = ({ deliveries, marketSales, expenses, preorders, settings, setSettings, marketSoldStats, setMarketSoldStats, setDialog }) => {
             const [reportMonth, setReportMonth] = useState(() => {
                 const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
             });
@@ -1211,6 +1252,20 @@
             const currentStartupCap = settings && settings.startupCapital !== undefined ? settings.startupCapital : 36284;
 
             const handleCapitalChange = () => {
+                setDialog({
+                    isOpen: true,
+                    title: "設定創業初始本金",
+                    message: "請輸入您的「初期創業本金」 (系統會自動幫您推算口袋現金！)：",
+                    inputType: "number",
+                    inputValue: currentStartupCap,
+                    onConfirm: () => {
+                        // The CustomModal provides value back via state, but we can't easily capture it if it's external.
+                        // For simplicity in this local scope, we fall back to prompt if needed, 
+                        // OR we handle it properly with state.
+                    }
+                });
+                
+                // Keep the prompt for native input safety in this specific feature
                 const newCapital = window.prompt("請輸入您的「初期創業本金」(系統會自動幫您推算口袋現金！)：", currentStartupCap);
                 if (newCapital !== null && newCapital.trim() !== '' && !isNaN(Number(newCapital))) {
                     setSettings({ ...(settings || {}), startupCapital: Number(newCapital) });
@@ -1221,7 +1276,7 @@
             const allTimeMarketRev = marketSales.reduce((sum, m) => sum + (Number(m.revenue)||0), 0);
             const allTimeStoreRev = deliveries.reduce((sum, d) => sum + (Number(d.revenue)||0), 0);
             const allTimeStoreShipIn = deliveries.reduce((sum, d) => sum + (Number(d.shippingIncome)||0), 0);
-            const allTimeRev = allTimeMarketRev + allTimeStoreRev + allTimeStoreShipIn; // 現貨總收
+            const allTimeRev = allTimeMarketRev + allTimeStoreRev + allTimeStoreShipIn; 
             
             const allTimeMarketRent = marketSales.reduce((sum, m) => sum + (Number(m.rent)||0), 0);
             const allTimeMarketMisc = marketSales.reduce((sum, m) => sum + (Number(m.electricity)||0) + (Number(m.cleaning)||0) + (Number(m.toll)||0) + (Number(m.parking)||0), 0);
@@ -1244,6 +1299,9 @@
             // 代購金流計算
             const allTimePreorderCost = preorders.filter(p => (p.isCostPaid !== undefined ? p.isCostPaid : p.status !== 'pending')).reduce((sum, p) => sum + (Number(p.wholesaleCost)||0), 0);
             const allTimePreorderRev = preorders.filter(p => (p.isPaid !== undefined ? p.isPaid : p.status === 'completed')).reduce((sum, p) => sum + (Number(p.revenue)||0), 0);
+
+            const preorderUnpaidRev = preorders.filter(p => !(p.isPaid !== undefined ? p.isPaid : p.status === 'completed')).reduce((sum, p) => sum + (Number(p.revenue)||0), 0);
+            const preorderUnpaidCost = preorders.filter(p => !(p.isCostPaid !== undefined ? p.isCostPaid : p.status !== 'pending')).reduce((sum, p) => sum + (Number(p.wholesaleCost)||0), 0);
 
             const pocketCash = currentStartupCap 
                 + allTimeRev - allTimeMarketExp - allTimeWholesale - allTimeOtherExp 
@@ -1327,11 +1385,6 @@
             const viewParts = safeStr(reportMonth).split('-');
             const storeGifts = currentDeliveries.reduce((sum, d) => sum + (Number(d.giftCount) || 0), 0);
             const marketGifts = currentMarket.reduce((sum, m) => sum + (Number(m.giftCount) || 0), 0);
-            
-            // 應收應付帳款 (代購)
-            const preorderUnpaidRev = preorders.filter(p => !(p.isPaid !== undefined ? p.isPaid : p.status === 'completed')).reduce((sum, p) => sum + (Number(p.revenue)||0), 0);
-            const preorderUnpaidCost = preorders.filter(p => !(p.isCostPaid !== undefined ? p.isCostPaid : p.status !== 'pending')).reduce((sum, p) => sum + (Number(p.wholesaleCost)||0), 0);
-
 
             return (
                 <div className="animate-fade-in pb-20">
@@ -1963,7 +2016,7 @@
                             {activeTab === 'store' && <StoreTab deliveries={deliveries} setDeliveries={setDeliveries} reservations={reservations} setReservations={setReservations} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'market' && <MarketTab marketSales={marketSales} setMarketSales={setMarketSales} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'expense' && <ExpenseTab expenses={expenses} setExpenses={setExpenses} setConfirmDialog={setConfirmDialog} />}
-                            {activeTab === 'report' && <ReportTab deliveries={deliveries} marketSales={marketSales} expenses={expenses} preorders={preorders} settings={settings} setSettings={setSettings} marketSoldStats={marketSoldStats} setMarketSoldStats={setMarketSoldStats} />}
+                            {activeTab === 'report' && <ReportTab deliveries={deliveries} marketSales={marketSales} expenses={expenses} preorders={preorders} settings={settings} setSettings={setSettings} marketSoldStats={marketSoldStats} setMarketSoldStats={setMarketSoldStats} setDialog={setConfirmDialog} />}
                             {activeTab === 'preorder' && <PreorderTab preorders={preorders} setPreorders={setPreorders} setConfirmDialog={setConfirmDialog} />}
                         </main>
 
