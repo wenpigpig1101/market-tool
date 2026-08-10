@@ -186,7 +186,7 @@
         const ConfirmModal = ({ isOpen, message, onConfirm, onCancel }) => {
             if (!isOpen) return null;
             return (
-                <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 animate-fade-in px-4">
+                <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-[100] animate-fade-in px-4">
                     <div className="bg-white rounded-2xl p-6 w-full max-w-xs shadow-xl">
                         <div className="text-center text-[#5c4d43] font-bold mb-6 text-lg">{message}</div>
                         <div className="flex gap-3">
@@ -545,7 +545,7 @@
 
                     {/* 轉單專用 Modal */}
                     {transferRecord && (
-                        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 animate-fade-in px-4">
+                        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-[80] animate-fade-in px-4">
                             <div className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-xl max-h-[90vh] overflow-y-auto custom-scrollbar">
                                 <div className="text-center text-[#5c4d43] font-bold mb-4 text-lg border-b border-[#f2e7df] pb-3">
                                     <Icon name="local_shipping" className="align-middle mr-1 text-[#4caf50]"/> 留貨確認轉寄件：{transferRecord.customerName}
@@ -610,7 +610,7 @@
             const [note, setNote] = useState('');
             const [electricity, setElectricity] = useState('');
             const [cleaning, setCleaning] = useState('');
-            const [gas, setGas] = useState(''); // 這個欄位在 UI 隱藏，但保留 state 以防萬一
+            const [gas, setGas] = useState(''); 
             const [toll, setToll] = useState('');
             const [parking, setParking] = useState('');
             const [hasGift, setHasGift] = useState(false);
@@ -661,7 +661,7 @@
                     rent: Number(rent) || 0, note,
                     electricity: Number(electricity) || 0, cleaning: Number(cleaning) || 0,
                     toll: Number(toll) || 0, parking: Number(parking) || 0,
-                    gas: 0, // 確保未來新增的紀錄 gas 都是 0
+                    gas: 0, 
                     hasGift, giftCount: hasGift ? (Number(giftCount) || 0) : 0,
                     accessories: { necklace: Number(acc.necklace) || 0, hat: Number(acc.hat) || 0, bag: Number(acc.bag) || 0, other: Number(acc.other) || 0 }
                 };
@@ -1216,7 +1216,9 @@
 
             const handleCapitalChange = () => {
                 const newCapital = window.prompt("請輸入您的「初期創業本金」(系統會自動幫您推算口袋現金！)：", currentStartupCap);
-                if (newCapital && !isNaN(newCapital)) setSettings({ ...(settings || {}), startupCapital: Number(newCapital) });
+                if (newCapital !== null && !isNaN(Number(newCapital))) {
+                    setSettings({ ...(settings || {}), startupCapital: Number(newCapital) });
+                }
             };
 
             // ---- 1. 全期存摺加減法 ----
@@ -1789,7 +1791,7 @@
             );
         };
 
-        // --- 設定與備份 Modal ---
+        // --- 設定與備份 Modal (安全穩定版) ---
         const SettingsModal = ({ isOpen, onClose }) => {
             if (!isOpen) return null;
 
@@ -1807,7 +1809,7 @@
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `200森衣好_資料備份_${new Date().toISOString().split('T')[0]}.json`;
+                a.download = `森衣好_資料備份_${new Date().toISOString().split('T')[0]}.json`;
                 a.click();
                 URL.revokeObjectURL(url);
             };
@@ -1837,26 +1839,26 @@
 
             return (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in px-4">
-                    <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl relative">
-                        <button onClick={onClose} className="absolute top-4 right-4 text-[#a89689] p-1 bg-[#fdfaf7] rounded-full"><Icon name="close" /></button>
+                    <div className="bg-[#fdfaf7] rounded-3xl p-6 w-full max-w-sm shadow-2xl relative">
+                        <button onClick={onClose} className="absolute top-4 right-4 text-[#a89689] p-1 bg-white rounded-full shadow-sm"><Icon name="close" /></button>
                         
                         <div className="text-center text-[#5c4d43] font-bold mb-6 text-xl flex flex-col items-center">
-                            <div className="bg-[#fdfaf7] p-3 rounded-full mb-2"><Icon name="settings" className="text-[28px] text-[#bc9f8b]" /></div>
+                            <div className="bg-white p-3 rounded-full mb-2 shadow-sm border border-[#f2e7df]"><Icon name="save" className="text-[28px] text-[#bc9f8b]" /></div>
                             系統設定與資料備份
                         </div>
 
                         <div className="space-y-4">
-                            <div className="bg-[#e8f5e9] p-4 rounded-xl border border-[#c8e6c9]">
+                            <div className="bg-white p-4 rounded-xl border border-[#c8e6c9] shadow-sm">
                                 <div className="font-bold text-[#2e7d32] mb-1 flex items-center"><Icon name="download" className="mr-1 text-[18px]"/> 匯出備份 (下載)</div>
-                                <div className="text-xs text-[#4caf50] mb-3 leading-relaxed">請定期備份您的資料，下載檔案後妥善保存，以防更換手機或網址遺失。</div>
+                                <div className="text-xs text-[#4caf50] mb-3 leading-relaxed">下載備份檔，您可透過 LINE 傳送給合夥人，達成安全的離線資料共享。</div>
                                 <button onClick={handleExport} className="w-full py-3 bg-[#4caf50] text-white font-bold rounded-lg shadow-sm active:bg-[#388e3c] transition-colors">
                                     下載備份檔 (.json)
                                 </button>
                             </div>
 
-                            <div className="bg-[#fff3e0] p-4 rounded-xl border border-[#ffe0b2]">
-                                <div className="font-bold text-[#ef6c00] mb-1 flex items-center"><Icon name="upload" className="mr-1 text-[18px]"/> 匯入備份 (復原)</div>
-                                <div className="text-xs text-[#ff9800] mb-3 leading-relaxed">選擇您之前下載的備份檔 (.json)。<br/><strong className="text-red-500">注意：匯入將會完全覆蓋目前的資料！</strong></div>
+                            <div className="bg-white p-4 rounded-xl border border-[#ffe0b2] shadow-sm">
+                                <div className="font-bold text-[#ef6c00] mb-1 flex items-center"><Icon name="upload" className="mr-1 text-[18px]"/> 匯入備份 (還原)</div>
+                                <div className="text-xs text-[#ff9800] mb-3 leading-relaxed">選擇您或合夥人下載的備份檔 (.json)。<br/><strong className="text-red-500">注意：匯入將會完全覆蓋目前的資料！</strong></div>
                                 <label className="w-full py-3 bg-[#ff9800] text-white font-bold rounded-lg shadow-sm flex justify-center items-center cursor-pointer active:bg-[#f57c00] transition-colors">
                                     選擇檔案並匯入
                                     <input type="file" accept=".json" className="hidden" onChange={handleImport} />
