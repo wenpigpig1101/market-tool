@@ -186,10 +186,11 @@
             return validNum.toString();
         };
 
-        // --- 分頁 1：超商 & 留貨 (完美整合版) ---
-        const StoreTab = ({ deliveries, setDeliveries, reservations, setReservations, setConfirmDialog }) => {
+        // --- 分頁 1：超商 & 留貨 & 新增預購 ---
+        const StoreTab = ({ deliveries, setDeliveries, reservations, setReservations, preorders, setPreorders, setConfirmDialog }) => {
             const [formMode, setFormMode] = useState('delivery'); 
             const [editingId, setEditingId] = useState(null);
+            const [showSuccess, setShowSuccess] = useState(false);
             
             // 寄件表單 State
             const [dDate, setDDate] = useState(new Date().toISOString().split('T')[0]);
@@ -208,6 +209,14 @@
             const [rRevenue, setRRevenue] = useState(''); 
             const [rNote, setRNote] = useState('');
 
+            // 預購單表單 State (捷徑用)
+            const [pDate, setPDate] = useState(new Date().toISOString().split('T')[0]);
+            const [pCustomerName, setPCustomerName] = useState('');
+            const [pItemsCount, setPItemsCount] = useState('');
+            const [pWholesaleCost, setPWholesaleCost] = useState('');
+            const [pRevenue, setPRevenue] = useState('');
+            const [pNote, setPNote] = useState('');
+
             // 轉單 Modal State
             const [transferRecord, setTransferRecord] = useState(null);
             const [tDate, setTDate] = useState('');
@@ -221,13 +230,18 @@
             const [expandedMonths, setExpandedMonths] = useState({});
 
             const resetDeliveryForm = () => {
-                setEditingId(null); setDDate(new Date().toISOString().split('T')[0]);
+                setEditingId(null); setDDate(new Date().toISOString().split('T')[0]); setShowSuccess(false);
                 setDCustomerName(''); setDRevenue(''); setDSoldQty(''); setDShippingExpense(''); setDShippingIncome(''); setDGiftCount(''); setDHasGift(false);
             };
 
             const resetReserveForm = () => {
-                setEditingId(null); setRDate(new Date().toISOString().split('T')[0]);
+                setEditingId(null); setRDate(new Date().toISOString().split('T')[0]); setShowSuccess(false);
                 setRCustomerName(''); setRItemsCount(''); setRRevenue(''); setRNote('');
+            };
+
+            const resetPreorderForm = () => {
+                setEditingId(null); setPDate(new Date().toISOString().split('T')[0]); setShowSuccess(false);
+                setPCustomerName(''); setPItemsCount(''); setPWholesaleCost(''); setPRevenue(''); setPNote('');
             };
 
             const handleAddDelivery = () => {
@@ -267,8 +281,28 @@
                 resetReserveForm();
             };
 
+            const handleAddPreorder = () => {
+                if (!pCustomerName || !pWholesaleCost || !pRevenue) return;
+                const recordData = { 
+                    date: pDate, 
+                    customerName: pCustomerName, 
+                    itemsCount: Number(pItemsCount) || 1, 
+                    wholesaleCost: Number(pWholesaleCost) || 0, 
+                    revenue: Number(pRevenue) || 0, 
+                    note: pNote, 
+                    status: 'pending' 
+                };
+                const newRecord = { id: Date.now().toString(), ...recordData };
+                setPreorders(prev => [newRecord, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
+                resetPreorderForm();
+                
+                // 顯示成功提示
+                setShowSuccess(true);
+                setTimeout(() => setShowSuccess(false), 3000);
+            };
+
             const handleEditDelivery = (record) => {
-                setFormMode('delivery'); setEditingId(record.id);
+                setFormMode('delivery'); setEditingId(record.id); setShowSuccess(false);
                 setDDate(record.date); setDCustomerName(record.customerName); 
                 setDRevenue(record.revenue || ''); setDSoldQty(record.soldQty || '');
                 setDShippingExpense(record.shippingExpense || ''); setDShippingIncome(record.shippingIncome || '');
@@ -277,7 +311,7 @@
             };
 
             const handleEditReserve = (record) => {
-                setFormMode('reserve'); setEditingId(record.id);
+                setFormMode('reserve'); setEditingId(record.id); setShowSuccess(false);
                 setRDate(record.date); setRCustomerName(record.customerName);
                 setRItemsCount(record.itemsCount); setRRevenue(record.revenue || ''); setRNote(record.note || '');
                 scrollToTop();
@@ -330,11 +364,13 @@
                 <div className="animate-fade-in pb-20">
                     
                     {!editingId && (
-                        <div className="flex bg-[#fdfaf7] rounded-xl p-1.5 mb-4 border border-[#f2e7df] shadow-inner">
-                            <button className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${formMode === 'delivery' ? 'bg-white shadow text-[#bc9f8b]' : 'text-[#c4b5aa]'}`} 
-                                    onClick={() => { setFormMode('delivery'); resetDeliveryForm(); }}>📦 新增超商寄件</button>
-                            <button className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${formMode === 'reserve' ? 'bg-[#e3f2fd] shadow-sm text-[#1976d2]' : 'text-[#c4b5aa]'}`} 
-                                    onClick={() => { setFormMode('reserve'); resetReserveForm(); }}>💎 新增現貨保留</button>
+                        <div className="flex gap-1 bg-[#fdfaf7] rounded-xl p-1.5 mb-4 border border-[#f2e7df] shadow-inner">
+                            <button className={`flex-1 py-2 text-[13px] font-bold rounded-lg transition-all ${formMode === 'delivery' ? 'bg-white shadow text-[#bc9f8b]' : 'text-[#c4b5aa]'}`} 
+                                    onClick={() => { setFormMode('delivery'); resetDeliveryForm(); }}>📦 超商寄件</button>
+                            <button className={`flex-1 py-2 text-[13px] font-bold rounded-lg transition-all ${formMode === 'reserve' ? 'bg-[#e3f2fd] shadow-sm text-[#1976d2]' : 'text-[#c4b5aa]'}`} 
+                                    onClick={() => { setFormMode('reserve'); resetReserveForm(); }}>💎 現貨保留</button>
+                            <button className={`flex-1 py-2 text-[13px] font-bold rounded-lg transition-all ${formMode === 'preorder' ? 'bg-[#e8eaf6] shadow-sm text-[#5c6bc0]' : 'text-[#c4b5aa]'}`} 
+                                    onClick={() => { setFormMode('preorder'); resetPreorderForm(); }}>🛒 預購建單</button>
                         </div>
                     )}
 
@@ -345,7 +381,7 @@
                         </div>
                     )}
 
-                    <Card className={editingId ? (formMode === 'reserve' ? 'border-2 border-[#64b5f6]' : 'border-2 border-[#bc9f8b]') : ''}>
+                    <Card className={editingId ? (formMode === 'reserve' ? 'border-2 border-[#64b5f6]' : 'border-2 border-[#bc9f8b]') : (formMode === 'preorder' ? 'border-2 border-[#5c6bc0]' : '')}>
                         {formMode === 'delivery' ? (
                             <React.Fragment>
                                 <Input type="date" value={dDate} onChange={e => setDDate(e.target.value)} />
@@ -387,7 +423,7 @@
                                     <Button onClick={handleAddDelivery} className={editingId ? 'flex-[2] bg-[#bc9f8b] text-white' : 'w-full bg-[#bc9f8b] text-white'}>{editingId ? '儲存修改' : '建立超商寄件'}</Button>
                                 </div>
                             </React.Fragment>
-                        ) : (
+                        ) : formMode === 'reserve' ? (
                             <React.Fragment>
                                 <Input type="date" value={rDate} onChange={e => setRDate(e.target.value)} />
                                 <Input placeholder="訂購人姓名" value={rCustomerName} onChange={e => setRCustomerName(e.target.value)} />
@@ -399,6 +435,24 @@
                                 <div className="flex gap-3">
                                     {editingId && <Button onClick={resetReserveForm} className="flex-1 bg-[#e3f2fd] !text-[#1976d2]">取消</Button>}
                                     <Button onClick={handleAddReserve} className={editingId ? 'flex-[2] bg-[#64b5f6] text-white' : 'w-full bg-[#64b5f6] text-white'}>{editingId ? '儲存修改' : '加入現貨保留清單'}</Button>
+                                </div>
+                            </React.Fragment>
+                        ) : (
+                            <React.Fragment>
+                                <div className="flex items-center mb-3 text-[#5c6bc0] font-bold"><Icon name="add_shopping_cart" className="mr-2" /> 快速建立預購單 (捷徑)</div>
+                                <Input type="date" value={pDate} onChange={e => setPDate(e.target.value)} />
+                                <div className="grid grid-cols-2 gap-3">
+                                    <Input placeholder="客人姓名或暱稱" value={pCustomerName} onChange={e => setPCustomerName(e.target.value)} />
+                                    <Input type="number" placeholder="商品件數" value={pItemsCount} onChange={e => setPItemsCount(e.target.value)} />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <Input type="number" placeholder="單筆總批價(成本)" value={pWholesaleCost} onChange={e => setPWholesaleCost(e.target.value)} />
+                                    <Input type="number" placeholder="單筆總售價(實收)" value={pRevenue} onChange={e => setPRevenue(e.target.value)} />
+                                </div>
+                                <Input placeholder="備註(款式、顏色、尺寸)" value={pNote} onChange={e => setPNote(e.target.value)} />
+                                <div className="flex flex-col gap-2">
+                                    <Button onClick={handleAddPreorder} className="w-full bg-[#5c6bc0] text-white">建立單筆預購 (代購)</Button>
+                                    {showSuccess && <div className="text-center text-sm font-bold text-[#4caf50] mt-1 animate-fade-in">✅ 建立成功！請至下方「代購」分頁查看</div>}
                                 </div>
                             </React.Fragment>
                         )}
@@ -1458,7 +1512,7 @@
                         </header>
                         
                         <main id="main-content" className="flex-1 overflow-y-auto p-4 relative custom-scrollbar">
-                            {activeTab === 'store' && <StoreTab deliveries={deliveries} setDeliveries={setDeliveries} reservations={reservations} setReservations={setReservations} setConfirmDialog={setConfirmDialog} />}
+                            {activeTab === 'store' && <StoreTab deliveries={deliveries} setDeliveries={setDeliveries} reservations={reservations} setReservations={setReservations} preorders={preorders} setPreorders={setPreorders} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'market' && <MarketTab marketSales={marketSales} setMarketSales={setMarketSales} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'expense' && <ExpenseTab expenses={expenses} setExpenses={setExpenses} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'report' && <ReportTab deliveries={deliveries} marketSales={marketSales} expenses={expenses} preorders={preorders} settings={settings} setSettings={setSettings} marketSoldStats={marketSoldStats} setMarketSoldStats={setMarketSoldStats} setDialog={setConfirmDialog} />}
@@ -1493,5 +1547,4 @@
     </script>
 </body>
 </html>
-
 
