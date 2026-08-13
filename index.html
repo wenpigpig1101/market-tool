@@ -1129,7 +1129,7 @@
             const currentStartupCap = settings && settings.startupCapital !== undefined ? settings.startupCapital : 36284;
 
             const handleCapitalChange = () => {
-                const newCapital = window.prompt("請輸入您的「初期創業本金」(系統會自動幫您推算口袋現金！)：", currentStartupCap);
+                const newCapital = window.prompt("請輸入您的「初期創業本金」(系統會自動幫您推算帳面資金！)：", currentStartupCap);
                 if (newCapital !== null && newCapital.trim() !== '' && !isNaN(Number(newCapital))) {
                     setSettings({ ...(settings || {}), startupCapital: Number(newCapital) });
                 }
@@ -1160,7 +1160,7 @@
             const preorderUnpaidRev = preorders.filter(p => p.status !== 'completed').reduce((sum, p) => sum + (Number(p.revenue)||0), 0);
             const preorderUnpaidCost = preorders.filter(p => ['pending', 'ordered'].includes(p.status)).reduce((sum, p) => sum + (Number(p.wholesaleCost)||0), 0);
 
-            // 口袋現金：進貨只扣除「已付款 (allTimeWholesaleCashPaid)」的部分
+            // 帳面資金：進貨只扣除「已付款 (allTimeWholesaleCashPaid)」的部分
             const pocketCash = currentStartupCap + allTimeRev - allTimeMarketExp - allTimeWholesaleCashPaid - allTimeOtherExp + allTimeFinancingIn - allTimeFinancingOut - allTimePreorderCost + allTimePreorderRev;
 
             // ---- 計算本月損益 ----
@@ -1241,10 +1241,10 @@
 
                     <Card className="bg-[#fffde7] border-[#fff59d] mb-4 shadow-md">
                         <div className="flex justify-between items-start mb-2">
-                            <div className="flex items-center text-[#f57f17] font-bold text-lg"><Icon name="account_balance_wallet" className="mr-2" /> 我的口袋現金</div>
+                            <div className="flex items-center text-[#f57f17] font-bold text-lg"><Icon name="account_balance" className="mr-2" /> 🏛️ 系統帳面資金</div>
                             <button onClick={handleCapitalChange} className="text-[10px] bg-white border border-[#ffe082] text-[#f57f17] px-2 py-1 rounded-lg shadow-sm flex items-center"><Icon name="edit" className="text-[12px] mr-1"/> 設本金</button>
                         </div>
-                        <div className="text-center py-2 mb-3"><div className="text-xs text-[#a89689] font-bold mb-1">目前手邊實際剩餘現金</div><div className={`text-5xl font-black tracking-tight ${pocketCash < 0 ? 'text-red-500' : 'text-[#4caf50]'}`}>${pocketCash.toLocaleString()}</div></div>
+                        <div className="text-center py-2 mb-3"><div className="text-xs text-[#a89689] font-bold mb-1">依據歷史收支推算之資金結餘</div><div className={`text-5xl font-black tracking-tight ${pocketCash < 0 ? 'text-red-500' : 'text-[#4caf50]'}`}>${pocketCash.toLocaleString()}</div></div>
                         <div className="bg-white bg-opacity-60 rounded-xl p-3 text-sm text-[#7a6453] font-bold border border-[#fff59d]">
                             <div className="flex justify-between items-center text-[11px] text-[#c4b5aa] mb-2"><span>=== 資金流向明細 ===</span><span>(歷史總累計)</span></div>
                             <div className="flex justify-between items-center mb-1.5"><span className="flex items-center text-[#4caf50]"><Icon name="add" className="text-[16px] mr-1"/> 創業初始本金</span><span>$ {currentStartupCap.toLocaleString()}</span></div>
@@ -1366,7 +1366,7 @@
                             <div className="flex justify-between items-center text-[#fbc02d]"><span className="flex items-center"><Icon name="remove" className="text-[14px] mr-1"/> 扣：發老闆薪水</span><span>-${monthlySalary.toLocaleString()}</span></div>
                             <div className="border-t-2 border-[#bc9f8b] pt-3 mt-4"></div>
                             <div className="flex justify-between items-end mt-1"><span className="text-lg text-[#bc9f8b]">🏦 本月最終淨利</span><span className={`text-3xl font-black ${monthlyNetProfit < 0 ? 'text-red-500' : 'text-[#bc9f8b]'}`}>${monthlyNetProfit.toLocaleString()}</span></div>
-                            <div className="text-[10px] text-center text-[#a89689] mt-2">(註：資金的借款與還款不計入損益表，僅影響口袋現金)</div>
+                            <div className="text-[10px] text-center text-[#a89689] mt-2">(註：資金的借款與還款不計入損益表，僅影響系統帳面資金)</div>
                         </div>
                     </Card>
 
@@ -1556,7 +1556,7 @@
         };
 
         const App = () => {
-            const [activeTab, setActiveTab] = useState('expense');
+            const [activeTab, setActiveTab] = useState('report');
             const [showSettings, setShowSettings] = useState(false);
             
             const [deliveriesRaw, setDeliveriesRaw] = useLocalStorage('xq_deliveries', []);
