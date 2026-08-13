@@ -929,26 +929,40 @@
             const [amount, setAmount] = useState('');
             const [qty, setQty] = useState(''); 
             const [isArrived, setIsArrived] = useState(true);
+            const [isPaid, setIsPaid] = useState(true); // 新增付款狀態
             const [flowType, setFlowType] = useState('in');
             
             const [expandedTypes, setExpandedTypes] = useState({});
 
-            const resetForm = () => { setEditingId(null); setDate(new Date().toISOString().split('T')[0]); setType('wholesale'); setName(''); setAmount(''); setQty(''); setIsArrived(true); setFlowType('in'); };
+            const resetForm = () => { setEditingId(null); setDate(new Date().toISOString().split('T')[0]); setType('wholesale'); setName(''); setAmount(''); setQty(''); setIsArrived(true); setIsPaid(true); setFlowType('in'); };
 
             const handleAddExpense = () => {
                 if (!name || !amount) return;
-                const recordData = { date, type, name, amount: Number(amount), qty: type === 'wholesale' ? (Number(qty) || 0) : 0, isArrived: type === 'wholesale' ? isArrived : true, flowType: type === 'financing' ? flowType : 'out' };
+                const recordData = { 
+                    date, type, name, amount: Number(amount), 
+                    qty: type === 'wholesale' ? (Number(qty) || 0) : 0, 
+                    isArrived: type === 'wholesale' ? isArrived : true, 
+                    isPaid: type === 'wholesale' ? isPaid : true, // 儲存付款狀態
+                    flowType: type === 'financing' ? flowType : 'out' 
+                };
                 if (editingId) setExpenses(prev => prev.map(e => e.id === editingId ? { ...e, ...recordData } : e).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
                 else setExpenses(prev => [{ id: Date.now().toString(), ...recordData }, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
                 resetForm();
             };
 
-            const handleEditClick = (record) => { setEditingId(record.id); setDate(record.date); setType(record.type); setName(record.name); setAmount(record.amount); setQty(record.qty || ''); setIsArrived(record.isArrived !== false); setFlowType(record.flowType || 'in'); scrollToTop(); };
+            const handleEditClick = (record) => { 
+                setEditingId(record.id); setDate(record.date); setType(record.type); setName(record.name); setAmount(record.amount); setQty(record.qty || ''); 
+                setIsArrived(record.isArrived !== false); 
+                setIsPaid(record.isPaid !== false); // 若舊資料沒有 isPaid 欄位，預設為 true
+                setFlowType(record.flowType || 'in'); 
+                scrollToTop(); 
+            };
             const toggleArriveStatus = (id) => setExpenses(prev => prev.map(e => e.id === id ? { ...e, isArrived: true } : e));
             const toggleType = (t) => setExpandedTypes(prev => ({ ...prev, [t]: !prev[t] }));
 
-            const wholesaleTotal = expenses.filter(e => e.type === 'wholesale').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
-            const inTransitTotal = expenses.filter(e => e.type === 'wholesale' && e.isArrived === false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
+            // 計算現貨進貨的花費狀態
+            const wholesaleTotalPaid = expenses.filter(e => e.type === 'wholesale' && e.isPaid !== false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
+            const wholesaleTotalUnpaid = expenses.filter(e => e.type === 'wholesale' && e.isPaid === false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             
             const currentMonth = safeStr(date).substring(0, 7);
             const currentMonthExpenses = expenses.filter(e => safeStr(e.date).startsWith(currentMonth));
@@ -975,7 +989,7 @@
                         <div className="grid grid-cols-3 gap-2 mb-4">
                             {Object.keys(typeConfig).map(tKey => {
                                 const tConf = typeConfig[tKey];
-                                return ( <button key={tKey} onClick={() => { setType(tKey); setQty(''); setIsArrived(true); }} className={`py-2 rounded-xl text-[12px] font-bold transition-all border ${type === tKey ? `${tConf.color} text-white border-transparent shadow-md` : 'bg-white border-[#f0e6e0] text-[#a89689]'}`}> {tConf.label.split(' ')[0]} </button> );
+                                return ( <button key={tKey} onClick={() => { setType(tKey); setQty(''); setIsArrived(true); setIsPaid(true); }} className={`py-2 rounded-xl text-[12px] font-bold transition-all border ${type === tKey ? `${tConf.color} text-white border-transparent shadow-md` : 'bg-white border-[#f0e6e0] text-[#a89689]'}`}> {tConf.label.split(' ')[0]} </button> );
                             })}
                         </div>
 
@@ -992,8 +1006,15 @@
                         
                         {type === 'wholesale' ? (
                             <React.Fragment>
-                                <div className="grid grid-cols-2 gap-3 mb-3"><Input type="number" placeholder="現貨支出總額" value={amount} onChange={e => setAmount(e.target.value)} /><Input type="number" placeholder="進貨總件數" value={qty} onChange={e => setQty(e.target.value)} /></div>
-                                <div className="flex items-center gap-3 mb-4"><button className={`flex-1 h-[48px] rounded-xl border text-[14px] transition-colors font-wawa font-bold flex items-center justify-center shadow-sm ${isArrived ? 'border-[#4caf50] bg-[#f0f9f0] text-[#4caf50]' : 'border-[#ffb300] bg-[#fffde7] text-[#f57f17]'}`} onClick={(e) => { e.preventDefault(); setIsArrived(!isArrived); }}>{isArrived ? '📦 已到貨 (算入現貨庫存)' : '🚚 貨在途 (暫不入庫)'}</button></div>
+                                <div className="grid grid-cols-2 gap-3 mb-3"><Input type="number" placeholder="現貨單筆總成本" value={amount} onChange={e => setAmount(e.target.value)} /><Input type="number" placeholder="進貨總件數" value={qty} onChange={e => setQty(e.target.value)} /></div>
+                                <div className="flex items-center gap-2 mb-4">
+                                    <button className={`flex-1 h-[44px] rounded-xl border text-[12px] transition-colors font-wawa font-bold flex items-center justify-center shadow-sm ${isArrived ? 'border-[#4caf50] bg-[#f0f9f0] text-[#4caf50]' : 'border-[#ffb300] bg-[#fffde7] text-[#f57f17]'}`} onClick={(e) => { e.preventDefault(); setIsArrived(!isArrived); }}>
+                                        {isArrived ? '📦 已入庫' : '🚚 貨在途'}
+                                    </button>
+                                    <button className={`flex-1 h-[44px] rounded-xl border text-[12px] transition-colors font-wawa font-bold flex items-center justify-center shadow-sm ${isPaid ? 'border-[#4caf50] bg-[#f0f9f0] text-[#4caf50]' : 'border-[#e57373] bg-[#fff2f2] text-[#e57373]'}`} onClick={(e) => { e.preventDefault(); setIsPaid(!isPaid); }}>
+                                        {isPaid ? '💸 已結清(扣現)' : '📝 未付/寄賣'}
+                                    </button>
+                                </div>
                             </React.Fragment>
                         ) : (
                             <Input type="number" placeholder={type === 'financing' ? (flowType === 'in' ? '借入金額' : '償還金額') : "支出總金額"} value={amount} onChange={e => setAmount(e.target.value)} />
@@ -1004,15 +1025,22 @@
                     </Card>
 
                     <div className="grid grid-cols-2 gap-3 mb-6">
-                        {[{k:'wholesale', t:'批貨支出', l:'e57373'},{k:'supply', t:'生財包材', l:'64b5f6'},{k:'fixed', t:'倉租水電', l:'81c784'},{k:'traffic', t:'交通油資', l:'ab47bc'},{k:'salary', t:'老闆支薪', l:'fbc02d'}].map(c => {
-                            const tot = expenses.filter(e=>e.type===c.k).reduce((s,e)=>s+(Number(e.amount)||0),0);
-                            const mTot = currentMonthExpenses.filter(e=>e.type===c.k).reduce((s,e)=>s+(Number(e.amount)||0),0);
+                        {[{k:'wholesale', t:'歷史已付現貨款', l:'e57373'},{k:'supply', t:'歷史總生財包材', l:'64b5f6'},{k:'fixed', t:'歷史總倉租水電', l:'81c784'},{k:'traffic', t:'歷史總交通油資', l:'ab47bc'},{k:'salary', t:'歷史總老闆支薪', l:'fbc02d'}].map(c => {
+                            let tot, mTot;
+                            if(c.k === 'wholesale') {
+                                tot = wholesaleTotalPaid; // 顯示已付的現貨款
+                                mTot = currentMonthExpenses.filter(e=>e.type===c.k && e.isPaid !== false).reduce((s,e)=>s+(Number(e.amount)||0),0);
+                            } else {
+                                tot = expenses.filter(e=>e.type===c.k).reduce((s,e)=>s+(Number(e.amount)||0),0);
+                                mTot = currentMonthExpenses.filter(e=>e.type===c.k).reduce((s,e)=>s+(Number(e.amount)||0),0);
+                            }
+                            
                             return (
                                 <div key={c.k} className="bg-white rounded-xl p-3 shadow-sm border border-[#f2e7df] text-center flex flex-col justify-between">
                                     <div>
-                                        <div className="text-[11px] text-[#a89689] font-bold mb-1">歷史總{c.t}</div>
+                                        <div className="text-[11px] text-[#a89689] font-bold mb-1">{c.t}</div>
                                         <div className={`text-lg font-black text-[#${c.l}]`}>${tot.toLocaleString()}</div>
-                                        {c.k==='wholesale' && inTransitTotal > 0 && <div className="text-[9px] text-[#f57f17] font-bold mt-0.5">含在途未入庫 ${inTransitTotal.toLocaleString()}</div>}
+                                        {c.k === 'wholesale' && wholesaleTotalUnpaid > 0 && <div className="text-[9px] text-[#f57f17] font-bold mt-0.5">另有未付/寄賣 ${wholesaleTotalUnpaid.toLocaleString()}</div>}
                                     </div>
                                     <div className="text-[10px] text-[#7a6453] font-bold mt-1.5 pt-1.5 border-t border-[#fdfaf7] bg-[#fdfaf7] rounded -mx-1 -mb-1 pb-1">本月 ({parseInt(currentMonth.substring(5,7))}月): <span className={`text-[#${c.l}]`}>${mTot.toLocaleString()}</span></div>
                                 </div>
@@ -1051,17 +1079,18 @@
                                                     return (
                                                         <div key={e.id} className="bg-white rounded-lg p-3 border border-[#f0f0f0] flex justify-between items-center opacity-95 shadow-sm">
                                                             <div className="flex flex-col flex-1">
-                                                                <div className="flex items-center gap-2 mb-1">
+                                                                <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                                                                     <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${conf.bgLight} ${conf.text} shrink-0`}>{conf.label.split(' ')[0]}</span>
-                                                                    <span className="font-bold text-[#5c4d43] text-base truncate max-w-[140px]">{e.name}</span>
+                                                                    <span className="font-bold text-[#5c4d43] text-base truncate max-w-[120px]">{e.name}</span>
                                                                     {e.type === 'wholesale' && e.isArrived === false && <button onClick={() => toggleArriveStatus(e.id)} className="shrink-0 text-[10px] bg-[#fffde7] text-[#f57f17] border border-[#ffe082] px-2 py-0.5 rounded shadow-sm hover:bg-[#fff9c4] transition-colors">點擊入庫</button>}
                                                                     {e.type === 'wholesale' && e.isArrived !== false && <span className="shrink-0 text-[10px] bg-[#f0f9f0] text-[#4caf50] px-1.5 py-0.5 rounded">已入庫</span>}
+                                                                    {e.type === 'wholesale' && e.isPaid === false && <span className="shrink-0 text-[10px] bg-[#fff2f2] text-[#e57373] border border-[#ffcdd2] px-1.5 py-0.5 rounded shadow-sm">未付款(應付)</span>}
                                                                     {e.type === 'financing' && <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded ${isBorrow ? 'bg-[#f0f9f0] text-[#4caf50]' : 'bg-[#fff2f2] text-[#e57373]'}`}>{isBorrow ? '借入' : '償還'}</span>}
                                                                 </div>
                                                                 <div className="text-xs text-[#a89689]">{e.date} {e.type === 'wholesale' && e.qty > 0 && <span className="ml-1 text-[#e57373]">({e.qty}件)</span>}</div>
                                                             </div>
-                                                            <div className="flex items-center gap-1.5 shrink-0 pl-2">
-                                                                <div className={`font-black text-lg mr-1 ${isBorrow ? 'text-[#4caf50]' : conf.text}`}>{isBorrow ? '+' : '-'}${e.amount}</div>
+                                                            <div className="flex items-center gap-1.5 shrink-0 pl-1">
+                                                                <div className={`font-black text-base mr-1 ${isBorrow ? 'text-[#4caf50]' : conf.text}`}>{isBorrow ? '+' : '-'}${e.amount}</div>
                                                                 <button onClick={() => handleEditClick(e)} className="p-1.5 bg-[#fdfaf7] text-[#bc9f8b] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
                                                                 <button onClick={() => setConfirmDialog({isOpen: true, id: e.id, collection: 'expenses', message: "確定要刪除這筆支出嗎？"})} className="p-1.5 bg-[#fdf2f2] text-[#e57373] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
                                                             </div>
@@ -1113,20 +1142,26 @@
             const allTimeRev = allTimeMarketRev + allTimeStoreRev + allTimeStoreShipIn; 
             
             const allTimeMarketExp = marketSales.reduce((sum, m) => sum + (Number(m.rent)||0) + (Number(m.electricity)||0) + (Number(m.cleaning)||0) + (Number(m.toll)||0) + (Number(m.parking)||0), 0) + deliveries.reduce((sum, d) => sum + (Number(d.shippingExpense)||0), 0);
-            const allTimeWholeArrived = expenses.filter(e => e.type === 'wholesale' && e.isArrived !== false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
-            const allTimeWholeTransit = expenses.filter(e => e.type === 'wholesale' && e.isArrived === false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
-            const allTimeWholesale = allTimeWholeArrived + allTimeWholeTransit;
+            
+            // 只有「已付款」的進貨才會扣除現金
+            const allTimeWholePaidArrived = expenses.filter(e => e.type === 'wholesale' && e.isArrived !== false && e.isPaid !== false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
+            const allTimeWholePaidTransit = expenses.filter(e => e.type === 'wholesale' && e.isArrived === false && e.isPaid !== false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
+            const allTimeWholesaleCashPaid = allTimeWholePaidArrived + allTimeWholePaidTransit;
+            // 未付款(寄賣) 記錄，用於顯示但不扣現金
+            const allTimeWholesaleUnpaid = expenses.filter(e => e.type === 'wholesale' && e.isPaid === false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
+            
             const allTimeOtherExp = expenses.filter(e => ['supply', 'fixed', 'traffic', 'salary'].includes(e.type)).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const allTimeFinancingIn = expenses.filter(e => e.type === 'financing' && e.flowType === 'in').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const allTimeFinancingOut = expenses.filter(e => e.type === 'financing' && e.flowType !== 'in').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
 
-            // 代購金流 (已到貨/已出貨算付成本，已出貨算收客款)
+            // 代購金流
             const allTimePreorderCost = preorders.filter(p => ['arrived', 'completed'].includes(p.status)).reduce((sum, p) => sum + (Number(p.wholesaleCost)||0), 0);
             const allTimePreorderRev = preorders.filter(p => p.status === 'completed').reduce((sum, p) => sum + (Number(p.revenue)||0), 0);
             const preorderUnpaidRev = preorders.filter(p => p.status !== 'completed').reduce((sum, p) => sum + (Number(p.revenue)||0), 0);
             const preorderUnpaidCost = preorders.filter(p => ['pending', 'ordered'].includes(p.status)).reduce((sum, p) => sum + (Number(p.wholesaleCost)||0), 0);
 
-            const pocketCash = currentStartupCap + allTimeRev - allTimeMarketExp - allTimeWholesale - allTimeOtherExp + allTimeFinancingIn - allTimeFinancingOut - allTimePreorderCost + allTimePreorderRev;
+            // 口袋現金：進貨只扣除「已付款 (allTimeWholesaleCashPaid)」的部分
+            const pocketCash = currentStartupCap + allTimeRev - allTimeMarketExp - allTimeWholesaleCashPaid - allTimeOtherExp + allTimeFinancingIn - allTimeFinancingOut - allTimePreorderCost + allTimePreorderRev;
 
             // ---- 計算本月損益 ----
             const currentDeliveries = deliveries.filter(d => safeStr(d.date).startsWith(reportMonth) && d.status === 'shipped');
@@ -1154,7 +1189,7 @@
             const monthlyShippingProfit = storeShippingNetExp < 0 ? Math.abs(storeShippingNetExp) : 0; 
             const frontlineNetIncome = monthlyTotalRev - monthlyMarketExp + monthlyShippingProfit;
 
-            // 庫存成本
+            // 庫存成本：包含「未付款」的進貨，因為實體衣服已經到了並可以賣了
             const wholesaleToMonth = expenses.filter(e => e.type === 'wholesale' && safeStr(e.date).substring(0, 7) <= reportMonth && e.isArrived !== false);
             const accumulatedWholesaleCost = wholesaleToMonth.reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const accumulatedWholesaleQty = wholesaleToMonth.reduce((sum, e) => sum + (Number(e.qty)||0), 0);
@@ -1252,13 +1287,14 @@
                             )}
 
                             <div className="flex justify-between items-center text-[#e57373] cursor-pointer mb-1.5" onClick={() => toggleExp('whole')}>
-                                <span className="flex items-center"><Icon name="remove" className="text-[16px] mr-1"/> 現貨進貨花費<Icon name={expState['whole'] ? "expand_less" : "expand_more"} className="text-[14px] ml-0.5 opacity-60"/></span>
-                                <span>-$ {allTimeWholesale.toLocaleString()}</span>
+                                <span className="flex items-center"><Icon name="remove" className="text-[16px] mr-1"/> 現貨進貨花費 (已付現)<Icon name={expState['whole'] ? "expand_less" : "expand_more"} className="text-[14px] ml-0.5 opacity-60"/></span>
+                                <span>-$ {allTimeWholesaleCashPaid.toLocaleString()}</span>
                             </div>
                             {expState['whole'] && (
                                 <div className="pl-6 pr-2 py-1 mb-2 space-y-1 bg-[#fafafa] rounded text-[11px] text-[#a89689] animate-expand">
-                                    {allTimeWholeArrived > 0 && <div className="flex justify-between"><span>└ 已到貨付款</span><span>-${allTimeWholeArrived.toLocaleString()}</span></div>}
-                                    {allTimeWholeTransit > 0 && <div className="flex justify-between"><span>└ 在途預付款</span><span>-${allTimeWholeTransit.toLocaleString()}</span></div>}
+                                    {allTimeWholePaidArrived > 0 && <div className="flex justify-between"><span>└ 已到貨 (已付現)</span><span>-${allTimeWholePaidArrived.toLocaleString()}</span></div>}
+                                    {allTimeWholePaidTransit > 0 && <div className="flex justify-between"><span>└ 在途預付 (已付現)</span><span>-${allTimeWholePaidTransit.toLocaleString()}</span></div>}
+                                    {allTimeWholesaleUnpaid > 0 && <div className="flex justify-between text-[#f57f17] border-t border-gray-200 mt-1 pt-1"><span>⚠️ 寄賣/未付帳款 (不扣現)</span><span>${allTimeWholesaleUnpaid.toLocaleString()}</span></div>}
                                 </div>
                             )}
 
@@ -1268,10 +1304,10 @@
                             </div>
                             {expState['other'] && (
                                 <div className="pl-6 pr-2 py-1 mb-2 space-y-1 bg-[#fafafa] rounded text-[11px] text-[#a89689] animate-expand">
-                                    {allTimeSupply > 0 && <div className="flex justify-between"><span>└ 生財包材雜支</span><span>-${allTimeSupply.toLocaleString()}</span></div>}
-                                    {allTimeFixed > 0 && <div className="flex justify-between"><span>└ 倉租與水電</span><span>-${allTimeFixed.toLocaleString()}</span></div>}
-                                    {allTimeTraffic > 0 && <div className="flex justify-between"><span>└ 交通與油資</span><span>-${allTimeTraffic.toLocaleString()}</span></div>}
-                                    {allTimeSalary > 0 && <div className="flex justify-between"><span>└ 老闆支薪</span><span>-${allTimeSalary.toLocaleString()}</span></div>}
+                                    {expenses.filter(e=>e.type==='supply').length > 0 && <div className="flex justify-between"><span>└ 生財包材雜支</span><span>-${expenses.filter(e=>e.type==='supply').reduce((s,e)=>s+(Number(e.amount)||0),0).toLocaleString()}</span></div>}
+                                    {expenses.filter(e=>e.type==='fixed').length > 0 && <div className="flex justify-between"><span>└ 倉租與水電</span><span>-${expenses.filter(e=>e.type==='fixed').reduce((s,e)=>s+(Number(e.amount)||0),0).toLocaleString()}</span></div>}
+                                    {expenses.filter(e=>e.type==='traffic').length > 0 && <div className="flex justify-between"><span>└ 交通與油資</span><span>-${expenses.filter(e=>e.type==='traffic').reduce((s,e)=>s+(Number(e.amount)||0),0).toLocaleString()}</span></div>}
+                                    {expenses.filter(e=>e.type==='salary').length > 0 && <div className="flex justify-between"><span>└ 老闆支薪</span><span>-${expenses.filter(e=>e.type==='salary').reduce((s,e)=>s+(Number(e.amount)||0),0).toLocaleString()}</span></div>}
                                 </div>
                             )}
 
@@ -1281,9 +1317,9 @@
                             </div>
                             {expState['market'] && (
                                 <div className="pl-6 pr-2 py-1 mt-1 space-y-1 bg-[#fafafa] rounded text-[11px] text-[#a89689] animate-expand">
-                                    {allTimeMarketRent > 0 && <div className="flex justify-between"><span>└ 市場攤位租金</span><span>-${allTimeMarketRent.toLocaleString()}</span></div>}
-                                    {allTimeMarketMisc > 0 && <div className="flex justify-between"><span>└ 市場雜支(電/清/停)</span><span>-${allTimeMarketMisc.toLocaleString()}</span></div>}
-                                    {allTimeStoreShipOut > 0 && <div className="flex justify-between"><span>└ 超商運費支出</span><span>-${allTimeStoreShipOut.toLocaleString()}</span></div>}
+                                    {marketSales.reduce((sum, m) => sum + (Number(m.rent)||0), 0) > 0 && <div className="flex justify-between"><span>└ 市場攤位租金</span><span>-${marketSales.reduce((sum, m) => sum + (Number(m.rent)||0), 0).toLocaleString()}</span></div>}
+                                    {marketSales.reduce((sum, m) => sum + (Number(m.electricity)||0)+(Number(m.cleaning)||0)+(Number(m.toll)||0)+(Number(m.parking)||0), 0) > 0 && <div className="flex justify-between"><span>└ 市場雜支(電/清/停)</span><span>-${marketSales.reduce((sum, m) => sum + (Number(m.electricity)||0)+(Number(m.cleaning)||0)+(Number(m.toll)||0)+(Number(m.parking)||0), 0).toLocaleString()}</span></div>}
+                                    {deliveries.reduce((sum, d) => sum + (Number(d.shippingExpense)||0), 0) > 0 && <div className="flex justify-between"><span>└ 超商運費支出</span><span>-${deliveries.reduce((sum, d) => sum + (Number(d.shippingExpense)||0), 0).toLocaleString()}</span></div>}
                                 </div>
                             )}
                         </div>
@@ -1520,7 +1556,7 @@
         };
 
         const App = () => {
-            const [activeTab, setActiveTab] = useState('store');
+            const [activeTab, setActiveTab] = useState('expense');
             const [showSettings, setShowSettings] = useState(false);
             
             const [deliveriesRaw, setDeliveriesRaw] = useLocalStorage('xq_deliveries', []);
@@ -1611,4 +1647,5 @@
     </script>
 </body>
 </html>
+
 
