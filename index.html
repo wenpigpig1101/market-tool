@@ -947,7 +947,7 @@
             const [amount, setAmount] = useState('');
             const [qty, setQty] = useState(''); 
             const [isArrived, setIsArrived] = useState(true);
-            const [isPaid, setIsPaid] = useState(true); 
+            const [isPaid, setIsPaid] = useState(true); // 新增付款狀態
             const [flowType, setFlowType] = useState('in');
             
             const [expandedTypes, setExpandedTypes] = useState({});
@@ -960,7 +960,7 @@
                     date, type, name, amount: Number(amount), 
                     qty: type === 'wholesale' ? (Number(qty) || 0) : 0, 
                     isArrived: type === 'wholesale' ? isArrived : true, 
-                    isPaid: type === 'wholesale' ? isPaid : true, 
+                    isPaid: type === 'wholesale' ? isPaid : true, // 儲存付款狀態
                     flowType: type === 'financing' ? flowType : 'out' 
                 };
                 if (editingId) setExpenses(prev => prev.map(e => e.id === editingId ? { ...e, ...recordData } : e).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
@@ -971,13 +971,14 @@
             const handleEditClick = (record) => { 
                 setEditingId(record.id); setDate(record.date); setType(record.type); setName(record.name); setAmount(record.amount); setQty(record.qty || ''); 
                 setIsArrived(record.isArrived !== false); 
-                setIsPaid(record.isPaid !== false); 
+                setIsPaid(record.isPaid !== false); // 若舊資料沒有 isPaid 欄位，預設為 true
                 setFlowType(record.flowType || 'in'); 
                 scrollToTop(); 
             };
             const toggleArriveStatus = (id) => setExpenses(prev => prev.map(e => e.id === id ? { ...e, isArrived: true } : e));
             const toggleType = (t) => setExpandedTypes(prev => ({ ...prev, [t]: !prev[t] }));
 
+            // 計算現貨進貨的花費狀態
             const wholesaleTotalPaid = expenses.filter(e => e.type === 'wholesale' && e.isPaid !== false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const wholesaleTotalUnpaid = expenses.filter(e => e.type === 'wholesale' && e.isPaid === false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             
@@ -1231,7 +1232,7 @@
             const theoreticalInventory = accumulatedWholesaleQty - accumulatedStoreSoldQty - accumulatedMarketDailySoldQty - pastAdjustments;
             
             const inventoryValue = Math.round(currentInventoryQty * avgUnitCost);
-            // 歷史真實總淨利：(手邊現金 + 庫存資產 + 代購應收款) - (原始本金與借貸負債 + 寄賣未付款 + 代購應付款)
+            // 歷史真實總淨利改為：含庫存累積總實賺
             const trueNetWorth = pocketCash + inventoryValue + preorderUnpaidRev - allTimeWholesaleUnpaid - preorderUnpaidCost;
             const allTimeNetProfit = trueNetWorth - targetCashBreakEven;
 
@@ -1266,7 +1267,7 @@
                         <button onClick={() => changeMonth(1)} className="p-2 text-[#a89689]"><Icon name="chevron_right" /></button>
                     </div>
                     
-                    {/* 事業總體檢與回本進度 (新功能) */}
+                    {/* 事業總體檢與回本進度 */}
                     <Card className="bg-gradient-to-br from-[#e8eaf6] to-[#c5cae9] border-[#9fa8da] mb-4 shadow-md relative overflow-hidden">
                         <div className="absolute -right-4 -top-4 opacity-10 transform rotate-12"><Icon name="flag" className="text-[120px]" /></div>
                         <div className="relative z-10">
@@ -1295,10 +1296,10 @@
 
                             <div className="bg-[#f0f9f0] p-3 rounded-xl shadow-sm border border-[#c8e6c9]">
                                 <div className="flex justify-between items-center">
-                                    <span className="text-sm text-[#2e7d32] font-bold flex items-center"><Icon name="monitoring" className="text-[18px] mr-1"/> 歷史真實總淨利</span>
+                                    <span className="text-sm text-[#2e7d32] font-bold flex items-center"><Icon name="monitoring" className="text-[18px] mr-1"/> 含庫存累積總實賺</span>
                                     <span className={`font-black text-2xl ${allTimeNetProfit >= 0 ? 'text-[#4caf50]' : 'text-[#e57373]'}`}>${allTimeNetProfit.toLocaleString()}</span>
                                 </div>
-                                <div className="text-[10px] text-[#81c784] text-right mt-1">包含庫存價值與應付帳款的真實賺賠</div>
+                                <div className="text-[10px] text-[#81c784] text-right mt-1">把手邊衣服價值算進去後的「真正總賺賠」</div>
                             </div>
                         </div>
                     </Card>
