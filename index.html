@@ -657,7 +657,7 @@
         };
 
         // --- 分頁 2：現貨市場 ---
-        const MarketTab = ({ marketSales, setMarketSales, setConfirmDialog }) => {
+        const MarketTab = ({ marketSales, setMarketSales, expenses = [], setConfirmDialog }) => {
             const currentDate = new Date().toISOString().split('T')[0];
             const [editingId, setEditingId] = useState(null);
             
@@ -678,6 +678,15 @@
             const [viewMonthStr, setViewMonthStr] = useState(currentDate.substring(0, 7));
             const [selectedDay, setSelectedDay] = useState(currentDate);
             const [searchTerm, setSearchTerm] = useState('');
+
+            // 計算系統全期的平均衣服進貨成本
+            const avgUnitCost = useMemo(() => {
+                if (!expenses || expenses.length === 0) return 0;
+                const wholesaleExpenses = expenses.filter(e => e.type === 'wholesale' && e.isArrived !== false);
+                const accumulatedWholesaleCost = wholesaleExpenses.reduce((sum, e) => sum + (Number(e.amount)||0), 0);
+                const accumulatedWholesaleQty = wholesaleExpenses.reduce((sum, e) => sum + (Number(e.qty)||0), 0);
+                return accumulatedWholesaleQty > 0 ? (accumulatedWholesaleCost / accumulatedWholesaleQty) : 0;
+            }, [expenses]);
 
             const dailyStats = useMemo(() => {
                 const stats = {};
@@ -779,7 +788,8 @@
                 const totalRev = searchedSales.reduce((sum, m) => sum + (Number(m.revenue) || 0), 0);
                 const totalProfit = searchedSales.reduce((sum, m) => {
                     const dailyMisc = (Number(m.electricity) || 0) + (Number(m.cleaning) || 0) + (Number(m.toll) || 0) + (Number(m.parking) || 0);
-                    return sum + (Number(m.revenue) || 0) - (Number(m.rent) || 0) - dailyMisc;
+                    const cogs = Math.round((Number(m.soldQty)||0) * avgUnitCost);
+                    return sum + (Number(m.revenue) || 0) - (Number(m.rent) || 0) - dailyMisc - cogs;
                 }, 0);
 
                 return (
@@ -790,14 +800,15 @@
                                 <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">出攤次數</span><span className="font-black text-lg text-[#5c4d43]">{times} 次</span></div>
                                 <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">累積總業績</span><span className="font-black text-lg text-[#5c4d43]">${totalRev.toLocaleString()}</span></div>
                                 <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">平均單次業績</span><span className="font-black text-xl text-[#4caf50]">${Math.round(totalRev / times).toLocaleString()}</span></div>
-                                <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">單次淨利(扣攤租雜支)</span><span className="font-black text-xl text-[#e57373]">${Math.round(totalProfit / times).toLocaleString()}</span></div>
+                                <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">單次淨利(含扣衣成本)</span><span className="font-black text-xl text-[#e57373]">${Math.round(totalProfit / times).toLocaleString()}</span></div>
                             </div>
                         </Card>
                         
                         <div className="text-[#9b4949] font-bold px-2 text-lg mb-2"><Icon name="history" className="align-middle text-[20px] mr-1" /> 歷史足跡明細</div>
                         {searchedSales.map(m => {
                             const dailyMisc = (Number(m.electricity) || 0) + (Number(m.cleaning) || 0) + (Number(m.toll) || 0) + (Number(m.parking) || 0);
-                            const operatingProfit = (Number(m.revenue)||0) - (Number(m.rent)||0) - dailyMisc; 
+                            const cogs = Math.round((Number(m.soldQty)||0) * avgUnitCost);
+                            const operatingProfit = (Number(m.revenue)||0) - (Number(m.rent)||0) - dailyMisc - cogs; 
                             return (
                                 <div key={m.id} className="bg-white rounded-xl p-4 mb-3 shadow-sm border border-[#f2e7df] relative mx-1">
                                     <div className="absolute top-4 right-4 flex gap-1">
@@ -809,7 +820,10 @@
                                     <div className="text-sm text-[#7a6453] grid grid-cols-2 gap-y-1.5 mt-3 pt-3 border-t border-[#fdfaf7] pl-4">
                                         <div>營業額: <span className="font-bold text-[#5c4d43]">${m.revenue}</span> <span className="ml-1 bg-orange-50 text-[#bc9f8b] text-[10px] px-1 rounded">{m.soldQty||0}件</span></div>
                                         <div>攤租雜支: <span className="font-medium">-${(Number(m.rent)||0) + dailyMisc}</span></div>
-                                        <div className="font-bold text-[#bc9f8b] col-span-2">單日淨收入 (未扣進貨): ${operatingProfit}</div>
+                                        <div className="col-span-2 flex justify-between items-end mt-1 pt-2 border-t border-dashed border-[#f2e7df]">
+                                            <span className="text-[11px] text-[#a89689]">衣服成本(均價計算): -${cogs}</span>
+                                            <span className="font-bold text-[#5c4d43] text-base">單日淨利: <span className={operatingProfit >= 0 ? 'text-[#4caf50]' : 'text-[#e57373]'}>${operatingProfit}</span></span>
+                                        </div>
                                     </div>
                                 </div>
                             )
@@ -897,7 +911,8 @@
                                 <div className="bg-white rounded-2xl border border-dashed border-[#e0d6ce] text-center text-[#c4b5aa] text-sm py-8 mx-2 mt-4">這天沒有擺攤，是休息日喔 ☕</div>
                             ) : filteredSales.map(m => {
                                 const dailyMisc = (Number(m.electricity) || 0) + (Number(m.cleaning) || 0) + (Number(m.toll) || 0) + (Number(m.parking) || 0);
-                                const operatingProfit = (Number(m.revenue)||0) - (Number(m.rent)||0) - dailyMisc; 
+                                const cogs = Math.round((Number(m.soldQty)||0) * avgUnitCost);
+                                const operatingProfit = (Number(m.revenue)||0) - (Number(m.rent)||0) - dailyMisc - cogs; 
                                 return (
                                     <div key={m.id} className="bg-white rounded-xl p-4 mb-3 shadow-sm border border-[#f2e7df] relative mx-1">
                                         <div className="absolute top-4 right-4 flex gap-1">
@@ -909,7 +924,10 @@
                                         <div className="text-sm text-[#7a6453] grid grid-cols-2 gap-y-1.5 mt-3 pt-3 border-t border-[#fdfaf7] pl-4">
                                             <div>營業額: <span className="font-bold text-[#5c4d43]">${m.revenue}</span> <span className="ml-1 bg-orange-50 text-[#bc9f8b] text-[10px] px-1 rounded">{m.soldQty||0}件</span></div>
                                             <div>攤租雜支: <span className="font-medium">-${(Number(m.rent)||0) + dailyMisc}</span></div>
-                                            <div className="font-bold text-[#bc9f8b] col-span-2">單日淨收入 (未扣進貨): ${operatingProfit}</div>
+                                            <div className="col-span-2 flex justify-between items-end mt-1 pt-2 border-t border-dashed border-[#f2e7df]">
+                                                <span className="text-[11px] text-[#a89689]">衣服成本(均價計算): -${cogs}</span>
+                                                <span className="font-bold text-[#5c4d43] text-base">單日淨利: <span className={operatingProfit >= 0 ? 'text-[#4caf50]' : 'text-[#e57373]'}>${operatingProfit}</span></span>
+                                            </div>
                                         </div>
                                     </div>
                                 )
@@ -1556,7 +1574,7 @@
         };
 
         const App = () => {
-            const [activeTab, setActiveTab] = useState('report');
+            const [activeTab, setActiveTab] = useState('market');
             const [showSettings, setShowSettings] = useState(false);
             
             const [deliveriesRaw, setDeliveriesRaw] = useLocalStorage('xq_deliveries', []);
@@ -1613,7 +1631,7 @@
                         
                         <main id="main-content" className="flex-1 overflow-y-auto p-4 relative custom-scrollbar">
                             {activeTab === 'store' && <StoreTab deliveries={deliveries} setDeliveries={setDeliveries} reservations={reservations} setReservations={setReservations} tab1Preorders={tab1Preorders} setTab1Preorders={setTab1Preorders} setConfirmDialog={setConfirmDialog} />}
-                            {activeTab === 'market' && <MarketTab marketSales={marketSales} setMarketSales={setMarketSales} setConfirmDialog={setConfirmDialog} />}
+                            {activeTab === 'market' && <MarketTab marketSales={marketSales} setMarketSales={setMarketSales} expenses={expenses} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'expense' && <ExpenseTab expenses={expenses} setExpenses={setExpenses} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'report' && <ReportTab deliveries={deliveries} marketSales={marketSales} expenses={expenses} preorders={preorders} settings={settings} setSettings={setSettings} marketSoldStats={marketSoldStats} setMarketSoldStats={setMarketSoldStats} setDialog={setConfirmDialog} />}
                             {activeTab === 'preorder' && <PreorderTab preorders={preorders} setPreorders={setPreorders} setConfirmDialog={setConfirmDialog} />}
