@@ -693,8 +693,9 @@
                 marketSales.forEach(m => {
                     const mDate = safeStr(m.date);
                     if (mDate.startsWith(viewMonthStr)) {
-                        if (!stats[mDate]) stats[mDate] = { revenue: 0, locations: [] };
+                        if (!stats[mDate]) stats[mDate] = { revenue: 0, rent: 0, locations: [] };
                         stats[mDate].revenue += (Number(m.revenue) || 0);
+                        stats[mDate].rent += (Number(m.rent) || 0);
                         if (m.location && !stats[mDate].locations.includes(m.location)) stats[mDate].locations.push(m.location);
                     }
                 });
@@ -753,23 +754,25 @@
                 const daysInMonth = new Date(y, m + 1, 0).getDate();
                 const startDayOfWeek = new Date(y, m, 1).getDay();
                 const days = [];
-                for (let i = 0; i < startDayOfWeek; i++) days.push(<div key={`empty-${i}`} className="h-[4.5rem]"></div>);
+                for (let i = 0; i < startDayOfWeek; i++) days.push(<div key={`empty-${i}`} className="h-[5.5rem]"></div>);
                 for (let i = 1; i <= daysInMonth; i++) {
                     const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
                     const isSelected = dateStr === selectedDay;
                     const stat = dailyStats[dateStr];
                     const hasData = !!stat;
                     const rev = hasData ? stat.revenue : 0;
+                    const rent = hasData ? stat.rent : 0;
                     const locStr = hasData ? stat.locations.join(', ') : '';
 
                     days.push(
                         <div key={dateStr} onClick={() => {setSelectedDay(dateStr); setDate(dateStr);}} 
-                             className={`h-[4.5rem] py-1 flex flex-col items-center justify-start rounded-xl cursor-pointer transition-all overflow-hidden ${isSelected ? 'bg-[#bc9f8b] text-white shadow-md' : hasData ? 'border border-[#bc9f8b] bg-[#fdfaf7] text-[#5c4d43]' : 'text-[#7a6453] hover:bg-[#f2e7df]'}`}>
+                             className={`h-[5.5rem] py-1 flex flex-col items-center justify-start rounded-xl cursor-pointer transition-all overflow-hidden ${isSelected ? 'bg-[#bc9f8b] text-white shadow-md' : hasData ? 'border border-[#bc9f8b] bg-[#fdfaf7] text-[#5c4d43]' : 'text-[#7a6453] hover:bg-[#f2e7df]'}`}>
                             <span className={`text-sm font-bold ${isSelected ? 'text-white' : ''} leading-tight mb-0.5`}>{i}</span>
                             {hasData && (
                                 <div className="flex flex-col items-center w-full px-0.5">
-                                    {locStr && <span className={`text-[9px] w-full truncate text-center mb-0.5 ${isSelected ? 'text-[#f0e6e0]' : 'text-[#a89689]'}`}>{locStr}</span>}
-                                    <span className={`text-[11px] font-black leading-none ${isSelected ? 'text-white' : 'text-[#4caf50]'}`}>{formatRevenueStr(rev)}</span>
+                                    {locStr && <span className={`text-[9px] w-full truncate text-center mb-0.5 leading-tight ${isSelected ? 'text-[#f0e6e0]' : 'text-[#a89689]'}`}>{locStr}</span>}
+                                    <span className={`text-[11px] font-black leading-none mb-0.5 ${isSelected ? 'text-white' : 'text-[#4caf50]'}`}>{formatRevenueStr(rev)}</span>
+                                    <span className={`text-[9px] leading-none mt-0.5 ${isSelected ? 'text-[#f2e7df]' : 'text-[#e57373]'}`}>租{rent}</span>
                                 </div>
                             )}
                         </div>
@@ -947,7 +950,7 @@
             const [amount, setAmount] = useState('');
             const [qty, setQty] = useState(''); 
             const [isArrived, setIsArrived] = useState(true);
-            const [isPaid, setIsPaid] = useState(true); // 新增付款狀態
+            const [isPaid, setIsPaid] = useState(true); 
             const [flowType, setFlowType] = useState('in');
             
             const [expandedTypes, setExpandedTypes] = useState({});
@@ -960,7 +963,7 @@
                     date, type, name, amount: Number(amount), 
                     qty: type === 'wholesale' ? (Number(qty) || 0) : 0, 
                     isArrived: type === 'wholesale' ? isArrived : true, 
-                    isPaid: type === 'wholesale' ? isPaid : true, // 儲存付款狀態
+                    isPaid: type === 'wholesale' ? isPaid : true, 
                     flowType: type === 'financing' ? flowType : 'out' 
                 };
                 if (editingId) setExpenses(prev => prev.map(e => e.id === editingId ? { ...e, ...recordData } : e).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
@@ -971,14 +974,13 @@
             const handleEditClick = (record) => { 
                 setEditingId(record.id); setDate(record.date); setType(record.type); setName(record.name); setAmount(record.amount); setQty(record.qty || ''); 
                 setIsArrived(record.isArrived !== false); 
-                setIsPaid(record.isPaid !== false); // 若舊資料沒有 isPaid 欄位，預設為 true
+                setIsPaid(record.isPaid !== false); 
                 setFlowType(record.flowType || 'in'); 
                 scrollToTop(); 
             };
             const toggleArriveStatus = (id) => setExpenses(prev => prev.map(e => e.id === id ? { ...e, isArrived: true } : e));
             const toggleType = (t) => setExpandedTypes(prev => ({ ...prev, [t]: !prev[t] }));
 
-            // 計算現貨進貨的花費狀態
             const wholesaleTotalPaid = expenses.filter(e => e.type === 'wholesale' && e.isPaid !== false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const wholesaleTotalUnpaid = expenses.filter(e => e.type === 'wholesale' && e.isPaid === false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             
@@ -1232,7 +1234,7 @@
             const theoreticalInventory = accumulatedWholesaleQty - accumulatedStoreSoldQty - accumulatedMarketDailySoldQty - pastAdjustments;
             
             const inventoryValue = Math.round(currentInventoryQty * avgUnitCost);
-            // 歷史真實總淨利改為：含庫存累積總實賺
+            // 歷史真實總淨利：(手邊現金 + 庫存資產 + 代購應收款) - (原始本金與借貸負債 + 寄賣未付款 + 代購應付款)
             const trueNetWorth = pocketCash + inventoryValue + preorderUnpaidRev - allTimeWholesaleUnpaid - preorderUnpaidCost;
             const allTimeNetProfit = trueNetWorth - targetCashBreakEven;
 
@@ -1267,7 +1269,7 @@
                         <button onClick={() => changeMonth(1)} className="p-2 text-[#a89689]"><Icon name="chevron_right" /></button>
                     </div>
                     
-                    {/* 事業總體檢與回本進度 */}
+                    {/* 事業總體檢與回本進度 (新功能) */}
                     <Card className="bg-gradient-to-br from-[#e8eaf6] to-[#c5cae9] border-[#9fa8da] mb-4 shadow-md relative overflow-hidden">
                         <div className="absolute -right-4 -top-4 opacity-10 transform rotate-12"><Icon name="flag" className="text-[120px]" /></div>
                         <div className="relative z-10">
@@ -1296,10 +1298,10 @@
 
                             <div className="bg-[#f0f9f0] p-3 rounded-xl shadow-sm border border-[#c8e6c9]">
                                 <div className="flex justify-between items-center">
-                                    <span className="text-sm text-[#2e7d32] font-bold flex items-center"><Icon name="monitoring" className="text-[18px] mr-1"/> 含庫存累積總實賺</span>
+                                    <span className="text-sm text-[#2e7d32] font-bold flex items-center"><Icon name="monitoring" className="text-[18px] mr-1"/> 歷史真實總淨利</span>
                                     <span className={`font-black text-2xl ${allTimeNetProfit >= 0 ? 'text-[#4caf50]' : 'text-[#e57373]'}`}>${allTimeNetProfit.toLocaleString()}</span>
                                 </div>
-                                <div className="text-[10px] text-[#81c784] text-right mt-1">把手邊衣服價值算進去後的「真正總賺賠」</div>
+                                <div className="text-[10px] text-[#81c784] text-right mt-1">包含庫存價值與應付帳款的真實賺賠</div>
                             </div>
                         </div>
                     </Card>
@@ -1712,5 +1714,4 @@
     </script>
 </body>
 </html>
-
 
