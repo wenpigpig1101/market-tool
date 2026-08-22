@@ -159,6 +159,50 @@
             </div>
         );
 
+        // 新增：具有記憶自動完成功能的輸入框
+        const AutocompleteInput = ({ value, onChange, placeholder, options = [], disabled }) => {
+            const [show, setShow] = useState(false);
+            const [filtered, setFiltered] = useState([]);
+
+            const handleChange = (e) => {
+                const val = e.target.value;
+                onChange(e);
+                if (val) {
+                    const matches = options.filter(opt => opt.toLowerCase().includes(val.toLowerCase()) && opt !== val);
+                    setFiltered(matches);
+                    setShow(matches.length > 0);
+                } else {
+                    setShow(false);
+                }
+            };
+
+            const handleSelect = (opt) => {
+                onChange({ target: { value: opt } });
+                setShow(false);
+            };
+
+            return (
+                <div className="mb-3 w-full relative">
+                    <div className={`flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 h-[48px] focus-within:border-[#bc9f8b] transition-colors ${disabled ? 'opacity-60 bg-[#f9f9f9]' : ''}`}>
+                        <input type="text" value={value} onChange={handleChange} placeholder={placeholder} disabled={disabled}
+                            onFocus={handleChange} onBlur={() => setShow(false)}
+                            className="bg-transparent w-full h-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
+                    </div>
+                    {show && (
+                        <ul className="absolute z-50 w-full bg-white border border-[#bc9f8b] rounded-xl mt-1 max-h-48 overflow-y-auto shadow-lg custom-scrollbar">
+                            {filtered.map(opt => (
+                                <li key={opt} 
+                                    onMouseDown={(e) => { e.preventDefault(); handleSelect(opt); }} 
+                                    className="px-4 py-3 cursor-pointer hover:bg-[#f2e7df] border-b border-[#f9f9f9] last:border-0 text-[#5c4d43] font-bold text-[15px] transition-colors flex items-center">
+                                    <Icon name="history" className="mr-2 text-[18px] text-[#c4b5aa]" /> {opt}
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+            );
+        };
+
         const Button = ({ children, onClick, className = "" }) => (
             <button onClick={onClick} className={`w-full h-[48px] rounded-xl font-bold transition-colors text-[15px] text-center flex justify-center items-center font-wawa tracking-wide shadow-sm ${className}`}>
                 {children}
@@ -188,7 +232,7 @@
         };
 
         // --- 分頁 1：超商 & 留貨 & 預購建單 ---
-        const StoreTab = ({ deliveries, setDeliveries, reservations, setReservations, tab1Preorders, setTab1Preorders, setConfirmDialog }) => {
+        const StoreTab = ({ deliveries, setDeliveries, reservations, setReservations, tab1Preorders, setTab1Preorders, setConfirmDialog, allCustomerNames }) => {
             const [formMode, setFormMode] = useState('delivery'); 
             const [editingId, setEditingId] = useState(null);
             
@@ -401,7 +445,7 @@
                         {formMode === 'delivery' ? (
                             <React.Fragment>
                                 <Input type="date" value={dDate} onChange={e => setDDate(e.target.value)} />
-                                <Input placeholder="顧客姓名" value={dCustomerName} onChange={e => setDCustomerName(e.target.value)} />
+                                <AutocompleteInput placeholder="顧客姓名" value={dCustomerName} onChange={e => setDCustomerName(e.target.value)} options={allCustomerNames} />
                                 <div className="grid grid-cols-2 gap-3">
                                     <Input type="number" placeholder="商品售價(總額)" value={dRevenue} onChange={e => setDRevenue(e.target.value)} />
                                     <Input type="number" placeholder="售出服飾件數" value={dSoldQty} onChange={e => setDSoldQty(e.target.value)} />
@@ -442,7 +486,7 @@
                         ) : formMode === 'reserve' ? (
                             <React.Fragment>
                                 <Input type="date" value={rDate} onChange={e => setRDate(e.target.value)} />
-                                <Input placeholder="訂購人姓名" value={rCustomerName} onChange={e => setRCustomerName(e.target.value)} />
+                                <AutocompleteInput placeholder="訂購人姓名" value={rCustomerName} onChange={e => setRCustomerName(e.target.value)} options={allCustomerNames} />
                                 <div className="grid grid-cols-2 gap-3">
                                     <Input type="number" placeholder="預估售價(總額)" value={rRevenue} onChange={e => setRRevenue(e.target.value)} />
                                     <Input type="number" placeholder="保留件數" value={rItemsCount} onChange={e => setRItemsCount(e.target.value)} />
@@ -456,7 +500,7 @@
                         ) : (
                             <React.Fragment>
                                 <Input type="date" value={pDate} onChange={e => setPDate(e.target.value)} />
-                                <Input placeholder="預購人姓名" value={pCustomerName} onChange={e => setPCustomerName(e.target.value)} />
+                                <AutocompleteInput placeholder="預購人姓名" value={pCustomerName} onChange={e => setPCustomerName(e.target.value)} options={allCustomerNames} />
                                 <div className="grid grid-cols-2 gap-3">
                                     <Input type="number" placeholder="預估售價(總額)" value={pRevenue} onChange={e => setPRevenue(e.target.value)} />
                                     <Input type="number" placeholder="預購件數" value={pItemsCount} onChange={e => setPItemsCount(e.target.value)} />
@@ -1467,7 +1511,7 @@
         };
 
         // --- 5. 代購預購系統 ---
-        const PreorderTab = ({ preorders, setPreorders, setConfirmDialog }) => {
+        const PreorderTab = ({ preorders, setPreorders, setConfirmDialog, allCustomerNames }) => {
             const [editingId, setEditingId] = useState(null);
             const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
             const [customerName, setCustomerName] = useState('');
@@ -1511,7 +1555,10 @@
                     <Card className={editingId ? 'border-2 border-[#5c6bc0]' : 'border border-[#e8eaf6]'}>
                         <div className="flex items-center mb-4 text-[#5c6bc0] font-bold text-lg"><Icon name={editingId ? 'edit' : 'add_circle'} className="mr-2" /> {editingId ? '編輯代購 / 預購紀錄' : '建立代購 / 預購訂單'}</div>
                         <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
-                        <div className="grid grid-cols-2 gap-3"><Input placeholder="客人姓名或暱稱" value={customerName} onChange={e => setCustomerName(e.target.value)} /><Input type="number" placeholder="商品件數" value={itemsCount} onChange={e => setItemsCount(e.target.value)} /></div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <AutocompleteInput placeholder="客人姓名或暱稱" value={customerName} onChange={e => setCustomerName(e.target.value)} options={allCustomerNames} />
+                            <Input type="number" placeholder="商品件數" value={itemsCount} onChange={e => setItemsCount(e.target.value)} />
+                        </div>
                         <div className="grid grid-cols-2 gap-3"><Input type="number" placeholder="單筆總批價(成本)" value={wholesaleCost} onChange={e => setWholesaleCost(e.target.value)} /><Input type="number" placeholder="單筆總售價(實收)" value={revenue} onChange={e => setRevenue(e.target.value)} /></div>
                         <Input placeholder="備註(款式、顏色、尺寸)" value={note} onChange={e => setNote(e.target.value)} />
                         <div className="flex gap-3">{editingId && <Button onClick={resetForm} className="flex-1 bg-[#e8eaf6] !text-[#5c6bc0]">取消</Button>}<Button onClick={handleAddPreorder} className={editingId ? 'flex-[2] bg-[#5c6bc0] text-white' : 'w-full bg-[#5c6bc0] text-white'}>{editingId ? '儲存修改' : '建立單筆代購'}</Button></div>
@@ -1655,6 +1702,17 @@
             
             const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, id: null, collection: '', message: '' });
 
+            // 運算所有出現過的顧客姓名 (包含超商、保留、兩邊的預購單)
+            const allCustomerNames = useMemo(() => {
+                const names = new Set();
+                const addNames = (arr) => arr.forEach(item => { if (item.customerName) names.add(item.customerName); });
+                addNames(deliveries);
+                addNames(reservations);
+                addNames(tab1Preorders);
+                addNames(preorders);
+                return Array.from(names);
+            }, [deliveries, reservations, tab1Preorders, preorders]);
+
             const executeDelete = () => {
                 const { id, collection } = confirmDialog;
                 if(id && collection) {
@@ -1679,11 +1737,11 @@
                         </header>
                         
                         <main id="main-content" className="flex-1 overflow-y-auto p-4 relative custom-scrollbar">
-                            {activeTab === 'store' && <StoreTab deliveries={deliveries} setDeliveries={setDeliveries} reservations={reservations} setReservations={setReservations} tab1Preorders={tab1Preorders} setTab1Preorders={setTab1Preorders} setConfirmDialog={setConfirmDialog} />}
+                            {activeTab === 'store' && <StoreTab deliveries={deliveries} setDeliveries={setDeliveries} reservations={reservations} setReservations={setReservations} tab1Preorders={tab1Preorders} setTab1Preorders={setTab1Preorders} setConfirmDialog={setConfirmDialog} allCustomerNames={allCustomerNames} />}
                             {activeTab === 'market' && <MarketTab marketSales={marketSales} setMarketSales={setMarketSales} expenses={expenses} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'expense' && <ExpenseTab expenses={expenses} setExpenses={setExpenses} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'report' && <ReportTab deliveries={deliveries} marketSales={marketSales} expenses={expenses} preorders={preorders} settings={settings} setSettings={setSettings} marketSoldStats={marketSoldStats} setMarketSoldStats={setMarketSoldStats} setDialog={setConfirmDialog} />}
-                            {activeTab === 'preorder' && <PreorderTab preorders={preorders} setPreorders={setPreorders} setConfirmDialog={setConfirmDialog} />}
+                            {activeTab === 'preorder' && <PreorderTab preorders={preorders} setPreorders={setPreorders} setConfirmDialog={setConfirmDialog} allCustomerNames={allCustomerNames} />}
                         </main>
 
                         <nav className="bg-white border-t border-[#f2e7df] flex justify-around pb-safe pt-2 fixed bottom-0 w-full max-w-lg z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] px-1">
@@ -1714,4 +1772,5 @@
     </script>
 </body>
 </html>
+
 
