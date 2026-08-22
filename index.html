@@ -1277,11 +1277,6 @@
             const currentInventoryQty = accumulatedWholesaleQty - accumulatedTotalSold;
             const theoreticalInventory = accumulatedWholesaleQty - accumulatedStoreSoldQty - accumulatedMarketDailySoldQty - pastAdjustments;
             
-            const inventoryValue = Math.round(currentInventoryQty * avgUnitCost);
-            // 歷史真實總淨利：(手邊現金 + 庫存資產 + 代購應收款) - (原始本金與借貸負債 + 寄賣未付款 + 代購應付款)
-            const trueNetWorth = pocketCash + inventoryValue + preorderUnpaidRev - allTimeWholesaleUnpaid - preorderUnpaidCost;
-            const allTimeNetProfit = trueNetWorth - targetCashBreakEven;
-
             const saveInventoryCheck = () => {
                 const actual = Number(actualInv) || 0;
                 const diff = theoreticalInventory - actual; 
@@ -1313,13 +1308,13 @@
                         <button onClick={() => changeMonth(1)} className="p-2 text-[#a89689]"><Icon name="chevron_right" /></button>
                     </div>
                     
-                    {/* 事業總體檢與回本進度 (新功能) */}
+                    {/* 事業總體檢與回本進度 */}
                     <Card className="bg-gradient-to-br from-[#e8eaf6] to-[#c5cae9] border-[#9fa8da] mb-4 shadow-md relative overflow-hidden">
                         <div className="absolute -right-4 -top-4 opacity-10 transform rotate-12"><Icon name="flag" className="text-[120px]" /></div>
                         <div className="relative z-10">
                             <div className="flex items-center text-[#283593] font-bold text-lg mb-3 pb-2 border-b border-[#9fa8da] border-opacity-50"><Icon name="health_and_safety" className="mr-2" /> 🏆 事業總體檢 & 回本進度</div>
                             
-                            <div className="grid grid-cols-2 gap-3 mb-3">
+                            <div className="grid grid-cols-2 gap-3 mb-1">
                                 <div className="bg-white bg-opacity-70 p-2.5 rounded-xl shadow-sm border border-white">
                                     <div className="text-[10px] text-[#5c6bc0] font-bold mb-0.5 flex items-center"><Icon name="flag_circle" className="text-[14px] mr-1"/> 現金回本目標</div>
                                     <div className="font-black text-xl text-[#3949ab]">${targetCashBreakEven.toLocaleString()}</div>
@@ -1331,25 +1326,36 @@
                                     <div className="text-[9px] text-[#ef5350] mt-0.5">{cashGap > 0 ? '只要把衣服賣掉換回這筆錢就回本了' : '🎉 恭喜已完全現金回本！'}</div>
                                 </div>
                             </div>
-                            
-                            <div className="bg-white p-3 rounded-xl shadow-sm border border-white mb-3">
-                                <div className="flex justify-between items-center mb-1">
-                                    <span className="text-xs text-[#5c4d43] font-bold flex items-center"><Icon name="inventory_2" className="text-[16px] mr-1 text-[#bc9f8b]"/> 手邊現貨總價值 (均價換算)</span>
-                                    <span className="font-black text-lg text-[#bc9f8b]">${inventoryValue.toLocaleString()}</span>
-                                </div>
-                                <div className="text-[10px] text-[#a89689] text-right">別擔心，您的錢沒有不見，只是變成衣服了！</div>
-                            </div>
-
-                            <div className="bg-[#f0f9f0] p-3 rounded-xl shadow-sm border border-[#c8e6c9]">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-sm text-[#2e7d32] font-bold flex items-center"><Icon name="monitoring" className="text-[18px] mr-1"/> 歷史真實總淨利</span>
-                                    <span className={`font-black text-2xl ${allTimeNetProfit >= 0 ? 'text-[#4caf50]' : 'text-[#e57373]'}`}>${allTimeNetProfit.toLocaleString()}</span>
-                                </div>
-                                <div className="text-[10px] text-[#81c784] text-right mt-1">包含庫存價值與應付帳款的真實賺賠</div>
-                            </div>
                         </div>
                     </Card>
 
+                    {/* 現貨庫存與盤點 (移至上方) */}
+                    <Card className="bg-white border-dashed border-2 border-[#c8e6c9] mb-4">
+                        <div className="flex items-center text-[#4caf50] font-bold text-lg mb-3"><Icon name="inventory_2" className="mr-2" /> 現貨庫存與盤點</div>
+                        <div className="flex items-center justify-between mb-3 text-sm"><span className="text-[#7a6453] font-bold">目前現貨平均成本</span><span className="font-black text-[#5c4d43]">${avgUnitCost.toFixed(1)} <span className="text-xs text-[#a89689] font-normal">/件</span></span></div>
+                        <div className="grid grid-cols-3 gap-2 border-t border-[#f2e7df] pt-3 pb-2">
+                            <div className="text-center"><div className="text-[10px] text-[#a89689] font-bold">歷史總進貨</div><div className="font-black text-lg text-[#5c4d43]">{accumulatedWholesaleQty}</div></div>
+                            <div className="text-center border-x border-[#f2e7df]"><div className="text-[10px] text-[#a89689] font-bold">歷史總售出</div><div className="font-black text-lg text-[#5c4d43]">{accumulatedTotalSold}</div></div>
+                            <div className="text-center"><div className="text-[10px] text-[#4caf50] font-bold">目前手邊應有</div><div className="font-black text-2xl text-[#4caf50]">{currentInventoryQty}</div></div>
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-[#f2e7df]">
+                            {isCheckingInventory ? (
+                                <div className="animate-fade-in pt-2">
+                                    <div className="text-xs text-[#a89689] mb-2 font-bold">系統帳面數量：{theoreticalInventory} 件</div>
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <input type="number" placeholder="輸入實際剩下幾件" value={actualInv} onChange={e=>setActualInv(e.target.value)} className="flex-[2] bg-[#fdfdfd] border border-[#c8e6c9] rounded-lg px-3 h-[40px] text-sm outline-none focus:border-[#4caf50] font-wawa"/>
+                                        <div className="flex-1 text-xs font-bold text-[#e57373] text-right">盤差<br/><span className="text-lg">{(theoreticalInventory - (Number(actualInv)||0))}</span> 件</div>
+                                    </div>
+                                    <div className="flex gap-2"><button onClick={()=>setIsCheckingInventory(false)} className="flex-1 h-[40px] bg-[#f2e7df] text-[#7a6453] rounded-lg text-sm font-bold font-wawa">取消</button><button onClick={saveInventoryCheck} className="flex-[2] h-[40px] bg-[#4caf50] text-white rounded-lg text-sm font-bold font-wawa shadow-sm">校正儲存</button></div>
+                                </div>
+                            ) : (
+                                <button onClick={()=>{setActualInv(''); setIsCheckingInventory(true);}} className="w-full py-2 bg-[#f0f9f0] text-[#4caf50] rounded-lg text-sm font-bold border border-[#c8e6c9] transition-colors active:bg-[#e8f5e9]">✏️ 數量不對？輸入盤點校正</button>
+                            )}
+                            {currentMonthAdj !== 0 && !isCheckingInventory && <div className="text-center text-xs text-[#e57373] mt-2 font-bold">本月已有盤差紀錄：{currentMonthAdj > 0 ? '+' : ''}{currentMonthAdj} 件</div>}
+                        </div>
+                    </Card>
+
+                    {/* 系統帳面資金 */}
                     <Card className="bg-[#fffde7] border-[#fff59d] mb-4 shadow-sm">
                         <div className="flex justify-between items-start mb-2">
                             <div className="flex items-center text-[#f57f17] font-bold text-lg"><Icon name="account_balance" className="mr-2" /> 🏛️ 系統帳面資金</div>
@@ -1481,30 +1487,6 @@
                         </div>
                     </Card>
 
-                    <Card className="bg-white border-dashed border-2 border-[#c8e6c9] mb-4">
-                        <div className="flex items-center text-[#4caf50] font-bold text-lg mb-3"><Icon name="inventory_2" className="mr-2" /> 現貨庫存與盤點</div>
-                        <div className="flex items-center justify-between mb-3 text-sm"><span className="text-[#7a6453] font-bold">目前現貨平均成本</span><span className="font-black text-[#5c4d43]">${avgUnitCost.toFixed(1)} <span className="text-xs text-[#a89689] font-normal">/件</span></span></div>
-                        <div className="grid grid-cols-3 gap-2 border-t border-[#f2e7df] pt-3 pb-2">
-                            <div className="text-center"><div className="text-[10px] text-[#a89689] font-bold">歷史總進貨</div><div className="font-black text-lg text-[#5c4d43]">{accumulatedWholesaleQty}</div></div>
-                            <div className="text-center border-x border-[#f2e7df]"><div className="text-[10px] text-[#a89689] font-bold">歷史總售出</div><div className="font-black text-lg text-[#5c4d43]">{accumulatedTotalSold}</div></div>
-                            <div className="text-center"><div className="text-[10px] text-[#4caf50] font-bold">目前手邊應有</div><div className="font-black text-2xl text-[#4caf50]">{currentInventoryQty}</div></div>
-                        </div>
-                        <div className="mt-2 pt-2 border-t border-[#f2e7df]">
-                            {isCheckingInventory ? (
-                                <div className="animate-fade-in pt-2">
-                                    <div className="text-xs text-[#a89689] mb-2 font-bold">系統帳面數量：{theoreticalInventory} 件</div>
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <input type="number" placeholder="輸入實際剩下幾件" value={actualInv} onChange={e=>setActualInv(e.target.value)} className="flex-[2] bg-[#fdfdfd] border border-[#c8e6c9] rounded-lg px-3 h-[40px] text-sm outline-none focus:border-[#4caf50] font-wawa"/>
-                                        <div className="flex-1 text-xs font-bold text-[#e57373] text-right">盤差<br/><span className="text-lg">{(theoreticalInventory - (Number(actualInv)||0))}</span> 件</div>
-                                    </div>
-                                    <div className="flex gap-2"><button onClick={()=>setIsCheckingInventory(false)} className="flex-1 h-[40px] bg-[#f2e7df] text-[#7a6453] rounded-lg text-sm font-bold font-wawa">取消</button><button onClick={saveInventoryCheck} className="flex-[2] h-[40px] bg-[#4caf50] text-white rounded-lg text-sm font-bold font-wawa shadow-sm">校正儲存</button></div>
-                                </div>
-                            ) : (
-                                <button onClick={()=>{setActualInv(''); setIsCheckingInventory(true);}} className="w-full py-2 bg-[#f0f9f0] text-[#4caf50] rounded-lg text-sm font-bold border border-[#c8e6c9] transition-colors active:bg-[#e8f5e9]">✏️ 數量不對？輸入盤點校正</button>
-                            )}
-                            {currentMonthAdj !== 0 && !isCheckingInventory && <div className="text-center text-xs text-[#e57373] mt-2 font-bold">本月已有盤差紀錄：{currentMonthAdj > 0 ? '+' : ''}{currentMonthAdj} 件</div>}
-                        </div>
-                    </Card>
                     <Card><div className="flex justify-between items-center text-base font-bold text-[#5c4d43]"><span className="flex items-center">🎁 本月贈品統計</span><span className="text-[#e57373]">共 {storeGifts + marketGifts} 件</span></div></Card>
                 </div>
             );
