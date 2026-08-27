@@ -1205,10 +1205,15 @@
             // ---- 全期存摺 ----
             const allTimeMarketRev = marketSales.reduce((sum, m) => sum + (Number(m.revenue)||0), 0);
             const allTimeStoreRev = deliveries.reduce((sum, d) => sum + (Number(d.revenue)||0), 0);
-            const allTimeStoreShipIn = deliveries.reduce((sum, d) => sum + (Number(d.shippingIncome)||0), 0);
-            const allTimeRev = allTimeMarketRev + allTimeStoreRev + allTimeStoreShipIn; 
             
-            const allTimeMarketExp = marketSales.reduce((sum, m) => sum + (Number(m.rent)||0) + (Number(m.electricity)||0) + (Number(m.cleaning)||0) + (Number(m.toll)||0) + (Number(m.parking)||0), 0) + deliveries.reduce((sum, d) => sum + (Number(d.shippingExpense)||0), 0);
+            // ★ 修改：將超商運費獨立計算，不再混入「現貨總收現金」與「市場攤位與雜支」
+            const allTimeStoreShipIn = deliveries.reduce((sum, d) => sum + (Number(d.shippingIncome)||0), 0);
+            const allTimeStoreShipExp = deliveries.reduce((sum, d) => sum + (Number(d.shippingExpense)||0), 0);
+            const allTimeShippingNet = allTimeStoreShipIn - allTimeStoreShipExp; // 淨賺(或倒貼)的運費差額
+
+            const allTimeRev = allTimeMarketRev + allTimeStoreRev; // 純商品業績
+            
+            const allTimeMarketExp = marketSales.reduce((sum, m) => sum + (Number(m.rent)||0) + (Number(m.electricity)||0) + (Number(m.cleaning)||0) + (Number(m.toll)||0) + (Number(m.parking)||0), 0); // 純市場雜支
             
             // 只有「已付款」的進貨才會扣除現金
             const allTimeWholePaidArrived = expenses.filter(e => e.type === 'wholesale' && e.isArrived !== false && e.isPaid !== false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
@@ -1227,8 +1232,8 @@
             const preorderUnpaidRev = preorders.filter(p => p.status !== 'completed').reduce((sum, p) => sum + (Number(p.revenue)||0), 0);
             const preorderUnpaidCost = preorders.filter(p => ['pending', 'ordered'].includes(p.status)).reduce((sum, p) => sum + (Number(p.wholesaleCost)||0), 0);
 
-            // 帳面資金：進貨只扣除「已付款 (allTimeWholesaleCashPaid)」的部分
-            const pocketCash = currentStartupCap + allTimeRev - allTimeMarketExp - allTimeWholesaleCashPaid - allTimeOtherExp + allTimeFinancingIn - allTimeFinancingOut - allTimePreorderCost + allTimePreorderRev;
+            // 帳面資金：加入獨立的運費淨差額 (allTimeShippingNet)
+            const pocketCash = currentStartupCap + allTimeRev + allTimeShippingNet - allTimeMarketExp - allTimeWholesaleCashPaid - allTimeOtherExp + allTimeFinancingIn - allTimeFinancingOut - allTimePreorderCost + allTimePreorderRev;
 
             // ---- 回本進度計算 ----
             const netFinancing = allTimeFinancingIn - allTimeFinancingOut;
@@ -1261,7 +1266,7 @@
             const monthlyShippingProfit = storeShippingNetExp < 0 ? Math.abs(storeShippingNetExp) : 0; 
             const frontlineNetIncome = monthlyTotalRev - monthlyMarketExp + monthlyShippingProfit;
 
-            // ★ 關鍵修改：庫存成本與數量，排除獨立貨源 (e.isForMarket !== false)
+            // ★ 庫存成本與數量，排除獨立貨源 (e.isForMarket !== false)
             const wholesaleToMonth = expenses.filter(e => e.type === 'wholesale' && safeStr(e.date).substring(0, 7) <= reportMonth && e.isArrived !== false && e.isForMarket !== false);
             const accumulatedWholesaleCost = wholesaleToMonth.reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const accumulatedWholesaleQty = wholesaleToMonth.reduce((sum, e) => sum + (Number(e.qty)||0), 0);
@@ -1414,7 +1419,18 @@
                                 <div className="pl-6 pr-2 py-1 mb-2 space-y-1 bg-[#fafafa] rounded text-[11px] text-[#a89689] animate-expand">
                                     {allTimeMarketRev > 0 && <div className="flex justify-between"><span>└ 市場累積業績</span><span>${allTimeMarketRev.toLocaleString()}</span></div>}
                                     {allTimeStoreRev > 0 && <div className="flex justify-between"><span>└ 超商累積業績</span><span>${allTimeStoreRev.toLocaleString()}</span></div>}
-                                    {allTimeStoreShipIn > 0 && <div className="flex justify-between"><span>└ 超商運費代收</span><span>${allTimeStoreShipIn.toLocaleString()}</span></div>}
+                                </div>
+                            )}
+                            
+                            {/* ★ 新增的運費差額專區 */}
+                            <div className="flex justify-between items-center cursor-pointer mb-1.5" onClick={() => toggleExp('shipping')}>
+                                <span className="flex items-center text-[#f57f17]"><Icon name="local_shipping" className="text-[16px] mr-1"/> 寄件運費差額 (多收/倒貼)<Icon name={expState['shipping'] ? "expand_less" : "expand_more"} className="text-[14px] ml-0.5 opacity-60"/></span>
+                                <span className={`${allTimeShippingNet >= 0 ? 'text-[#4caf50]' : 'text-[#e57373]'}`}>{allTimeShippingNet > 0 ? '+' : ''}$ {allTimeShippingNet.toLocaleString()}</span>
+                            </div>
+                            {expState['shipping'] && (
+                                <div className="pl-6 pr-2 py-1 mb-2 space-y-1 bg-[#fafafa] rounded text-[11px] text-[#a89689] animate-expand">
+                                    <div className="flex justify-between"><span>└ 客人實付運費(代收)</span><span className="text-[#4caf50]">+$ {allTimeStoreShipIn.toLocaleString()}</span></div>
+                                    <div className="flex justify-between"><span>└ 超商物流費(實扣)</span><span className="text-[#e57373]">-$ {allTimeStoreShipExp.toLocaleString()}</span></div>
                                 </div>
                             )}
 
@@ -1444,14 +1460,13 @@
                             )}
 
                             <div className="flex justify-between items-center text-[#e57373] cursor-pointer" onClick={() => toggleExp('market')}>
-                                <span className="flex items-center"><Icon name="remove" className="text-[16px] mr-1"/> 擺攤租金與運費<Icon name={expState['market'] ? "expand_less" : "expand_more"} className="text-[14px] ml-0.5 opacity-60"/></span>
+                                <span className="flex items-center"><Icon name="remove" className="text-[16px] mr-1"/> 市場攤位與雜支<Icon name={expState['market'] ? "expand_less" : "expand_more"} className="text-[14px] ml-0.5 opacity-60"/></span>
                                 <span>-$ {allTimeMarketExp.toLocaleString()}</span>
                             </div>
                             {expState['market'] && (
                                 <div className="pl-6 pr-2 py-1 mt-1 space-y-1 bg-[#fafafa] rounded text-[11px] text-[#a89689] animate-expand">
                                     {marketSales.reduce((sum, m) => sum + (Number(m.rent)||0), 0) > 0 && <div className="flex justify-between"><span>└ 市場攤位租金</span><span>-${marketSales.reduce((sum, m) => sum + (Number(m.rent)||0), 0).toLocaleString()}</span></div>}
                                     {marketSales.reduce((sum, m) => sum + (Number(m.electricity)||0)+(Number(m.cleaning)||0)+(Number(m.toll)||0)+(Number(m.parking)||0), 0) > 0 && <div className="flex justify-between"><span>└ 市場雜支(電/清/停)</span><span>-${marketSales.reduce((sum, m) => sum + (Number(m.electricity)||0)+(Number(m.cleaning)||0)+(Number(m.toll)||0)+(Number(m.parking)||0), 0).toLocaleString()}</span></div>}
-                                    {deliveries.reduce((sum, d) => sum + (Number(d.shippingExpense)||0), 0) > 0 && <div className="flex justify-between"><span>└ 超商運費支出</span><span>-${deliveries.reduce((sum, d) => sum + (Number(d.shippingExpense)||0), 0).toLocaleString()}</span></div>}
                                 </div>
                             )}
                         </div>
