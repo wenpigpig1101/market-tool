@@ -1291,9 +1291,8 @@
             const currentMonthMarketDailySold = currentMarket.reduce((sum, m) => sum + (Number(m.soldQty) || 0), 0);
             const currentMonthTotalSoldQty = currentMonthStoreSold + currentMonthMarketDailySold + currentMonthAdj;
             
-            // ★ 因為 avgUnitCost 已經排除了獨立貨源的高/低單價，所以這邊扣的成本會是最精準的市場真實 COGS
-            const monthlyCOGS = Math.round(currentMonthTotalSoldQty * avgUnitCost);
-            const grossProfit = frontlineNetIncome - monthlyCOGS + monthlyPreorderProfit; 
+            // ★ 將月結的衣服成本扣除也拿掉，讓毛利等於純現金收入
+            const grossProfit = frontlineNetIncome + monthlyPreorderProfit; 
 
             const monthlySupplyExp = currentExpenses.filter(e => e.type === 'supply').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const monthlyFixedExp = currentExpenses.filter(e => e.type === 'fixed').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
@@ -1477,9 +1476,6 @@
                             {monthlyShippingProfit > 0 && <div className="flex justify-between items-center text-[#4caf50]"><span className="flex items-center"><Icon name="add" className="text-[14px] mr-1"/> 加：超商運費多收</span><span>+${monthlyShippingProfit.toLocaleString()}</span></div>}
                             <div className="bg-[#fdfaf7] p-2 rounded-lg flex justify-between text-base border border-[#f2e7df]"><span className="text-[#7a6453]">💰 現貨前端淨收</span><span className="text-[#bc9f8b]">${frontlineNetIncome.toLocaleString()}</span></div>
                             <div className="h-1"></div>
-                            
-                            <div className="flex justify-between items-center text-[#e57373]"><span className="flex items-center"><Icon name="remove" className="text-[14px] mr-1"/> 扣：現貨賣出平均成本</span><span>-${monthlyCOGS.toLocaleString()}</span></div>
-                            <div className="pl-6 text-[10px] text-[#a89689] font-normal -mt-2 mb-1">( 本月攤位/超商共銷出 {currentMonthTotalSoldQty} 件 )</div>
                             
                             <div className="flex justify-between items-center text-[#5c6bc0] mt-3 pt-3 border-t border-dashed border-[#e8eaf6]"><span className="flex items-center"><Icon name="add" className="text-[14px] mr-1"/> 加：代購 / 預購淨利</span><span>+${monthlyPreorderProfit.toLocaleString()}</span></div>
                             <div className="pl-6 text-[10px] text-[#7986cb] font-normal -mt-1 mb-1">( 總營收 ${monthlyPreorderRev} - 總批價 ${monthlyPreorderCost} )</div>
