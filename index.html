@@ -826,8 +826,7 @@
                 const totalRev = searchedSales.reduce((sum, m) => sum + (Number(m.revenue) || 0), 0);
                 const totalProfit = searchedSales.reduce((sum, m) => {
                     const dailyMisc = (Number(m.electricity) || 0) + (Number(m.cleaning) || 0) + (Number(m.toll) || 0) + (Number(m.parking) || 0);
-                    const cogs = Math.round((Number(m.soldQty)||0) * avgUnitCost);
-                    return sum + (Number(m.revenue) || 0) - (Number(m.rent) || 0) - dailyMisc - cogs;
+                    return sum + (Number(m.revenue) || 0) - (Number(m.rent) || 0) - dailyMisc;
                 }, 0);
 
                 return (
@@ -838,15 +837,14 @@
                                 <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">出攤次數</span><span className="font-black text-lg text-[#5c4d43]">{times} 次</span></div>
                                 <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">累積總業績</span><span className="font-black text-lg text-[#5c4d43]">${totalRev.toLocaleString()}</span></div>
                                 <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">平均單次業績</span><span className="font-black text-xl text-[#4caf50]">${Math.round(totalRev / times).toLocaleString()}</span></div>
-                                <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">單次淨利(含扣衣成本)</span><span className="font-black text-xl text-[#e57373]">${Math.round(totalProfit / times).toLocaleString()}</span></div>
+                                <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">平均單次前端淨收(未扣衣)</span><span className="font-black text-xl text-[#e57373]">${Math.round(totalProfit / times).toLocaleString()}</span></div>
                             </div>
                         </Card>
                         
                         <div className="text-[#9b4949] font-bold px-2 text-lg mb-2"><Icon name="history" className="align-middle text-[20px] mr-1" /> 歷史足跡明細</div>
                         {searchedSales.map(m => {
                             const dailyMisc = (Number(m.electricity) || 0) + (Number(m.cleaning) || 0) + (Number(m.toll) || 0) + (Number(m.parking) || 0);
-                            const cogs = Math.round((Number(m.soldQty)||0) * avgUnitCost);
-                            const operatingProfit = (Number(m.revenue)||0) - (Number(m.rent)||0) - dailyMisc - cogs; 
+                            const operatingProfit = (Number(m.revenue)||0) - (Number(m.rent)||0) - dailyMisc; 
                             return (
                                 <div key={m.id} className="bg-white rounded-xl p-4 mb-3 shadow-sm border border-[#f2e7df] relative mx-1">
                                     <div className="absolute top-4 right-4 flex gap-1">
@@ -858,8 +856,7 @@
                                     <div className="text-sm text-[#7a6453] grid grid-cols-2 gap-y-1.5 mt-3 pt-3 border-t border-[#fdfaf7] pl-4">
                                         <div>營業額: <span className="font-bold text-[#5c4d43]">${m.revenue}</span> <span className="ml-1 bg-orange-50 text-[#bc9f8b] text-[10px] px-1 rounded">{m.soldQty||0}件</span></div>
                                         <div>攤租雜支: <span className="font-medium">-${(Number(m.rent)||0) + dailyMisc}</span></div>
-                                        <div className="col-span-2 flex justify-between items-end mt-1 pt-2 border-t border-dashed border-[#f2e7df]">
-                                            <span className="text-[11px] text-[#a89689]">衣服成本(均價計算): -${cogs}</span>
+                                        <div className="col-span-2 flex justify-end items-end mt-1 pt-2 border-t border-dashed border-[#f2e7df]">
                                             <span className="font-bold text-[#5c4d43] text-base">單日淨利: <span className={operatingProfit >= 0 ? 'text-[#4caf50]' : 'text-[#e57373]'}>${operatingProfit}</span></span>
                                         </div>
                                     </div>
@@ -946,8 +943,7 @@
                                 <div className="bg-white rounded-2xl border border-dashed border-[#e0d6ce] text-center text-[#c4b5aa] text-sm py-8 mx-2 mt-4">這天沒有擺攤，是休息日喔 ☕</div>
                             ) : filteredSales.map(m => {
                                 const dailyMisc = (Number(m.electricity) || 0) + (Number(m.cleaning) || 0) + (Number(m.toll) || 0) + (Number(m.parking) || 0);
-                                const cogs = Math.round((Number(m.soldQty)||0) * avgUnitCost);
-                                const operatingProfit = (Number(m.revenue)||0) - (Number(m.rent)||0) - dailyMisc - cogs; 
+                                const operatingProfit = (Number(m.revenue)||0) - (Number(m.rent)||0) - dailyMisc; 
                                 return (
                                     <div key={m.id} className="bg-white rounded-xl p-4 mb-3 shadow-sm border border-[#f2e7df] relative mx-1">
                                         <div className="absolute top-4 right-4 flex gap-1">
@@ -959,8 +955,7 @@
                                         <div className="text-sm text-[#7a6453] grid grid-cols-2 gap-y-1.5 mt-3 pt-3 border-t border-[#fdfaf7] pl-4">
                                             <div>營業額: <span className="font-bold text-[#5c4d43]">${m.revenue}</span> <span className="ml-1 bg-orange-50 text-[#bc9f8b] text-[10px] px-1 rounded">{m.soldQty||0}件</span></div>
                                             <div>攤租雜支: <span className="font-medium">-${(Number(m.rent)||0) + dailyMisc}</span></div>
-                                            <div className="col-span-2 flex justify-between items-end mt-1 pt-2 border-t border-dashed border-[#f2e7df]">
-                                                <span className="text-[11px] text-[#a89689]">衣服成本(均價計算): -${cogs}</span>
+                                            <div className="col-span-2 flex justify-end items-end mt-1 pt-2 border-t border-dashed border-[#f2e7df]">
                                                 <span className="font-bold text-[#5c4d43] text-base">單日淨利: <span className={operatingProfit >= 0 ? 'text-[#4caf50]' : 'text-[#e57373]'}>${operatingProfit}</span></span>
                                             </div>
                                         </div>
@@ -1285,15 +1280,6 @@
             const currentInventoryQty = accumulatedWholesaleQty - accumulatedTotalSold;
             const theoreticalInventory = accumulatedWholesaleQty - accumulatedStoreSoldQty - accumulatedMarketDailySoldQty - pastAdjustments;
             
-            // 攤位庫存價值
-            const inventoryValue = Math.round(currentInventoryQty * avgUnitCost);
-            // 獨立貨源成本總值 (為了保持真歷史實淨利不失真)
-            const independentWholesaleCostAllTime = expenses.filter(e => e.type === 'wholesale' && e.isForMarket === false && e.isArrived !== false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
-            
-            // 歷史真實總淨利：(手邊現金 + 大庫存價值 + 獨立貨源成本 + 代購應收款) - (原始本金與借貸負債 + 寄賣未付款 + 代購應付款)
-            const trueNetWorth = pocketCash + inventoryValue + independentWholesaleCostAllTime + preorderUnpaidRev - allTimeWholesaleUnpaid - preorderUnpaidCost;
-            const allTimeNetProfit = trueNetWorth - targetCashBreakEven;
-
             const saveInventoryCheck = () => {
                 const actual = Number(actualInv) || 0;
                 const diff = theoreticalInventory - actual; 
@@ -1327,23 +1313,18 @@
                         <button onClick={() => changeMonth(1)} className="p-2 text-[#a89689]"><Icon name="chevron_right" /></button>
                     </div>
                     
-                    {/* 事業總體檢與回本進度 */}
+                    {/* 事業總體檢與回本目標 */}
                     <Card className="bg-gradient-to-br from-[#e8eaf6] to-[#c5cae9] border-[#9fa8da] mb-4 shadow-md relative overflow-hidden">
                         <div className="absolute -right-4 -top-4 opacity-10 transform rotate-12"><Icon name="flag" className="text-[120px]" /></div>
                         <div className="relative z-10">
-                            <div className="flex items-center text-[#283593] font-bold text-lg mb-3 pb-2 border-b border-[#9fa8da] border-opacity-50"><Icon name="health_and_safety" className="mr-2" /> 🏆 事業總體檢 & 回本進度</div>
+                            <div className="flex items-center text-[#283593] font-bold text-lg mb-3 pb-2 border-b border-[#9fa8da] border-opacity-50"><Icon name="health_and_safety" className="mr-2" /> 🏆 事業總體檢 & 回本目標</div>
                             
-                            <div className="grid grid-cols-2 gap-3 mb-1">
-                                <div className="bg-white bg-opacity-70 p-2.5 rounded-xl shadow-sm border border-white">
-                                    <div className="text-[10px] text-[#5c6bc0] font-bold mb-0.5 flex items-center"><Icon name="flag_circle" className="text-[14px] mr-1"/> 現金回本目標</div>
-                                    <div className="font-black text-xl text-[#3949ab]">${targetCashBreakEven.toLocaleString()}</div>
-                                    <div className="text-[9px] text-[#7986cb] mt-0.5">本金 + 需償還借款總額</div>
+                            <div className="bg-white bg-opacity-70 p-3 rounded-xl shadow-sm border border-white flex justify-between items-center">
+                                <div>
+                                    <div className="text-[11px] text-[#5c6bc0] font-bold mb-0.5 flex items-center"><Icon name="flag_circle" className="text-[16px] mr-1"/> 總現金回本目標</div>
+                                    <div className="text-[10px] text-[#7986cb] mt-0.5">本金 + 需償還借款總額</div>
                                 </div>
-                                <div className="bg-white bg-opacity-70 p-2.5 rounded-xl shadow-sm border border-white">
-                                    <div className="text-[10px] text-[#e57373] font-bold mb-0.5 flex items-center"><Icon name="payments" className="text-[14px] mr-1"/> 目前尚缺現金</div>
-                                    <div className="font-black text-xl text-[#d32f2f]">${cashGap > 0 ? cashGap.toLocaleString() : '0'}</div>
-                                    <div className="text-[9px] text-[#ef5350] mt-0.5">{cashGap > 0 ? '只要把衣服賣掉換回這筆錢就回本了' : '🎉 恭喜已完全現金回本！'}</div>
-                                </div>
+                                <div className="font-black text-2xl text-[#3949ab]">${targetCashBreakEven.toLocaleString()}</div>
                             </div>
                         </div>
                     </Card>
