@@ -654,6 +654,7 @@
                                 <Input type="date" value={tDate} onChange={e => setTDate(e.target.value)} />
                                 <Input type="number" value={tRevenue} onChange={e => setTRevenue(e.target.value)} placeholder="商品總額" />
                                 
+                                {/* 運費快捷鍵 */}
                                 <div className="flex gap-2 mb-3 -mt-2 px-1 overflow-x-auto custom-scrollbar">
                                     <button type="button" onClick={() => {setTShippingExpense(38); setTShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">⚡ 7-11本38收60</button>
                                     <button type="button" onClick={() => {setTShippingExpense(39); setTShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">⚡ 全家本39收60</button>
@@ -812,7 +813,7 @@
                                 <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">出攤次數</span><span className="font-black text-lg text-[#5c4d43]">{times} 次</span></div>
                                 <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">累積總業績</span><span className="font-black text-lg text-[#5c4d43]">${totalRev.toLocaleString()}</span></div>
                                 <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">平均單次業績</span><span className="font-black text-xl text-[#4caf50]">${Math.round(totalRev / times).toLocaleString()}</span></div>
-                                <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">單次淨利(實拿現金)</span><span className="font-black text-xl text-[#e57373]">${Math.round(totalProfit / times).toLocaleString()}</span></div>
+                                <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">單次現金淨利</span><span className="font-black text-xl text-[#e57373]">${Math.round(totalProfit / times).toLocaleString()}</span></div>
                             </div>
                         </Card>
                         
@@ -950,7 +951,6 @@
             const [qty, setQty] = useState(''); 
             const [isArrived, setIsArrived] = useState(true);
             const [isPaid, setIsPaid] = useState(true); 
-            // 獨立貨源開關，預設為 true (計入大庫存)
             const [isForMarket, setIsForMarket] = useState(true);
             const [flowType, setFlowType] = useState('in');
             
@@ -1201,8 +1201,7 @@
             const pocketCash = currentStartupCap + allTimeRev + allTimeShippingNet - allTimeMarketExp - allTimeWholesaleCashPaid - allTimeOtherExp + allTimeFinancingIn - allTimeFinancingOut - allTimePreorderCost + allTimePreorderRev;
 
             // ---- 回本進度計算 ----
-            const netFinancing = allTimeFinancingIn - allTimeFinancingOut;
-            const targetCashBreakEven = currentStartupCap + netFinancing; 
+            const targetCashBreakEven = currentStartupCap + (allTimeFinancingIn - allTimeFinancingOut); 
 
             // ---- 計算本月損益 ----
             const currentDeliveries = deliveries.filter(d => safeStr(d.date).startsWith(reportMonth) && d.status === 'shipped');
@@ -1233,7 +1232,7 @@
             const monthlyShippingProfit = storeShippingNetExp < 0 ? Math.abs(storeShippingNetExp) : 0; 
             const frontlineNetIncome = monthlyTotalRev - monthlyMarketExp + monthlyShippingProfit;
 
-            // ★ 庫存成本與數量 (盤點邏輯)
+            // ★ 庫存數量 (盤點邏輯：總進貨 - 目前手邊 = 總售出)
             const wholesaleToMonth = expenses.filter(e => e.type === 'wholesale' && safeStr(e.date).substring(0, 7) <= reportMonth && e.isArrived !== false && e.isForMarket !== false);
             const accumulatedWholesaleQty = wholesaleToMonth.reduce((sum, e) => sum + (Number(e.qty)||0), 0);
             
@@ -1242,19 +1241,30 @@
             const accumulatedTotalSold = savedInventory !== undefined ? Math.max(0, accumulatedWholesaleQty - currentInventoryQty) : '?';
 
             const saveInventoryCheck = () => {
-                setMarketSoldStats({ ...(marketSoldStats || {}), [reportMonth]: Number(actualInv) });
-                setIsCheckingInventory(false); setActualInv('');
+                if(actualInv !== '') {
+                    setMarketSoldStats({ ...(marketSoldStats || {}), [reportMonth]: Number(actualInv) });
+                    setIsCheckingInventory(false); 
+                    setActualInv('');
+                }
             };
 
-            // ★ 月損益邏輯：不扣 COGS
+            // ★ 月損益邏輯：不扣衣服成本 (COGS)
             const grossProfit = frontlineNetIncome + monthlyPreorderProfit; 
 
-            // ★ 月後勤開銷邏輯：不扣 包材(supply)
+            // ★ 月後勤開銷邏輯：不扣 生財包材(supply)
             const monthlyFixedExp = currentExpenses.filter(e => e.type === 'fixed').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const monthlyTrafficExp = currentExpenses.filter(e => e.type === 'traffic').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const monthlySalary = currentExpenses.filter(e => e.type === 'salary').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const monthlyOtherTotal = monthlyFixedExp + monthlyTrafficExp;
             const monthlyNetProfit = grossProfit - monthlyOtherTotal - monthlySalary;
+
+            // ★ 新增：十萬月薪挑戰分配邏輯
+            const bossSalary = monthlyNetProfit > 0 ? Math.floor(monthlyNetProfit * 0.35) : 0;
+            const operatingFund = monthlyNetProfit > 0 ? monthlyNetProfit - bossSalary : monthlyNetProfit;
+            const salaryGoal = 100000;
+            const salaryProgress = Math.min(100, Math.max(0, (bossSalary / salaryGoal) * 100));
+            const shortfallSalary = Math.max(0, salaryGoal - bossSalary);
+            const shortfallNetProfit = Math.ceil(shortfallSalary / 0.35);
 
             const storeGifts = currentDeliveries.reduce((sum, d) => sum + (Number(d.giftCount) || 0), 0);
             const marketGifts = currentMarket.reduce((sum, m) => sum + (Number(m.giftCount) || 0), 0);
@@ -1267,40 +1277,16 @@
                         <button onClick={() => changeMonth(1)} className="p-2 text-[#a89689]"><Icon name="chevron_right" /></button>
                     </div>
                     
-                    {/* 事業總體檢與回本進度 */}
+                    {/* 事業總體檢 */}
                     <Card className="bg-gradient-to-br from-[#e8eaf6] to-[#c5cae9] border-[#9fa8da] mb-4 shadow-md relative overflow-hidden">
                         <div className="absolute -right-4 -top-4 opacity-10 transform rotate-12"><Icon name="flag" className="text-[120px]" /></div>
                         <div className="relative z-10">
-                            <div className="flex items-center text-[#283593] font-bold text-lg mb-3 pb-2 border-b border-[#9fa8da] border-opacity-50"><Icon name="health_and_safety" className="mr-2" /> 🏆 事業總體檢 & 回本進度</div>
+                            <div className="flex items-center text-[#283593] font-bold text-lg mb-3 pb-2 border-b border-[#9fa8da] border-opacity-50"><Icon name="health_and_safety" className="mr-2" /> 🏆 總現金回本目標</div>
                             
                             <div className="bg-white bg-opacity-70 p-3 rounded-xl shadow-sm border border-white">
-                                <div className="text-xs text-[#5c6bc0] font-bold mb-1 flex items-center"><Icon name="flag_circle" className="text-[16px] mr-1"/> 現金回本目標</div>
                                 <div className="font-black text-3xl text-[#3949ab]">${targetCashBreakEven.toLocaleString()}</div>
-                                <div className="text-[10px] text-[#7986cb] mt-1">本金 + 需償還借款總額</div>
+                                <div className="text-xs text-[#7986cb] mt-1 font-bold">總本金 + 需償還借款總額</div>
                             </div>
-                        </div>
-                    </Card>
-
-                    {/* 現貨庫存與盤點 */}
-                    <Card className="bg-white border-dashed border-2 border-[#c8e6c9] mb-4 relative overflow-hidden">
-                        <div className="flex items-center text-[#4caf50] font-bold text-lg mb-1 relative z-10"><Icon name="inventory_2" className="mr-2" /> 現貨庫存與盤點</div>
-                        <div className="text-[10px] text-[#a89689] mb-3 ml-7 relative z-10">(已自動排除標記為「獨立網拍/私用」的貨源)</div>
-                        <div className="grid grid-cols-3 gap-2 border-t border-[#f2e7df] pt-3 pb-2 relative z-10">
-                            <div className="text-center"><div className="text-[10px] text-[#a89689] font-bold">歷史總進貨</div><div className="font-black text-lg text-[#5c4d43]">{accumulatedWholesaleQty}</div></div>
-                            <div className="text-center border-x border-[#f2e7df]"><div className="text-[10px] text-[#a89689] font-bold">歷史總售出</div><div className="font-black text-lg text-[#5c4d43]">{accumulatedTotalSold}</div></div>
-                            <div className="text-center"><div className="text-[10px] text-[#4caf50] font-bold">目前實際盤點</div><div className="font-black text-2xl text-[#4caf50]">{currentInventoryQty}</div></div>
-                        </div>
-                        <div className="mt-2 pt-2 border-t border-[#f2e7df] relative z-10">
-                            {isCheckingInventory ? (
-                                <div className="animate-fade-in pt-2">
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <input type="number" placeholder="輸入實際剩下幾件" value={actualInv} onChange={e=>setActualInv(e.target.value)} className="w-full bg-[#fdfdfd] border border-[#c8e6c9] rounded-lg px-3 h-[40px] text-sm outline-none focus:border-[#4caf50] font-wawa"/>
-                                    </div>
-                                    <div className="flex gap-2"><button onClick={()=>setIsCheckingInventory(false)} className="flex-1 h-[40px] bg-[#f2e7df] text-[#7a6453] rounded-lg text-sm font-bold font-wawa">取消</button><button onClick={saveInventoryCheck} className="flex-[2] h-[40px] bg-[#4caf50] text-white rounded-lg text-sm font-bold font-wawa shadow-sm">儲存盤點結果</button></div>
-                                </div>
-                            ) : (
-                                <button onClick={()=>{setActualInv(currentInventoryQty !== '?' ? currentInventoryQty : ''); setIsCheckingInventory(true);}} className="w-full py-2 bg-[#f0f9f0] text-[#4caf50] rounded-lg text-sm font-bold border border-[#c8e6c9] transition-colors active:bg-[#e8f5e9]">✏️ 輸入本月盤點數量</button>
-                            )}
                         </div>
                     </Card>
 
@@ -1350,7 +1336,7 @@
                                     {allTimeStoreRev > 0 && <div className="flex justify-between"><span>└ 超商累積業績</span><span>${allTimeStoreRev.toLocaleString()}</span></div>}
                                 </div>
                             )}
-                            
+
                             <div className="flex justify-between items-center cursor-pointer mb-1.5" onClick={() => toggleExp('shipping')}>
                                 <span className="flex items-center text-[#f57f17]"><Icon name="local_shipping" className="text-[16px] mr-1"/> 寄件運費差額 (多收/倒貼)<Icon name={expState['shipping'] ? "expand_less" : "expand_more"} className="text-[14px] ml-0.5 opacity-60"/></span>
                                 <span className={`${allTimeShippingNet >= 0 ? 'text-[#4caf50]' : 'text-[#e57373]'}`}>{allTimeShippingNet > 0 ? '+' : ''}$ {allTimeShippingNet.toLocaleString()}</span>
@@ -1388,7 +1374,7 @@
                             )}
 
                             <div className="flex justify-between items-center text-[#e57373] cursor-pointer" onClick={() => toggleExp('market')}>
-                                <span className="flex items-center"><Icon name="remove" className="text-[16px] mr-1"/> 擺攤租金與雜支<Icon name={expState['market'] ? "expand_less" : "expand_more"} className="text-[14px] ml-0.5 opacity-60"/></span>
+                                <span className="flex items-center"><Icon name="remove" className="text-[16px] mr-1"/> 市場攤位與雜支<Icon name={expState['market'] ? "expand_less" : "expand_more"} className="text-[14px] ml-0.5 opacity-60"/></span>
                                 <span>-$ {allTimeMarketExp.toLocaleString()}</span>
                             </div>
                             {expState['market'] && (
@@ -1400,8 +1386,31 @@
                         </div>
                     </Card>
 
+                    {/* 現貨庫存與盤點 (移至上方) */}
+                    <Card className="bg-white border-dashed border-2 border-[#c8e6c9] mb-4 relative overflow-hidden">
+                        <div className="flex items-center text-[#4caf50] font-bold text-lg mb-1 relative z-10"><Icon name="inventory_2" className="mr-2" /> 每月庫存盤點 (回推法)</div>
+                        <div className="text-[10px] text-[#a89689] mb-3 ml-7 relative z-10">(已自動排除標記為「獨立網拍/私用」的貨源)</div>
+                        <div className="grid grid-cols-3 gap-2 border-t border-[#f2e7df] pt-3 pb-2 relative z-10">
+                            <div className="text-center"><div className="text-[10px] text-[#a89689] font-bold">歷史累積總進貨</div><div className="font-black text-lg text-[#5c4d43]">{accumulatedWholesaleQty}</div></div>
+                            <div className="text-center border-x border-[#f2e7df]"><div className="text-[10px] text-[#4caf50] font-bold">輸入手邊剩餘</div><div className="font-black text-2xl text-[#4caf50]">{currentInventoryQty}</div></div>
+                            <div className="text-center"><div className="text-[10px] text-[#e57373] font-bold">歷史總售出</div><div className="font-black text-lg text-[#e57373]">{accumulatedTotalSold}</div></div>
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-[#f2e7df] relative z-10">
+                            {isCheckingInventory ? (
+                                <div className="animate-fade-in pt-2">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <input type="number" placeholder="請去數數看目前總共有幾件衣服？" value={actualInv} onChange={e=>setActualInv(e.target.value)} className="w-full bg-[#fdfdfd] border border-[#c8e6c9] rounded-lg px-3 h-[40px] text-sm outline-none focus:border-[#4caf50] font-wawa"/>
+                                    </div>
+                                    <div className="flex gap-2"><button onClick={()=>setIsCheckingInventory(false)} className="flex-1 h-[40px] bg-[#f2e7df] text-[#7a6453] rounded-lg text-sm font-bold font-wawa">取消</button><button onClick={saveInventoryCheck} className="flex-[2] h-[40px] bg-[#4caf50] text-white rounded-lg text-sm font-bold font-wawa shadow-sm">儲存盤點件數</button></div>
+                                </div>
+                            ) : (
+                                <button onClick={()=>{setActualInv(''); setIsCheckingInventory(true);}} className="w-full py-2 bg-[#f0f9f0] text-[#4caf50] rounded-lg text-sm font-bold border border-[#c8e6c9] transition-colors active:bg-[#e8f5e9]">✏️ 盤點更新 (計算歷史總售出)</button>
+                            )}
+                        </div>
+                    </Card>
+
                     <Card>
-                        <div className="flex items-center font-bold text-[#7a6453] text-lg mb-4 pb-2 border-b border-[#f2e7df]"><Icon name="request_quote" className="mr-2 text-[#e57373]" /> 本月損益表 <span className="text-xs text-[#a89689] font-normal ml-2">(真實營業現金流)</span></div>
+                        <div className="flex items-center font-bold text-[#7a6453] text-lg mb-4 pb-2 border-b border-[#f2e7df]"><Icon name="request_quote" className="mr-2 text-[#e57373]" /> 本月損益表 <span className="text-xs text-[#a89689] font-normal ml-2">(真實現金流)</span></div>
                         <div className="space-y-3 text-sm font-bold text-[#5c4d43]">
                             <div className="flex justify-between text-base cursor-pointer" onClick={() => toggleExp('moRev')}><span className="flex items-center">現貨總營業額<Icon name={expState['moRev'] ? "expand_less" : "expand_more"} className="text-[16px] ml-1 text-[#c4b5aa]"/></span><span className="text-[#bc9f8b]">${monthlyTotalRev.toLocaleString()}</span></div>
                             {expState['moRev'] && (
@@ -1429,7 +1438,9 @@
                             <div className="pl-6 text-[10px] text-[#7986cb] font-normal -mt-1 mb-1">( 總營收 ${monthlyPreorderRev} - 總批價 ${monthlyPreorderCost} )</div>
                             <div className="bg-[#e8f5e9] bg-opacity-40 p-2 rounded-lg flex justify-between text-base border border-[#c8e6c9] mt-2"><span className="text-[#4caf50]">💎 總營業毛利</span><span className="text-[#4caf50]">${grossProfit.toLocaleString()}</span></div>
                             <div className="h-2"></div>
-                            <div className="flex justify-between items-center text-[#e57373] cursor-pointer" onClick={() => toggleExp('moOther')}><span className="flex items-center"><Icon name="remove" className="text-[14px] mr-1"/> 扣：後勤開銷 (水電/交通)<Icon name={expState['moOther'] ? "expand_less" : "expand_more"} className="text-[16px] ml-1 text-[#c4b5aa]"/></span><span>-${monthlyOtherTotal.toLocaleString()}</span></div>
+                            
+                            {/* ★ 月後勤開銷免扣包材 */}
+                            <div className="flex justify-between items-center text-[#e57373] cursor-pointer" onClick={() => toggleExp('moOther')}><span className="flex items-center"><Icon name="remove" className="text-[14px] mr-1"/> 扣：後勤開銷 (倉租/水電/油資)<Icon name={expState['moOther'] ? "expand_less" : "expand_more"} className="text-[16px] ml-1 text-[#c4b5aa]"/></span><span>-${monthlyOtherTotal.toLocaleString()}</span></div>
                             {expState['moOther'] && (
                                 <div className="pl-6 pr-2 py-1 -mt-1 mb-1 space-y-1 bg-[#fafafa] border border-[#f0e6e0] rounded text-[11px] text-[#a89689] animate-expand">
                                     {monthlyFixedExp > 0 && <div className="flex justify-between"><span>└ 倉租與水電</span><span>-${monthlyFixedExp.toLocaleString()}</span></div>}
@@ -1439,7 +1450,43 @@
                             <div className="flex justify-between items-center text-[#fbc02d]"><span className="flex items-center"><Icon name="remove" className="text-[14px] mr-1"/> 扣：發老闆薪水</span><span>-${monthlySalary.toLocaleString()}</span></div>
                             <div className="border-t-2 border-[#bc9f8b] pt-3 mt-4"></div>
                             <div className="flex justify-between items-end mt-1"><span className="text-lg text-[#bc9f8b]">🏦 本月最終淨利</span><span className={`text-3xl font-black ${monthlyNetProfit < 0 ? 'text-red-500' : 'text-[#bc9f8b]'}`}>${monthlyNetProfit.toLocaleString()}</span></div>
-                            <div className="text-[10px] text-center text-[#a89689] mt-2">(註：資金借還款、買衣服本金、包材支出皆不列入當月損益)</div>
+                            <div className="text-[10px] text-center text-[#a89689] mt-2">(註：資金的借款、還款與包材費不計入本表，僅影響系統帳面資金)</div>
+                        </div>
+                    </Card>
+
+                    {/* ★ 新增：十萬月薪挑戰區塊 */}
+                    <Card className="bg-gradient-to-r from-[#fff3e0] to-[#ffe0b2] border-[#ffcc80] mb-4">
+                        <div className="flex items-center text-[#e65100] font-bold text-lg mb-3 pb-2 border-b border-[#ffb74d]"><Icon name="star" className="mr-2" /> 🎯 淨利分配 & 月領十萬目標</div>
+                        
+                        <div className="grid grid-cols-2 gap-3 mb-4 text-center">
+                            <div className="bg-white bg-opacity-70 p-3 rounded-xl shadow-sm border border-white flex flex-col justify-center">
+                                <div className="text-[11px] text-[#f57c00] font-bold mb-1">老闆私用薪水 (35%)</div>
+                                <div className="font-black text-2xl text-[#e65100]">${bossSalary.toLocaleString()}</div>
+                                <div className="text-[9px] text-[#fb8c00] mt-1">安心花用，犒賞自己</div>
+                            </div>
+                            <div className="bg-white bg-opacity-70 p-3 rounded-xl shadow-sm border border-white flex flex-col justify-center">
+                                <div className="text-[11px] text-[#5c6bc0] font-bold mb-1">公司進貨與還款 (65%)</div>
+                                <div className="font-black text-xl text-[#3949ab]">${operatingFund.toLocaleString()}</div>
+                                <div className="text-[9px] text-[#7986cb] mt-1">嚴格保留，維持營運</div>
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-3 rounded-xl shadow-sm border border-white">
+                            <div className="flex justify-between items-end mb-1">
+                                <span className="text-sm text-[#e65100] font-bold flex items-center"><Icon name="rocket_launch" className="text-[16px] mr-1"/> 十萬薪水達成率</span>
+                                <span className="font-black text-lg text-[#e65100]">{salaryProgress.toFixed(1)}%</span>
+                            </div>
+                            <div className="w-full bg-[#ffe0b2] rounded-full h-2 mb-2">
+                                <div className="bg-[#ff9800] h-2 rounded-full transition-all duration-500" style={{ width: `${salaryProgress}%` }}></div>
+                            </div>
+                            {shortfallSalary > 0 ? (
+                                <div className="text-[11px] text-[#7a6453] text-center mt-2 leading-relaxed">
+                                    距離十萬薪水還差 <span className="text-[#e57373] font-bold">${shortfallSalary.toLocaleString()}</span><br/>
+                                    加油！這週想辦法再拼 <span className="text-[#4caf50] font-bold">${shortfallNetProfit.toLocaleString()}</span> 的淨利！
+                                </div>
+                            ) : (
+                                <div className="text-xs text-[#4caf50] font-bold text-center mt-2">🎉 恭喜達成月領十萬目標！老闆太神啦！</div>
+                            )}
                         </div>
                     </Card>
 
