@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
@@ -1043,7 +1043,7 @@
                                 </div>
                                 <div className="mb-4">
                                     <button className={`w-full h-[44px] rounded-xl border text-[12px] transition-colors font-wawa font-bold flex items-center justify-center shadow-sm ${isForMarket ? 'border-[#bc9f8b] bg-[#fdfaf7] text-[#bc9f8b]' : 'border-[#9fa8da] bg-[#e8eaf6] text-[#5c6bc0]'}`} onClick={(e) => { e.preventDefault(); setIsForMarket(!isForMarket); }}>
-                                        {isForMarket ? '🏢 計入攤位大庫存 (參與均價與盤點)' : '💻 獨立網拍/私用 (不計入庫存與均價)'}
+                                        {isForMarket ? '🏢 計入攤位大庫存 (參與盤點)' : '💻 獨立網拍/私用 (不計入庫存)'}
                                     </button>
                                 </div>
                             </React.Fragment>
@@ -1172,13 +1172,11 @@
             // ---- 全期存摺 ----
             const allTimeMarketRev = marketSales.reduce((sum, m) => sum + (Number(m.revenue)||0), 0);
             const allTimeStoreRev = deliveries.reduce((sum, d) => sum + (Number(d.revenue)||0), 0);
-            
             const allTimeStoreShipIn = deliveries.reduce((sum, d) => sum + (Number(d.shippingIncome)||0), 0);
             const allTimeStoreShipExp = deliveries.reduce((sum, d) => sum + (Number(d.shippingExpense)||0), 0);
             const allTimeShippingNet = allTimeStoreShipIn - allTimeStoreShipExp; 
 
             const allTimeRev = allTimeMarketRev + allTimeStoreRev; 
-            
             const allTimeMarketExp = marketSales.reduce((sum, m) => sum + (Number(m.rent)||0) + (Number(m.electricity)||0) + (Number(m.cleaning)||0) + (Number(m.toll)||0) + (Number(m.parking)||0), 0); 
             
             const allTimeWholePaidArrived = expenses.filter(e => e.type === 'wholesale' && e.isArrived !== false && e.isPaid !== false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
@@ -1465,7 +1463,7 @@
                                 <div className="text-[9px] text-[#fb8c00] mt-1">安心花用，犒賞自己</div>
                             </div>
                             <div className="bg-white bg-opacity-70 p-3 rounded-xl shadow-sm border border-white flex flex-col justify-center">
-                                <div className="text-[11px] text-[#5c6bc0] font-bold mb-1">公司進貨與還款 (65%)</div>
+                                <div className="text-[11px] text-[#5c6bc0] font-bold mb-1">公司營運與還款 (65%)</div>
                                 <div className="font-black text-xl text-[#3949ab]">${operatingFund.toLocaleString()}</div>
                                 <div className="text-[9px] text-[#7986cb] mt-1">嚴格保留，維持營運</div>
                             </div>
