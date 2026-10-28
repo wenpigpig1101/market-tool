@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>200%森衣好 (雲端同步版)</title>
+    <title>200%森衣好</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -28,69 +28,58 @@
         .animate-expand { animation: expandDown 0.2s ease-out forwards; transform-origin: top; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes expandDown { from { opacity: 0; transform: scaleY(0.9); } to { opacity: 1; transform: scaleY(1); } }
-        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
     </style>
 </head>
 <body class="font-wawa text-[#5c4d43]">
     <div id="root">
         <div style="height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #bc9f8b; font-weight: bold; font-size: 1.2rem;">
             <div style="width: 40px; height: 40px; border: 4px solid #f2e7df; border-top-color: #bc9f8b; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px;"></div>
-            正在建立專屬安全連線...☁️
+            載入企業會計系統中...💰
             <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
         </div>
     </div>
 
-    <!-- Firebase 雲端環境初始化 -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // 讀取平台環境變數
-        let appId = 'default-app-id';
-        if (typeof window.__app_id !== 'undefined') appId = window.__app_id;
-        else if (typeof __app_id !== 'undefined') appId = __app_id;
-
-        let firebaseConfig = {};
-        if (typeof window.__firebase_config !== 'undefined') firebaseConfig = JSON.parse(window.__firebase_config);
-        else if (typeof __firebase_config !== 'undefined') firebaseConfig = JSON.parse(__firebase_config);
-
-        // 初始化 Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
-
-        // 綁定到 window 給 React/Babel 使用
-        window.fb = { db, auth, appId, doc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, onAuthStateChanged };
-
-        // 處理驗證
-        let initToken = null;
-        if (typeof window.__initial_auth_token !== 'undefined') initToken = window.__initial_auth_token;
-        else if (typeof __initial_auth_token !== 'undefined') initToken = __initial_auth_token;
-
-        if (initToken) signInWithCustomToken(auth, initToken).catch(console.error);
-        else signInAnonymously(auth).catch(console.error);
+    <script>
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+            var errorHtml = '<div style="padding: 30px; text-align: center; color: #e57373;">' +
+                            '<h3 style="font-size:24px; margin-bottom:10px;">🛡️ 系統保護機制</h3>' +
+                            '<p style="font-size:14px; margin-bottom:10px;">系統偵測到畫面載入異常。</p>' +
+                            '<p style="font-size:14px; margin-bottom:20px; color:#7a6453;">請您<strong>「重新整理網頁」</strong>即可恢復。</p>' +
+                            '<pre style="font-size:10px; text-align:left; background:#fff; padding:10px; border-radius:8px; overflow-x:auto;">' + msg + '</pre>' +
+                            '</div>';
+            document.getElementById('root').innerHTML = errorHtml;
+            return false;
+        };
     </script>
 
     <script type="text/babel">
         const { useState, useEffect, useMemo, Component } = React;
         
         const safeStr = (str) => String(str || '');
-        const safeTime = (d) => { if (!d) return 0; const t = new Date(d).getTime(); return isNaN(t) ? 0 : t; };
+        const safeTime = (d) => {
+            if (!d) return 0;
+            const t = new Date(d).getTime();
+            return isNaN(t) ? 0 : t;
+        };
+        const getSafeArr = (arr) => {
+            if (!Array.isArray(arr)) return [];
+            return arr.filter(i => i !== null && typeof i === 'object' && !Array.isArray(i));
+        };
 
         class ErrorBoundary extends Component {
             constructor(props) { super(props); this.state = { hasError: false, errorStr: '' }; }
             static getDerivedStateFromError(error) { return { hasError: true, errorStr: error.toString() }; }
             componentDidCatch(error, errorInfo) { console.error("渲染錯誤：", error, errorInfo); }
+            safeRepairAndReload() { window.location.reload(); }
             render() {
                 if (this.state.hasError) {
                     return (
                         <div className="flex flex-col h-screen p-8 text-center text-[#e57373] bg-[#fdfaf7] justify-center">
                             <div className="text-5xl mb-4">🛡️</div>
                             <h2 className="text-xl font-bold mb-2">畫面載入異常</h2>
-                            <p className="text-sm text-[#a89689] mb-4">請點擊下方按鈕重新整理網頁。</p>
+                            <p className="text-sm text-[#a89689] mb-4 leading-relaxed">您的資料安全無虞，請點擊下方按鈕安全重新整理。</p>
                             <textarea className="w-full h-16 p-2 text-[9px] bg-white border border-[#f2e7df] rounded-xl mb-6 opacity-60 custom-scrollbar" readOnly value={this.state.errorStr}></textarea>
-                            <button onClick={() => window.location.reload()} className="w-full py-4 bg-[#bc9f8b] text-white font-bold rounded-xl shadow-md">安全重新整理</button>
+                            <button onClick={() => this.safeRepairAndReload()} className="w-full py-4 bg-[#bc9f8b] text-white font-bold rounded-xl shadow-md">安全重新整理</button>
                         </div>
                     );
                 }
@@ -98,88 +87,28 @@
             }
         }
 
-        // --- Firebase 專屬 React Hooks ---
-        const useFirebaseSystem = () => {
-            const [fbReady, setFbReady] = useState(false);
-            const [user, setUser] = useState(null);
-
-            useEffect(() => {
-                const checkFb = setInterval(() => {
-                    if (window.fb && window.fb.auth) {
-                        clearInterval(checkFb);
-                        setFbReady(true);
-                        window.fb.onAuthStateChanged(window.fb.auth, (u) => { setUser(u); });
+        const useLocalStorage = (key, initialValue) => {
+            const [value, setValue] = useState(() => {
+                try {
+                    const item = window.localStorage.getItem(key);
+                    if (item) {
+                        const parsed = JSON.parse(item);
+                        return parsed !== null ? parsed : initialValue;
                     }
-                }, 50);
-                return () => clearInterval(checkFb);
-            }, []);
-            return { fbReady, user };
-        };
-
-        const useFirestoreCollection = (collectionName, user) => {
-            const [data, setData] = useState([]);
-
+                    return initialValue;
+                } catch (error) { return initialValue; }
+            });
             useEffect(() => {
-                if (!user || !window.fb) return;
-                const colRef = window.fb.collection(window.fb.db, 'artifacts', window.fb.appId, 'users', user.uid, collectionName);
-                const q = window.fb.query(colRef);
-                
-                const unsub = window.fb.onSnapshot(q, (snapshot) => {
-                    const items = [];
-                    snapshot.forEach(doc => items.push({ id: doc.id, ...doc.data() }));
-                    // 在記憶體中排序，避免需要建立 Firebase 索引
-                    setData(items.sort((a,b) => safeTime(b.date) - safeTime(a.date)));
-                }, (err) => console.error(err));
-                return () => unsub();
-            }, [collectionName, user]);
-
-            const addData = async (item) => {
-                if (!user) return;
-                const id = item.id || Date.now().toString();
-                const docRef = window.fb.doc(window.fb.db, 'artifacts', window.fb.appId, 'users', user.uid, collectionName, id);
-                await window.fb.setDoc(docRef, { ...item, id });
-            };
-
-            const updateData = async (id, item) => {
-                if (!user) return;
-                const docRef = window.fb.doc(window.fb.db, 'artifacts', window.fb.appId, 'users', user.uid, collectionName, id);
-                await window.fb.setDoc(docRef, item, { merge: true });
-            };
-
-            const deleteData = async (id) => {
-                if (!user) return;
-                const docRef = window.fb.doc(window.fb.db, 'artifacts', window.fb.appId, 'users', user.uid, collectionName, id);
-                await window.fb.deleteDoc(docRef);
-            };
-
-            return [data, addData, updateData, deleteData];
-        };
-
-        const useFirestoreDoc = (docName, initialValue, user) => {
-            const [data, setData] = useState(initialValue);
-
-            useEffect(() => {
-                if (!user || !window.fb) return;
-                const docRef = window.fb.doc(window.fb.db, 'artifacts', window.fb.appId, 'users', user.uid, 'config', docName);
-                const unsub = window.fb.onSnapshot(docRef, (docSnap) => {
-                    if (docSnap.exists()) setData(docSnap.data());
-                    else setData(initialValue);
-                }, (err) => console.error(err));
-                return () => unsub();
-            }, [docName, user]);
-
-            const updateData = async (newData) => {
-                if (!user) return;
-                const docRef = window.fb.doc(window.fb.db, 'artifacts', window.fb.appId, 'users', user.uid, 'config', docName);
-                const resolvedData = typeof newData === 'function' ? newData(data) : newData;
-                await window.fb.setDoc(docRef, resolvedData, { merge: true });
-            };
-            return [data, updateData];
+                try { window.localStorage.setItem(key, JSON.stringify(value)); } 
+                catch (error) { console.warn("寫入失敗", error); }
+            }, [key, value]);
+            return [value, setValue];
         };
 
         const scrollToTop = () => { const main = document.getElementById('main-content'); if(main) main.scrollTo({ top: 0, behavior: 'smooth' }); };
         const Icon = ({ name, className = "" }) => <span className={`material-symbols-outlined ${className}`}>{name}</span>;
         const Card = ({ children, className = "" }) => <div className={`bg-white rounded-2xl p-4 shadow-sm border border-[#f2e7df] mb-4 ${className}`}>{children}</div>;
+        
         const Input = ({ label, value, onChange, type = "text", placeholder, disabled }) => (
             <div className="mb-3 w-full">
                 <div className={`flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 h-[48px] focus-within:border-[#bc9f8b] transition-colors ${disabled ? 'opacity-60 bg-[#f9f9f9]' : ''}`}>
@@ -202,7 +131,7 @@
             return (
                 <div className="mb-3 w-full relative">
                     <div className={`flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 h-[48px] focus-within:border-[#bc9f8b] transition-colors ${disabled ? 'opacity-60 bg-[#f9f9f9]' : ''}`}>
-                        <input type="text" value={value} onChange={handleChange} placeholder={placeholder} disabled={disabled} onFocus={handleChange} onBlur={() => setShow(false)} className="bg-transparent w-full h-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
+                        <input type="text" value={value} onChange={handleChange} placeholder={placeholder} disabled={disabled} onFocus={handleChange} onBlur={() => setTimeout(()=>setShow(false),200)} className="bg-transparent w-full h-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
                     </div>
                     {show && (
                         <ul className="absolute z-50 w-full bg-white border border-[#bc9f8b] rounded-xl mt-1 max-h-48 overflow-y-auto shadow-lg custom-scrollbar">
@@ -217,7 +146,9 @@
             );
         };
 
-        const Button = ({ children, onClick, className = "" }) => <button onClick={onClick} className={`w-full h-[48px] rounded-xl font-bold transition-colors text-[15px] text-center flex justify-center items-center font-wawa tracking-wide shadow-sm ${className}`}>{children}</button>;
+        const Button = ({ children, onClick, className = "" }) => (
+            <button onClick={onClick} className={`w-full h-[48px] rounded-xl font-bold transition-colors text-[15px] text-center flex justify-center items-center font-wawa tracking-wide shadow-sm ${className}`}>{children}</button>
+        );
 
         const ConfirmModal = ({ isOpen, message, onConfirm, onCancel }) => {
             if (!isOpen) return null;
@@ -225,10 +156,7 @@
                 <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-[100] animate-fade-in px-4">
                     <div className="bg-white rounded-2xl p-6 w-full max-w-xs shadow-xl">
                         <div className="text-center text-[#5c4d43] font-bold mb-6 text-lg">{message}</div>
-                        <div className="flex gap-3">
-                            <button onClick={onCancel} className="flex-1 py-3 rounded-xl bg-[#f2e7df] text-[#7a6453] font-bold">取消</button>
-                            <button onClick={onConfirm} className="flex-1 py-3 rounded-xl bg-[#e57373] text-white font-bold">確定刪除</button>
-                        </div>
+                        <div className="flex gap-3"><button onClick={onCancel} className="flex-1 py-3 rounded-xl bg-[#f2e7df] text-[#7a6453] font-bold">取消</button><button onClick={onConfirm} className="flex-1 py-3 rounded-xl bg-[#e57373] text-white font-bold">確定刪除</button></div>
                     </div>
                 </div>
             );
@@ -241,8 +169,8 @@
             return validNum.toString();
         };
 
-        // --- 分頁 1：超商 & 留貨 & 預購建單 ---
-        const StoreTab = ({ deliveries, addDel, updDel, delDel, reservations, addRes, updRes, delRes, tab1Preorders, addPre, updPre, delPre, setConfirmDialog, allCustomerNames }) => {
+        // --- 分頁 1：超商 & 現貨保留 ---
+        const StoreTab = ({ deliveries, setDeliveries, reservations, setReservations, setConfirmDialog, allCustomerNames }) => {
             const [formMode, setFormMode] = useState('delivery'); 
             const [editingId, setEditingId] = useState(null);
             
@@ -259,13 +187,7 @@
             const [rRevenue, setRRevenue] = useState(''); 
             const [rNote, setRNote] = useState('');
 
-            const [pDate, setPDate] = useState(new Date().toISOString().split('T')[0]);
-            const [pCustomerName, setPCustomerName] = useState('');
-            const [pRevenue, setPRevenue] = useState('');
-            const [pNote, setPNote] = useState('');
-
             const [transferRecord, setTransferRecord] = useState(null);
-            const [transferSource, setTransferSource] = useState(null); 
             const [tDate, setTDate] = useState('');
             const [tRevenue, setTRevenue] = useState('');
             const [tShippingExpense, setTShippingExpense] = useState('');
@@ -277,47 +199,36 @@
 
             const resetDeliveryForm = () => { setEditingId(null); setDDate(new Date().toISOString().split('T')[0]); setDCustomerName(''); setDRevenue(''); setDShippingExpense(''); setDShippingIncome(''); setDGiftCount(''); setDHasGift(false); };
             const resetReserveForm = () => { setEditingId(null); setRDate(new Date().toISOString().split('T')[0]); setRCustomerName(''); setRRevenue(''); setRNote(''); };
-            const resetPreorderForm = () => { setEditingId(null); setPDate(new Date().toISOString().split('T')[0]); setPCustomerName(''); setPRevenue(''); setPNote(''); };
 
             const handleAddDelivery = () => {
                 if (!dCustomerName) return;
                 const recordData = { date: dDate, customerName: dCustomerName, revenue: Number(dRevenue) || 0, shippingExpense: Number(dShippingExpense) || 0, shippingIncome: Number(dShippingIncome) || 0, hasGift: dHasGift, giftCount: dHasGift ? (Number(dGiftCount) || 0) : 0, status: 'pending' };
-                if (editingId && formMode === 'delivery') updDel(editingId, recordData);
-                else addDel({ id: Date.now().toString(), ...recordData });
+                if (editingId && formMode === 'delivery') setDeliveries(prev => prev.map(d => d.id === editingId ? { ...d, ...recordData } : d).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
+                else setDeliveries(prev => [{ id: Date.now().toString(), ...recordData }, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
                 resetDeliveryForm();
             };
 
             const handleAddReserve = () => {
                 if (!rCustomerName) return;
                 const recordData = { date: rDate, customerName: rCustomerName, revenue: Number(rRevenue) || 0, note: rNote };
-                if (editingId && formMode === 'reserve') updRes(editingId, recordData);
-                else addRes({ id: Date.now().toString(), ...recordData });
+                if (editingId && formMode === 'reserve') setReservations(prev => prev.map(r => r.id === editingId ? { ...r, ...recordData } : r).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
+                else setReservations(prev => [{ id: Date.now().toString(), ...recordData }, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
                 resetReserveForm();
-            };
-
-            const handleAddPreorder = () => {
-                if (!pCustomerName) return;
-                const recordData = { date: pDate, customerName: pCustomerName, revenue: Number(pRevenue) || 0, note: pNote };
-                if (editingId && formMode === 'preorder') updPre(editingId, recordData);
-                else addPre({ id: Date.now().toString(), ...recordData });
-                resetPreorderForm();
             };
 
             const handleEditDelivery = (record) => { setFormMode('delivery'); setEditingId(record.id); setDDate(record.date); setDCustomerName(record.customerName); setDRevenue(record.revenue || ''); setDShippingExpense(record.shippingExpense || ''); setDShippingIncome(record.shippingIncome || ''); setDHasGift(record.hasGift || false); setDGiftCount(record.giftCount || ''); scrollToTop(); };
             const handleEditReserve = (record) => { setFormMode('reserve'); setEditingId(record.id); setRDate(record.date); setRCustomerName(record.customerName); setRRevenue(record.revenue || ''); setRNote(record.note || ''); scrollToTop(); };
-            const handleEditPreorder = (record) => { setFormMode('preorder'); setEditingId(record.id); setPDate(record.date); setPCustomerName(record.customerName); setPRevenue(record.revenue || ''); setPNote(record.note || ''); scrollToTop(); };
 
-            const toggleDeliveryStatus = (id, currentStatus) => updDel(id, { status: currentStatus === 'pending' ? 'shipped' : 'pending' });
+            const toggleDeliveryStatus = (id, currentStatus) => { const newStatus = currentStatus === 'pending' ? 'shipped' : 'pending'; setDeliveries(prev => prev.map(d => d.id === id ? { ...d, status: newStatus } : d)); };
 
-            const openTransferModal = (record, source) => { setTransferRecord(record); setTransferSource(source); setTDate(new Date().toISOString().split('T')[0]); setTRevenue(record.revenue || ''); setTShippingExpense(''); setTShippingIncome(''); setTHasGift(false); setTGiftCount(''); };
+            const openTransferModal = (record) => { setTransferRecord(record); setTDate(new Date().toISOString().split('T')[0]); setTRevenue(record.revenue || ''); setTShippingExpense(''); setTShippingIncome(''); setTHasGift(false); setTGiftCount(''); };
 
             const handleTransferSubmit = () => {
                 if (!transferRecord) return;
                 const newDelivery = { id: Date.now().toString(), date: tDate, customerName: transferRecord.customerName, revenue: Number(tRevenue) || 0, shippingExpense: Number(tShippingExpense) || 0, shippingIncome: Number(tShippingIncome) || 0, hasGift: tHasGift, giftCount: tHasGift ? (Number(tGiftCount) || 0) : 0, status: 'pending' };
-                addDel(newDelivery);
-                if (transferSource === 'reserve') delRes(transferRecord.id);
-                else if (transferSource === 'tab1_preorder') delPre(transferRecord.id);
-                setTransferRecord(null); setTransferSource(null);
+                setDeliveries(prev => [newDelivery, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
+                setReservations(prev => prev.filter(r => r.id !== transferRecord.id));
+                setTransferRecord(null);
             };
 
             const pending = deliveries.filter(d => d.status === 'pending');
@@ -328,26 +239,25 @@
             
             const pendingAmount = pending.reduce((sum, d) => sum + (Number(d.revenue) || 0), 0);
             const reserveAmount = reservations.reduce((sum, r) => sum + (Number(r.revenue) || 0), 0);
-            const preorderAmount = tab1Preorders.reduce((sum, p) => sum + (Number(p.revenue) || 0), 0);
 
             return (
                 <div className="animate-fade-in pb-20">
                     {!editingId && (
-                        <div className="flex gap-1 bg-[#fdfaf7] rounded-xl p-1.5 mb-4 border border-[#f2e7df] shadow-inner">
-                            <button className={`flex-1 py-2 text-[13px] font-bold rounded-lg transition-all flex items-center justify-center ${formMode === 'delivery' ? 'bg-white shadow text-[#bc9f8b]' : 'text-[#c4b5aa]'}`} onClick={() => { setFormMode('delivery'); resetDeliveryForm(); }}><Icon name="inventory_2" className="text-[18px] mr-1" />超商寄件</button>
-                            <button className={`flex-1 py-2 text-[13px] font-bold rounded-lg transition-all flex items-center justify-center ${formMode === 'reserve' ? 'bg-[#e3f2fd] shadow-sm text-[#1976d2]' : 'text-[#c4b5aa]'}`} onClick={() => { setFormMode('reserve'); resetReserveForm(); }}><Icon name="diamond" className="text-[18px] mr-1" />現貨保留</button>
-                            <button className={`flex-1 py-2 text-[13px] font-bold rounded-lg transition-all flex items-center justify-center ${formMode === 'preorder' ? 'bg-[#e8eaf6] shadow-sm text-[#5c6bc0]' : 'text-[#c4b5aa]'}`} onClick={() => { setFormMode('preorder'); resetPreorderForm(); }}><Icon name="shopping_cart" className="text-[18px] mr-1" />預購建單</button>
+                        <div className="flex gap-2 bg-[#fdfaf7] rounded-xl p-1.5 mb-4 border border-[#f2e7df] shadow-inner">
+                            <button className={`flex-1 py-2 text-[14px] font-bold rounded-lg transition-all flex items-center justify-center ${formMode === 'delivery' ? 'bg-white shadow text-[#bc9f8b]' : 'text-[#c4b5aa]'}`} onClick={() => { setFormMode('delivery'); resetDeliveryForm(); }}><Icon name="inventory_2" className="text-[18px] mr-1" />超商寄件</button>
+                            <button className={`flex-1 py-2 text-[14px] font-bold rounded-lg transition-all flex items-center justify-center ${formMode === 'reserve' ? 'bg-[#e3f2fd] shadow-sm text-[#1976d2]' : 'text-[#c4b5aa]'}`} onClick={() => { setFormMode('reserve'); resetReserveForm(); }}><Icon name="diamond" className="text-[18px] mr-1" />現貨保留</button>
                         </div>
                     )}
-                    {editingId && (
-                        <div className={`flex items-center mb-4 font-bold text-lg ${formMode === 'reserve' ? 'text-[#1976d2]' : (formMode === 'preorder' ? 'text-[#5c6bc0]' : 'text-[#bc9f8b]')}`}><Icon name="edit" className="mr-2" />{formMode === 'reserve' ? '編輯現貨保留資料' : (formMode === 'preorder' ? '編輯預購紀錄' : '編輯超商寄件資料')}</div>
-                    )}
-                    <Card className={editingId ? (formMode === 'reserve' ? 'border-2 border-[#64b5f6]' : (formMode === 'preorder' ? 'border-2 border-[#5c6bc0]' : 'border-2 border-[#bc9f8b]')) : (formMode === 'preorder' ? 'border border-[#c5cae9]' : '')}>
+
+                    {editingId && <div className={`flex items-center mb-4 font-bold text-lg ${formMode === 'reserve' ? 'text-[#1976d2]' : 'text-[#bc9f8b]'}`}><Icon name="edit" className="mr-2" />{formMode === 'reserve' ? '編輯現貨保留資料' : '編輯超商寄件資料'}</div>}
+
+                    <Card className={editingId ? (formMode === 'reserve' ? 'border-2 border-[#64b5f6]' : 'border-2 border-[#bc9f8b]') : ''}>
                         {formMode === 'delivery' ? (
                             <React.Fragment>
                                 <Input type="date" value={dDate} onChange={e => setDDate(e.target.value)} />
                                 <AutocompleteInput placeholder="顧客姓名" value={dCustomerName} onChange={e => setDCustomerName(e.target.value)} options={allCustomerNames} />
                                 <Input type="number" placeholder="商品售價(總額)" value={dRevenue} onChange={e => setDRevenue(e.target.value)} />
+                                
                                 <div className="flex gap-2 mb-3 -mt-2 px-1 overflow-x-auto custom-scrollbar">
                                     <button type="button" onClick={() => {setDShippingExpense(38); setDShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">⚡ 7-11本38收60</button>
                                     <button type="button" onClick={() => {setDShippingExpense(39); setDShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">⚡ 全家本39收60</button>
@@ -361,7 +271,7 @@
                                 </div>
                                 <div className="flex gap-3">{editingId && <Button onClick={resetDeliveryForm} className="flex-1 bg-[#f2e7df] !text-[#7a6453]">取消</Button>}<Button onClick={handleAddDelivery} className={editingId ? 'flex-[2] bg-[#bc9f8b] text-white' : 'w-full bg-[#bc9f8b] text-white'}>{editingId ? '儲存修改' : '建立超商寄件'}</Button></div>
                             </React.Fragment>
-                        ) : formMode === 'reserve' ? (
+                        ) : (
                             <React.Fragment>
                                 <Input type="date" value={rDate} onChange={e => setRDate(e.target.value)} />
                                 <AutocompleteInput placeholder="訂購人姓名" value={rCustomerName} onChange={e => setRCustomerName(e.target.value)} options={allCustomerNames} />
@@ -369,34 +279,10 @@
                                 <Input placeholder="保留備註(選填)" value={rNote} onChange={e => setRNote(e.target.value)} />
                                 <div className="flex gap-3">{editingId && <Button onClick={resetReserveForm} className="flex-1 bg-[#e3f2fd] !text-[#1976d2]">取消</Button>}<Button onClick={handleAddReserve} className={editingId ? 'flex-[2] bg-[#64b5f6] text-white' : 'w-full bg-[#64b5f6] text-white'}>{editingId ? '儲存修改' : '加入現貨保留清單'}</Button></div>
                             </React.Fragment>
-                        ) : (
-                            <React.Fragment>
-                                <Input type="date" value={pDate} onChange={e => setPDate(e.target.value)} />
-                                <AutocompleteInput placeholder="預購人姓名" value={pCustomerName} onChange={e => setPCustomerName(e.target.value)} options={allCustomerNames} />
-                                <Input type="number" placeholder="預估售價(總額)" value={pRevenue} onChange={e => setPRevenue(e.target.value)} />
-                                <Input placeholder="預購備註(款式/顏色等)" value={pNote} onChange={e => setPNote(e.target.value)} />
-                                <div className="flex gap-3 mt-1">{editingId && <Button onClick={resetPreorderForm} className="flex-1 bg-[#e8eaf6] !text-[#5c6bc0]">取消</Button>}<Button onClick={handleAddPreorder} className={editingId ? 'flex-[2] bg-[#5c6bc0] text-white' : 'w-full bg-[#5c6bc0] text-white'}>{editingId ? '儲存修改' : '加入專屬預購清單'}</Button></div>
-                            </React.Fragment>
                         )}
                     </Card>
 
-                    <div className="mb-6 animate-fade-in">
-                        <div className="flex items-center text-[#3949ab] font-bold px-2 text-lg mb-2"><Icon name="shopping_cart" className="mr-1 text-[20px]" /> 預購清單區 <span className="ml-2 bg-[#e8eaf6] text-[#3949ab] text-xs px-2 py-0.5 rounded-full">{tab1Preorders.length}筆</span>{preorderAmount > 0 && <span className="ml-auto text-sm text-[#5c6bc0] font-black tracking-wide">總額 ${preorderAmount.toLocaleString()}</span>}</div>
-                        {tab1Preorders.length === 0 ? <div className="text-center text-[#9fa8da] text-sm py-6 bg-white rounded-xl border border-dashed border-[#e8eaf6] mx-1">目前沒有待處理的預購單喔！</div> : (
-                            <div className="space-y-2">
-                            {tab1Preorders.map(p => (
-                                <div key={p.id} className="bg-white rounded-xl p-3 shadow-sm border-l-4 border-[#5c6bc0] relative mx-1 px-4">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div><div className="font-bold text-[#5c4d43] text-base">{p.customerName} {Number(p.revenue) > 0 && <span className="text-xs font-bold text-[#5c6bc0] ml-1">${p.revenue}</span>}</div><div className="text-[11px] text-[#a89689] mt-0.5">{p.date} 預購 {p.note && <span className="ml-1 text-[#7a6453]">({p.note})</span>}</div></div>
-                                        <div className="flex gap-1 shrink-0"><button onClick={() => handleEditPreorder(p)} className="p-1.5 text-[#5c6bc0] bg-[#f5f6fa] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button><button onClick={() => setConfirmDialog({isOpen: true, id: p.id, collection: 'tab1_preorders', message: "確定要刪除這筆預購紀錄嗎？"})} className="p-1.5 text-[#e57373] bg-[#fdf2f2] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button></div>
-                                    </div>
-                                    <button onClick={() => openTransferModal(p, 'tab1_preorder')} className="w-full py-2 bg-[#e8eaf6] text-[#3949ab] rounded-lg font-bold flex justify-center items-center text-sm shadow-sm transition-colors active:bg-[#c5cae9]"><Icon name="check_circle" className="mr-1 text-[16px]" /> 貨已到並結單，轉入準備寄件</button>
-                                </div>
-                            ))}
-                            </div>
-                        )}
-                    </div>
-
+                    {/* 現貨保留區 */}
                     <div className="mb-6 animate-fade-in">
                         <div className="flex items-center text-[#1976d2] font-bold px-2 text-lg mb-2"><Icon name="diamond" className="mr-1 text-[20px]" /> 現貨保留區 <span className="ml-2 bg-[#bbdefb] text-[#1565c0] text-xs px-2 py-0.5 rounded-full">{reservations.length}筆</span>{reserveAmount > 0 && <span className="ml-auto text-sm text-[#64b5f6] font-black tracking-wide">總額 ${reserveAmount.toLocaleString()}</span>}</div>
                         {reservations.length === 0 ? <div className="text-center text-[#90caf9] text-sm py-6 bg-white rounded-xl border border-dashed border-[#e3f2fd] mx-1">目前沒有保留清單喔！</div> : (
@@ -407,25 +293,23 @@
                                         <div><div className="font-bold text-[#5c4d43] text-base">{r.customerName} {Number(r.revenue) > 0 && <span className="text-xs font-bold text-[#1976d2] ml-1">${r.revenue}</span>}</div><div className="text-[11px] text-[#a89689] mt-0.5">{r.date} 保留 {r.note && <span className="ml-1 text-[#7a6453]">({r.note})</span>}</div></div>
                                         <div className="flex gap-1 shrink-0"><button onClick={() => handleEditReserve(r)} className="p-1.5 text-[#64b5f6] bg-[#f5f9ff] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button><button onClick={() => setConfirmDialog({isOpen: true, id: r.id, collection: 'reservations', message: "確定要刪除這筆保留紀錄嗎？"})} className="p-1.5 text-[#e57373] bg-[#fdf2f2] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button></div>
                                     </div>
-                                    <button onClick={() => openTransferModal(r, 'reserve')} className="w-full py-2 bg-[#e8f5e9] text-[#2e7d32] rounded-lg font-bold flex justify-center items-center text-sm shadow-sm transition-colors active:bg-[#c8e6c9]"><Icon name="check_circle" className="mr-1 text-[16px]" /> 客人已結單，轉入準備寄件</button>
+                                    <button onClick={() => openTransferModal(r)} className="w-full py-2 bg-[#e8f5e9] text-[#2e7d32] rounded-lg font-bold flex justify-center items-center text-sm shadow-sm transition-colors active:bg-[#c8e6c9]"><Icon name="check_circle" className="mr-1 text-[16px]" /> 客人已結單，轉入準備寄件</button>
                                 </div>
                             ))}
                             </div>
                         )}
                     </div>
 
+                    {/* 未寄出區 */}
                     <div className="mt-6 mb-2 flex items-center text-[#9b4949] font-bold px-2 text-lg"><Icon name="push_pin" className="mr-1 text-[20px]" /> 現貨未寄出 <span className="ml-2 bg-[#d6aba3] text-white text-xs px-2 py-0.5 rounded-full">{pending.length}筆</span>{pendingAmount > 0 && <span className="ml-auto text-sm text-[#e57373] font-black tracking-wide">待收 ${pendingAmount.toLocaleString()}</span>}</div>
                     {pending.length === 0 ? <div className="text-center text-[#c4b5aa] text-sm py-4">太棒了，目前沒有未寄出清單！</div> : pending.map(d => (
                         <div key={d.id} className="bg-white rounded-xl p-3 mb-2 shadow-sm border border-[#f2e7df] flex justify-between items-center px-4 mx-1">
                             <div><div className="font-bold text-[#5c4d43] text-base">{d.customerName}</div><div className="text-xs text-[#a89689] mt-0.5">{d.date} | 售:${d.revenue}</div></div>
-                            <div className="flex gap-2">
-                                <button onClick={() => toggleDeliveryStatus(d.id, d.status)} className="p-2 bg-[#f0f9f0] text-[#4caf50] rounded-lg shadow-sm flex items-center"><Icon name="local_shipping" className="mr-1 text-[16px]"/> 寄出</button>
-                                <button onClick={() => handleEditDelivery(d)} className="p-2 bg-[#fdfaf7] text-[#bc9f8b] rounded-lg shadow-sm"><Icon name="edit" className="text-[20px]" /></button>
-                                <button onClick={() => setConfirmDialog({isOpen: true, id: d.id, collection: 'deliveries', message: "確定要刪除這筆未寄出紀錄嗎？"})} className="p-2 bg-[#fdf2f2] text-[#e57373] rounded-lg shadow-sm"><Icon name="delete" className="text-[20px]" /></button>
-                            </div>
+                            <div className="flex gap-2"><button onClick={() => toggleDeliveryStatus(d.id, d.status)} className="p-2 bg-[#f0f9f0] text-[#4caf50] rounded-lg shadow-sm flex items-center"><Icon name="local_shipping" className="mr-1 text-[16px]"/> 寄出</button><button onClick={() => handleEditDelivery(d)} className="p-2 bg-[#fdfaf7] text-[#bc9f8b] rounded-lg shadow-sm"><Icon name="edit" className="text-[20px]" /></button><button onClick={() => setConfirmDialog({isOpen: true, id: d.id, collection: 'deliveries', message: "確定要刪除這筆未寄出紀錄嗎？"})} className="p-2 bg-[#fdf2f2] text-[#e57373] rounded-lg shadow-sm"><Icon name="delete" className="text-[20px]" /></button></div>
                         </div>
                     ))}
 
+                    {/* 已寄出紀錄 */}
                     <div className="mt-6 mb-2 flex items-center text-[#4caf50] font-bold px-2 text-lg"><Icon name="check_box" className="mr-1 text-[20px]" /> 已寄出紀錄 <span className="ml-2 bg-[#a5d6a7] text-white text-xs px-2 py-0.5 rounded-full">{shipped.length}筆</span></div>
                     {sortedMonths.length === 0 ? <div className="text-center text-[#c4b5aa] text-sm py-4">尚無紀錄</div> : (
                         <div className="space-y-3 px-1">
@@ -453,27 +337,26 @@
                             })}
                         </div>
                     )}
-                    
+
+                    {/* 轉單專用 Modal */}
                     {transferRecord && (
                         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-[80] animate-fade-in px-4">
                             <div className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-xl max-h-[90vh] overflow-y-auto custom-scrollbar">
-                                <div className="text-center text-[#5c4d43] font-bold mb-4 text-lg border-b border-[#f2e7df] pb-3"><Icon name="local_shipping" className="align-middle mr-1 text-[#4caf50]"/> 確認轉寄件 <span className="text-sm font-normal text-[#a89689]">({transferSource === 'reserve' ? '來自現貨保留' : '來自預購單'})</span><br/><span className="text-[#bc9f8b] mt-1 inline-block">{transferRecord.customerName}</span></div>
+                                <div className="text-center text-[#5c4d43] font-bold mb-4 text-lg border-b border-[#f2e7df] pb-3"><Icon name="local_shipping" className="align-middle mr-1 text-[#4caf50]"/> 確認轉寄件 <span className="text-sm font-normal text-[#a89689]">(來自現貨保留)</span><br/><span className="text-[#bc9f8b] mt-1 inline-block">{transferRecord.customerName}</span></div>
                                 <Input type="date" value={tDate} onChange={e => setTDate(e.target.value)} />
                                 <Input type="number" value={tRevenue} onChange={e => setTRevenue(e.target.value)} placeholder="商品總額" />
-                                
                                 <div className="flex gap-2 mb-3 -mt-2 px-1 overflow-x-auto custom-scrollbar">
                                     <button type="button" onClick={() => {setTShippingExpense(38); setTShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">⚡ 7-11本38收60</button>
                                     <button type="button" onClick={() => {setTShippingExpense(39); setTShippingIncome(60);}} className="shrink-0 text-[11px] bg-[#fff8e1] border border-[#ffb300] text-[#f57f17] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#ffecb3] transition-colors">⚡ 全家本39收60</button>
                                     <button type="button" onClick={() => {setTShippingExpense(38); setTShippingIncome(38);}} className="shrink-0 text-[11px] bg-[#fdfaf7] border border-[#d6ccc2] text-[#8d6e63] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#f2e7df] transition-colors">7-11本38</button>
                                     <button type="button" onClick={() => {setTShippingExpense(39); setTShippingIncome(39);}} className="shrink-0 text-[11px] bg-[#fdfaf7] border border-[#d6ccc2] text-[#8d6e63] px-2 py-1.5 rounded-lg font-bold shadow-sm active:bg-[#f2e7df] transition-colors">全家本39</button>
                                 </div>
-
                                 <div className="grid grid-cols-2 gap-3"><Input type="number" placeholder="賣家付運費" value={tShippingExpense} onChange={e => setTShippingExpense(e.target.value)} /><Input type="number" placeholder="買家付運費" value={tShippingIncome} onChange={e => setTShippingIncome(e.target.value)} /></div>
                                 <div className="grid grid-cols-2 gap-3 mb-2">
                                     <button className={`w-full h-[48px] rounded-xl border text-[15px] transition-colors font-wawa font-bold flex items-center justify-center ${tHasGift ? 'border-[#bc9f8b] bg-[#fdfaf7] text-[#bc9f8b]' : 'border-[#f0e6e0] bg-[#fdfdfd] text-[#a89689]'}`} onClick={(e) => { e.preventDefault(); setTHasGift(!tHasGift); }}>🎁 {tHasGift ? '有贈品' : '無贈品'}</button>
                                     <div className={`flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 h-[48px] focus-within:border-[#bc9f8b] transition-colors ${!tHasGift ? 'opacity-60 bg-[#f9f9f9]' : ''}`}><input type="number" placeholder="贈品數量" value={tGiftCount} onChange={e => setTGiftCount(e.target.value)} disabled={!tHasGift} className="bg-transparent w-full h-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" /></div>
                                 </div>
-                                <div className="flex gap-3 mt-5"><button onClick={() => { setTransferRecord(null); setTransferSource(null); }} className="flex-1 py-3.5 rounded-xl bg-[#f2e7df] text-[#7a6453] font-bold font-wawa">取消</button><button onClick={handleTransferSubmit} className="flex-[2] py-3.5 rounded-xl bg-[#4caf50] text-white font-bold font-wawa shadow-sm">確定轉入超商寄出</button></div>
+                                <div className="flex gap-3 mt-5"><button onClick={() => setTransferRecord(null)} className="flex-1 py-3.5 rounded-xl bg-[#f2e7df] text-[#7a6453] font-bold font-wawa">取消</button><button onClick={handleTransferSubmit} className="flex-[2] py-3.5 rounded-xl bg-[#4caf50] text-white font-bold font-wawa shadow-sm">確定轉入超商寄出</button></div>
                             </div>
                         </div>
                     )}
@@ -482,7 +365,7 @@
         };
 
         // --- 分頁 2：現貨市場 ---
-        const MarketTab = ({ marketSales, addMar, updMar, delMar, setConfirmDialog }) => {
+        const MarketTab = ({ marketSales, setMarketSales, setConfirmDialog }) => {
             const currentDate = new Date().toISOString().split('T')[0];
             const [editingId, setEditingId] = useState(null);
             
@@ -532,8 +415,8 @@
                     hasGift, giftCount: hasGift ? (Number(giftCount) || 0) : 0, accessories: { necklace: Number(acc.necklace) || 0, hat: Number(acc.hat) || 0, bag: Number(acc.bag) || 0, other: Number(acc.other) || 0 }
                 };
                 
-                if (editingId) updMar(editingId, recordData);
-                else addMar({ id: Date.now().toString(), ...recordData });
+                if (editingId) setMarketSales(prev => prev.map(m => m.id === editingId ? { ...m, ...recordData } : m).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
+                else setMarketSales(prev => [{ id: Date.now().toString(), ...recordData }, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
                 resetForm();
             };
 
@@ -736,7 +619,7 @@
         };
 
         // --- 分頁 3：現貨支出 ---
-        const ExpenseTab = ({ expenses, addExp, updExp, delExp, setConfirmDialog }) => {
+        const ExpenseTab = ({ expenses, setExpenses, setConfirmDialog }) => {
             const [editingId, setEditingId] = useState(null);
             const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
             const [type, setType] = useState('wholesale'); 
@@ -755,13 +638,13 @@
             const handleAddExpense = () => {
                 if (!name || !amount) return;
                 const recordData = { date, type, name, amount: Number(amount), qty: type === 'wholesale' ? (Number(qty) || 0) : 0, isArrived: type === 'wholesale' ? isArrived : true, isPaid: type === 'wholesale' ? isPaid : true, isForMarket: type === 'wholesale' ? isForMarket : true, flowType: type === 'financing' ? flowType : 'out' };
-                if (editingId) updExp(editingId, recordData);
-                else addExp({ id: Date.now().toString(), ...recordData });
+                if (editingId) setExpenses(prev => prev.map(e => e.id === editingId ? { ...e, ...recordData } : e).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
+                else setExpenses(prev => [{ id: Date.now().toString(), ...recordData }, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
                 resetForm();
             };
 
             const handleEditClick = (record) => { setEditingId(record.id); setDate(record.date); setType(record.type); setName(record.name); setAmount(record.amount); setQty(record.qty || ''); setIsArrived(record.isArrived !== false); setIsPaid(record.isPaid !== false); setIsForMarket(record.isForMarket !== false); setFlowType(record.flowType || 'in'); scrollToTop(); };
-            const toggleArriveStatus = (id) => updExp(id, { isArrived: true });
+            const toggleArriveStatus = (id) => setExpenses(prev => prev.map(e => e.id === id ? { ...e, isArrived: true } : e));
             const toggleType = (t) => setExpandedTypes(prev => ({ ...prev, [t]: !prev[t] }));
 
             const wholesaleTotalPaid = expenses.filter(e => e.type === 'wholesale' && e.isPaid !== false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
@@ -887,7 +770,7 @@
         }
 
         // --- 4. 營運報表 (含小金庫、KPI與排行榜) ---
-        const ReportTab = ({ deliveries, marketSales, expenses, settings, setSettings, marketSoldStats, setMarketSoldStats, privateExpenses, addPriv, delPriv, setDialog }) => {
+        const ReportTab = ({ deliveries, marketSales, expenses, settings, setSettings, marketSoldStats, setMarketSoldStats, privateExpenses, setPrivateExpenses, setDialog }) => {
             const [reportMonth, setReportMonth] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; });
             const [isCheckingInventory, setIsCheckingInventory] = useState(false);
             const [actualInv, setActualInv] = useState('');
@@ -1001,7 +884,8 @@
 
             const handleAddPrivateExpense = () => {
                 if (!privateName || !privateAmount) return;
-                addPriv({ id: Date.now().toString(), date: privateDate, name: privateName, amount: Number(privateAmount) });
+                const newPriv = { id: Date.now().toString(), date: privateDate, name: privateName, amount: Number(privateAmount) };
+                setPrivateExpenses(prev => [newPriv, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
                 setPrivateName(''); setPrivateAmount('');
             };
 
@@ -1342,24 +1226,55 @@
             );
         };
 
-        // --- 雲端設定與備份 Modal ---
-        const SettingsModal = ({ isOpen, onClose, user }) => {
+        // --- 設定與備份 Modal ---
+        const SettingsModal = ({ isOpen, onClose }) => {
             if (!isOpen) return null;
             const handleExport = () => {
-                // ... 匯出功能保留，若需要手動備份 JSON
-                alert("雲端版已自動備份您的資料。如需匯出成 JSON 檔，可後續擴充此功能。");
+                const data = { 
+                    xq_deliveries: localStorage.getItem('xq_deliveries'), 
+                    xq_marketSales: localStorage.getItem('xq_marketSales'), 
+                    xq_expenses: localStorage.getItem('xq_expenses'), 
+                    xq_reservations: localStorage.getItem('xq_reservations'), 
+                    xq_settings: localStorage.getItem('xq_settings'), 
+                    xq_market_sold: localStorage.getItem('xq_market_sold'),
+                    xq_private_exp: localStorage.getItem('xq_private_exp')
+                };
+                const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url; a.download = `森衣好_資料備份_${new Date().toISOString().split('T')[0]}.json`; a.click(); URL.revokeObjectURL(url);
+            };
+            const handleImport = (e) => {
+                const file = e.target.files[0]; if (!file) return; const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const d = JSON.parse(event.target.result);
+                        if(d.xq_deliveries) localStorage.setItem('xq_deliveries', d.xq_deliveries);
+                        if(d.xq_marketSales) localStorage.setItem('xq_marketSales', d.xq_marketSales);
+                        if(d.xq_expenses) localStorage.setItem('xq_expenses', d.xq_expenses);
+                        if(d.xq_reservations) localStorage.setItem('xq_reservations', d.xq_reservations);
+                        if(d.xq_settings) localStorage.setItem('xq_settings', d.xq_settings);
+                        if(d.xq_market_sold) localStorage.setItem('xq_market_sold', d.xq_market_sold);
+                        if(d.xq_private_exp) localStorage.setItem('xq_private_exp', d.xq_private_exp);
+                        alert('✅ 資料匯入成功！系統將為您重新整理畫面。'); window.location.reload();
+                    } catch(err) { alert('❌ 匯入失敗！檔案格式不正確。'); }
+                }; reader.readAsText(file);
             };
 
             return (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[120] animate-fade-in px-4">
                     <div className="bg-[#fdfaf7] rounded-3xl p-6 w-full max-w-sm shadow-2xl relative">
                         <button onClick={onClose} className="absolute top-4 right-4 text-[#a89689] p-1 bg-white rounded-full shadow-sm"><Icon name="close" /></button>
-                        <div className="text-center text-[#5c4d43] font-bold mb-6 text-xl"><div className="bg-white p-3 rounded-full mb-2 shadow-sm inline-block border border-[#f2e7df]"><Icon name="cloud_done" className="text-[28px] text-[#4caf50]" /></div><br/>系統安全連線狀態</div>
+                        <div className="text-center text-[#5c4d43] font-bold mb-6 text-xl"><div className="bg-white p-3 rounded-full mb-2 shadow-sm inline-block border border-[#f2e7df]"><Icon name="save" className="text-[28px] text-[#bc9f8b]" /></div><br/>系統設定與備份</div>
                         <div className="space-y-4">
-                            <div className="bg-white p-4 rounded-xl border border-[#c8e6c9] shadow-sm text-center">
-                                <div className="font-bold text-[#2e7d32] mb-1 flex items-center justify-center"><Icon name="check_circle" className="mr-1 text-[18px]"/>已啟動專屬雲端同步</div>
-                                <div className="text-xs text-[#4caf50] mb-3">您的資料已安全備份至雲端，不怕遺失，並且支援跨裝置即時連動。</div>
-                                <div className="text-[9px] bg-[#e8f5e9] text-[#2e7d32] py-1 px-2 rounded break-all">ID: {user ? user.uid : '連線中...'}</div>
+                            <div className="bg-white p-4 rounded-xl border border-[#c8e6c9] shadow-sm">
+                                <div className="font-bold text-[#2e7d32] mb-1"><Icon name="download" className="mr-1 text-[18px] align-text-bottom"/>匯出備份 (下載)</div>
+                                <div className="text-xs text-[#4caf50] mb-3">下載 JSON 檔，可透過 LINE 傳給合夥人共享。</div>
+                                <button onClick={handleExport} className="w-full py-3 bg-[#4caf50] text-white font-bold rounded-lg shadow-sm">下載備份檔</button>
+                            </div>
+                            <div className="bg-white p-4 rounded-xl border border-[#ffe0b2] shadow-sm">
+                                <div className="font-bold text-[#ef6c00] mb-1"><Icon name="upload" className="mr-1 text-[18px] align-text-bottom"/>匯入備份 (還原)</div>
+                                <div className="text-xs text-[#ff9800] mb-3">選擇備份檔。<strong className="text-red-500">注意：會覆蓋現有資料！</strong></div>
+                                <label className="w-full py-3 bg-[#ff9800] text-white font-bold rounded-lg shadow-sm flex justify-center cursor-pointer">選擇檔案並匯入<input type="file" accept=".json" className="hidden" onChange={handleImport} /></label>
                             </div>
                         </div>
                     </div>
@@ -1371,66 +1286,67 @@
             const [activeTab, setActiveTab] = useState('report');
             const [showSettings, setShowSettings] = useState(false);
             
-            // Firebase 系統初始化
-            const { fbReady, user } = useFirebaseSystem();
+            const [deliveriesRaw, setDeliveriesRaw] = useLocalStorage('xq_deliveries', []);
+            const [marketSalesRaw, setMarketSalesRaw] = useLocalStorage('xq_marketSales', []);
+            const [expensesRaw, setExpensesRaw] = useLocalStorage('xq_expenses', []);
+            const [reservationsRaw, setReservationsRaw] = useLocalStorage('xq_reservations', []);
+            const [privateExpensesRaw, setPrivateExpensesRaw] = useLocalStorage('xq_private_exp', []);
+            const [settingsRaw, setSettingsRaw] = useLocalStorage('xq_settings', { monthlyGoal: 100000, startupCapital: 36284 });
+            const [marketSoldStatsRaw, setMarketSoldStatsRaw] = useLocalStorage('xq_market_sold', {});
 
-            // Firebase 資料集
-            const [deliveries, addDel, updDel, delDel] = useFirestoreCollection('deliveries', user);
-            const [marketSales, addMar, updMar, delMar] = useFirestoreCollection('market_sales', user);
-            const [expenses, addExp, updExp, delExp] = useFirestoreCollection('expenses', user);
-            const [reservations, addRes, updRes, delRes] = useFirestoreCollection('reservations', user);
-            const [tab1Preorders, addPre, updPre, delPre] = useFirestoreCollection('tab1_preorders', user);
-            const [privateExpenses, addPriv, updPriv, delPriv] = useFirestoreCollection('private_expenses', user);
-            
-            const [settings, setSettings] = useFirestoreDoc('settings', { monthlyGoal: 100000, startupCapital: 36284 }, user);
-            const [marketSoldStats, setMarketSoldStats] = useFirestoreDoc('market_sold', {}, user);
+            const deliveries = getSafeArr(deliveriesRaw);
+            const marketSales = getSafeArr(marketSalesRaw);
+            const expenses = getSafeArr(expensesRaw);
+            const reservations = getSafeArr(reservationsRaw);
+            const privateExpenses = getSafeArr(privateExpensesRaw);
+            const settings = (typeof settingsRaw === 'object' && settingsRaw !== null && !Array.isArray(settingsRaw)) ? settingsRaw : { monthlyGoal: 100000, startupCapital: 36284 };
+            const marketSoldStats = (typeof marketSoldStatsRaw === 'object' && marketSoldStatsRaw !== null && !Array.isArray(marketSoldStatsRaw)) ? marketSoldStatsRaw : {};
+
+            const setDeliveries = (u) => setDeliveriesRaw(p => typeof u === 'function' ? u(getSafeArr(p)) : u);
+            const setMarketSales = (u) => setMarketSalesRaw(p => typeof u === 'function' ? u(getSafeArr(p)) : u);
+            const setExpenses = (u) => setExpensesRaw(p => typeof u === 'function' ? u(getSafeArr(p)) : u);
+            const setReservations = (u) => setReservationsRaw(p => typeof u === 'function' ? u(getSafeArr(p)) : u);
+            const setPrivateExpenses = (u) => setPrivateExpensesRaw(p => typeof u === 'function' ? u(getSafeArr(p)) : u);
+            const setSettings = (u) => setSettingsRaw(p => typeof u === 'function' ? u(p) : u);
+            const setMarketSoldStats = (u) => setMarketSoldStatsRaw(p => typeof u === 'function' ? u(p) : u);
             
             const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, id: null, collection: '', message: '' });
 
             const allCustomerNames = useMemo(() => {
                 const names = new Set();
                 const addNames = (arr) => arr.forEach(item => { if (item.customerName) names.add(item.customerName); });
-                addNames(deliveries); addNames(reservations); addNames(tab1Preorders);
+                addNames(deliveries);
+                addNames(reservations);
                 return Array.from(names);
-            }, [deliveries, reservations, tab1Preorders]);
+            }, [deliveries, reservations]);
 
             const executeDelete = () => {
                 const { id, collection } = confirmDialog;
                 if(id && collection) {
-                    if (collection === 'deliveries') delDel(id);
-                    if (collection === 'market_sales') delMar(id);
-                    if (collection === 'expenses') delExp(id);
-                    if (collection === 'reservations') delRes(id);
-                    if (collection === 'tab1_preorders') delPre(id);
-                    if (collection === 'private_expenses') delPriv(id);
+                    if (collection === 'deliveries') setDeliveries(prev => prev.filter(d => d.id !== id));
+                    if (collection === 'market_sales') setMarketSales(prev => prev.filter(m => m.id !== id));
+                    if (collection === 'expenses') setExpenses(prev => prev.filter(e => e.id !== id));
+                    if (collection === 'reservations') setReservations(prev => prev.filter(r => r.id !== id));
+                    if (collection === 'private_expenses') setPrivateExpenses(prev => prev.filter(p => p.id !== id));
                 }
                 setConfirmDialog({isOpen: false, id: null, collection: '', message: ''});
             };
-
-            if (!fbReady || !user) {
-                return (
-                    <div className="flex flex-col h-screen items-center justify-center text-[#bc9f8b] font-bold text-lg font-wawa bg-[#fdfaf7]">
-                        <div className="w-10 h-10 border-4 border-[#f2e7df] border-t-[#bc9f8b] rounded-full animate-[spin_1s_linear_infinite] mb-4"></div>
-                        連線至專屬雲端空間... ☁️
-                    </div>
-                );
-            }
 
             return (
                 <ErrorBoundary>
                     <div className="flex flex-col h-screen custom-scrollbar text-[#5c4d43] max-w-lg mx-auto bg-[#fdfaf7] shadow-2xl relative">
                         <header className="bg-[#bc9f8b] text-white pt-6 pb-4 px-5 flex justify-between items-center shadow-md sticky top-0 z-10">
-                            <div className="flex items-center text-xl font-bold tracking-widest drop-shadow-sm">💰 200%森衣好 <Icon name="cloud_done" className="ml-2 text-[18px] text-[#e8f5e9] animate-pulse-slow" /></div>
+                            <div className="flex items-center text-2xl font-bold tracking-widest drop-shadow-sm">💰 200%森衣好</div>
                             <button onClick={() => setShowSettings(true)} className="p-1.5 bg-white bg-opacity-20 rounded-full hover:bg-opacity-30 transition-colors">
                                 <Icon name="settings" className="text-[20px]" />
                             </button>
                         </header>
                         
                         <main id="main-content" className="flex-1 overflow-y-auto p-4 relative custom-scrollbar">
-                            {activeTab === 'store' && <StoreTab deliveries={deliveries} addDel={addDel} updDel={updDel} delDel={delDel} reservations={reservations} addRes={addRes} updRes={updRes} delRes={delRes} tab1Preorders={tab1Preorders} addPre={addPre} updPre={updPre} delPre={delPre} setConfirmDialog={setConfirmDialog} allCustomerNames={allCustomerNames} />}
-                            {activeTab === 'market' && <MarketTab marketSales={marketSales} addMar={addMar} updMar={updMar} delMar={delMar} expenses={expenses} setConfirmDialog={setConfirmDialog} />}
-                            {activeTab === 'expense' && <ExpenseTab expenses={expenses} addExp={addExp} updExp={updExp} delExp={delExp} setConfirmDialog={setConfirmDialog} />}
-                            {activeTab === 'report' && <ReportTab deliveries={deliveries} marketSales={marketSales} expenses={expenses} settings={settings} setSettings={setSettings} marketSoldStats={marketSoldStats} setMarketSoldStats={setMarketSoldStats} privateExpenses={privateExpenses} addPriv={addPriv} delPriv={delPriv} setDialog={setConfirmDialog} />}
+                            {activeTab === 'store' && <StoreTab deliveries={deliveries} setDeliveries={setDeliveries} reservations={reservations} setReservations={setReservations} setConfirmDialog={setConfirmDialog} allCustomerNames={allCustomerNames} />}
+                            {activeTab === 'market' && <MarketTab marketSales={marketSales} setMarketSales={setMarketSales} expenses={expenses} setConfirmDialog={setConfirmDialog} />}
+                            {activeTab === 'expense' && <ExpenseTab expenses={expenses} setExpenses={setExpenses} setConfirmDialog={setConfirmDialog} />}
+                            {activeTab === 'report' && <ReportTab deliveries={deliveries} marketSales={marketSales} expenses={expenses} settings={settings} setSettings={setSettings} marketSoldStats={marketSoldStats} setMarketSoldStats={setMarketSoldStats} privateExpenses={privateExpenses} setPrivateExpenses={setPrivateExpenses} setDialog={setConfirmDialog} />}
                         </main>
 
                         <nav className="bg-white border-t border-[#f2e7df] flex justify-around pb-safe pt-2 fixed bottom-0 w-full max-w-lg z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] px-1">
@@ -1450,7 +1366,7 @@
                                 );
                             })}
                         </nav>
-                        <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} user={user} />
+                        <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
                         <ConfirmModal isOpen={confirmDialog.isOpen} message={confirmDialog.message || "確定要刪除這筆紀錄嗎？"} onConfirm={executeDelete} onCancel={() => setConfirmDialog({isOpen: false, id: null, collection: '', message: ''})} />
                     </div>
                 </ErrorBoundary>
