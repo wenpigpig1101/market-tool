@@ -58,6 +58,7 @@
 
         let db = null;
         let isCloudActive = false;
+        const eventBus = new EventTarget();
 
         try {
             if (!firebase.apps.length) {
@@ -101,7 +102,10 @@
                         setValue(cloudData !== undefined ? cloudData : initialValue);
                         window.localStorage.setItem(key, JSON.stringify(cloudData)); // 備份本機
                     }
-                }, (error) => console.error("雲端同步異常:", error));
+                }, (error) => {
+                    console.error("雲端同步異常:", error);
+                    eventBus.dispatchEvent(new CustomEvent('sync-error', { detail: error.message }));
+                });
                 
                 return () => unsubscribe();
             }, [key]);
@@ -111,7 +115,10 @@
                     const newValue = typeof action === 'function' ? action(prev) : action;
                     window.localStorage.setItem(key, JSON.stringify(newValue));
                     if (isCloudActive && db) {
-                        db.collection('sen_yi_hao_data').doc(key).set({ items: newValue }, { merge: true }).catch(console.error);
+                        db.collection('sen_yi_hao_data').doc(key).set({ items: newValue }, { merge: true }).catch(err => {
+                            console.error(err);
+                            eventBus.dispatchEvent(new CustomEvent('sync-error', { detail: err.message }));
+                        });
                     }
                     return newValue;
                 });
@@ -1303,6 +1310,13 @@
         const App = () => {
             const [activeTab, setActiveTab] = useState('report');
             const [showSettings, setShowSettings] = useState(false);
+            const [cloudStatus, setCloudStatus] = useState(isCloudActive ? 'active' : 'offline');
+
+            useEffect(() => {
+                const handler = (e) => setCloudStatus('error');
+                eventBus.addEventListener('sync-error', handler);
+                return () => eventBus.removeEventListener('sync-error', handler);
+            }, []);
             
             const [deliveriesRaw, setDeliveriesRaw] = useDataSync('xq_deliveries', []);
             const [marketSalesRaw, setMarketSalesRaw] = useDataSync('xq_marketSales', []);
@@ -1356,7 +1370,8 @@
                         <header className="bg-[#bc9f8b] text-white pt-6 pb-4 px-5 flex justify-between items-center shadow-md sticky top-0 z-10">
                             <div className="flex items-center text-2xl font-bold tracking-widest drop-shadow-sm">💰 200%森衣好</div>
                             <div className="flex items-center gap-3">
-                                {isCloudActive && <span className="text-[10px] bg-white bg-opacity-20 px-2 py-0.5 rounded-full flex items-center"><Icon name="cloud_done" className="text-[12px] mr-1"/>雲端同步中</span>}
+                                {cloudStatus === 'active' && <span className="text-[10px] bg-white bg-opacity-20 px-2 py-0.5 rounded-full flex items-center"><Icon name="cloud_done" className="text-[12px] mr-1"/>雲端同步中</span>}
+                                {cloudStatus === 'error' && <span onClick={()=>alert('雲端連線被 Firebase 拒絕！\n請至 Firebase 後台的 Firestore Database -> Rules 將權限改為 allow read, write: if true;')} className="text-[10px] bg-red-500 text-white px-2 py-0.5 rounded-full flex items-center font-bold cursor-pointer shadow-sm animate-pulse"><Icon name="error" className="text-[12px] mr-1"/>雲端被阻擋</span>}
                                 <button onClick={() => setShowSettings(true)} className="p-1.5 bg-white bg-opacity-20 rounded-full hover:bg-opacity-30 transition-colors">
                                     <Icon name="settings" className="text-[20px]" />
                                 </button>
