@@ -84,7 +84,7 @@
             return arr.filter(i => i !== null && typeof i === 'object' && !Array.isArray(i));
         };
 
-        // 雙引擎同步 Hook (專屬 Collection: sen_yi_hao_data 防衝突)
+        // 雙引擎同步 Hook
         const useDataSync = (key, initialValue) => {
             const [value, setValue] = useState(() => {
                 try {
@@ -100,7 +100,7 @@
                     if (doc.exists) {
                         const cloudData = doc.data().items;
                         setValue(cloudData !== undefined ? cloudData : initialValue);
-                        window.localStorage.setItem(key, JSON.stringify(cloudData)); // 備份本機
+                        window.localStorage.setItem(key, JSON.stringify(cloudData)); 
                     }
                 }, (error) => {
                     console.error("雲端同步異常:", error);
@@ -237,7 +237,6 @@
 
             const handleAddDelivery = () => {
                 if (!dCustomerName) return;
-                // 移除售出件數，只留營業額等現金流
                 const recordData = { date: dDate, customerName: dCustomerName, revenue: Number(dRevenue) || 0, shippingExpense: Number(dShippingExpense) || 0, shippingIncome: Number(dShippingIncome) || 0, hasGift: dHasGift, giftCount: dHasGift ? (Number(dGiftCount) || 0) : 0, status: 'pending' };
                 if (editingId && formMode === 'delivery') setDeliveries(prev => prev.map(d => d.id === editingId ? { ...d, ...recordData } : d).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
                 else setDeliveries(prev => [{ id: Date.now().toString(), ...recordData }, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
@@ -442,7 +441,6 @@
 
             const handleAddMarket = () => {
                 if (!location) return;
-                // 移除售出件數
                 const recordData = {
                     date, location, revenue: Number(revenue) || 0, rent: Number(rent) || 0, note,
                     electricity: Number(electricity) || 0, cleaning: Number(cleaning) || 0, toll: Number(toll) || 0, parking: Number(parking) || 0,
@@ -512,7 +510,6 @@
                 const totalRev = searchedSales.reduce((sum, m) => sum + (Number(m.revenue) || 0), 0);
                 const totalProfit = searchedSales.reduce((sum, m) => {
                     const dailyMisc = (Number(m.electricity) || 0) + (Number(m.cleaning) || 0) + (Number(m.toll) || 0) + (Number(m.parking) || 0);
-                    // 純現金流，免扣衣服成本
                     return sum + (Number(m.revenue) || 0) - (Number(m.rent) || 0) - dailyMisc; 
                 }, 0);
 
@@ -650,7 +647,7 @@
             const [type, setType] = useState('wholesale'); 
             const [name, setName] = useState('');
             const [amount, setAmount] = useState('');
-            const [qty, setQty] = useState(''); // 進貨件數(算均價用) 保留
+            const [qty, setQty] = useState(''); 
             const [isArrived, setIsArrived] = useState(true);
             const [isPaid, setIsPaid] = useState(true); 
             const [isForMarket, setIsForMarket] = useState(true);
@@ -876,10 +873,15 @@
             const monthlyTrafficExp = currentExpenses.filter(e => e.type === 'traffic').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const monthlyOtherTotal = monthlyFixedExp + monthlyTrafficExp; 
 
-            // ---- 薪水分配 (現貨總營業額 * 35%) ----
+            // ---- 薪水與公司營運分配 ----
             const bossSalary = Math.round(monthlyTotalRev * 0.35); 
             const companyGross = monthlyTotalRev - bossSalary; 
             const companyNet = companyGross - monthlyMarketExp - monthlyOtherTotal; 
+            
+            // 🔥 新增：算出本月挪去批貨的錢，以及公司最終剩下的現金
+            const monthlyWholesaleCashPaid = currentExpenses.filter(e => e.type === 'wholesale' && e.isPaid !== false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
+            const companyFinalCash = companyNet - monthlyWholesaleCashPaid;
+
             const monthlyFinalProfit = grossProfit - monthlyOtherTotal; 
 
             const salaryGoal = 100000;
@@ -995,10 +997,19 @@
                                 <div className="text-[9px] text-[#fb8c00] mt-1">安心花用，犒賞自己</div>
                                 {totalPrivateSpent > 0 && <div className="text-[10px] bg-orange-100 text-[#e65100] mt-2 py-0.5 rounded font-bold">剩餘: ${remainingSalary.toLocaleString()}</div>}
                             </div>
-                            <div className="bg-white bg-opacity-70 p-3 rounded-xl shadow-sm border border-white flex flex-col justify-center">
-                                <div className="text-[11px] text-[#5c6bc0] font-bold mb-1">公司營運與還款 (65%)</div>
-                                <div className="font-black text-xl text-[#3949ab]">${companyNet.toLocaleString()}</div>
-                                <div className="text-[9px] text-[#7986cb] mt-1">嚴格保留，維持營運</div>
+                            
+                            {/* 公司營運與批貨 卡片升級版 */}
+                            <div className="bg-white p-3 rounded-xl shadow-md border-2 border-[#5c6bc0] flex flex-col justify-center relative overflow-hidden">
+                                <div className="text-[11px] text-[#5c6bc0] font-bold mb-1">公司營運與批貨 (65%)</div>
+                                <div className="font-black text-2xl text-[#3949ab]">${companyNet.toLocaleString()}</div>
+                                {monthlyWholesaleCashPaid > 0 ? (
+                                    <div className="mt-2 border-t border-[#c5cae9] pt-1.5">
+                                        <div className="text-[9px] text-[#7986cb] flex justify-between font-bold"><span>已挪用批貨:</span><span>-${monthlyWholesaleCashPaid.toLocaleString()}</span></div>
+                                        <div className="text-[10px] text-[#3949ab] font-bold flex justify-between mt-1"><span>本月結餘現金:</span><span className={companyFinalCash < 0 ? 'text-red-500 font-black' : 'font-black'}>${companyFinalCash.toLocaleString()}</span></div>
+                                    </div>
+                                ) : (
+                                    <div className="text-[9px] text-[#7986cb] mt-1">含進貨本金，嚴格保留</div>
+                                )}
                             </div>
                         </div>
 
@@ -1116,10 +1127,10 @@
                     <Card>
                         <div className="flex items-center font-bold text-[#7a6453] text-lg mb-4 pb-2 border-b border-[#f2e7df]"><Icon name="request_quote" className="mr-2 text-[#e57373]" /> 本月損益表 <span className="text-xs text-[#a89689] font-normal ml-2">(真實現金流)</span></div>
                         <div className="space-y-3 text-sm font-bold text-[#5c4d43]">
-                            <div className="flex justify-between text-base cursor-pointer" onClick={() => toggleExp('moRev')}><span className="flex items-center">現貨總營業額<Icon name={expState['moRev'] ? "expand_less" : "expand_more"} className="text-[16px] ml-1 text-[#c4b5aa]"/></span><span className="text-[#bc9f8b]">${monthlyTotalRev.toLocaleString()}</span></div>
+                            <div className="flex justify-between text-base cursor-pointer" onClick={() => toggleExp('moRev')}><span className="flex items-center">現貨總營業額<span className="ml-2 text-[10px] bg-[#f2e7df] text-[#7a6453] px-2 py-0.5 rounded-full font-bold">出攤 {marketDays} 天</span><Icon name={expState['moRev'] ? "expand_less" : "expand_more"} className="text-[16px] ml-1 text-[#c4b5aa]"/></span><span className="text-[#bc9f8b]">${monthlyTotalRev.toLocaleString()}</span></div>
                             {expState['moRev'] && (
                                 <div className="pl-4 pr-2 py-1 -mt-1 mb-1 space-y-1 bg-[#fafafa] border border-[#f0e6e0] rounded text-[11px] text-[#a89689] animate-expand">
-                                    <div className="flex justify-between"><span>└ 市場業績 (出攤 {marketDays} 天)</span><span>${marketRevenue.toLocaleString()}</span></div>
+                                    <div className="flex justify-between"><span>└ 市場業績</span><span>${marketRevenue.toLocaleString()}</span></div>
                                     <div className="flex justify-between"><span>└ 超商業績</span><span>${storeRevenue.toLocaleString()}</span></div>
                                 </div>
                             )}
