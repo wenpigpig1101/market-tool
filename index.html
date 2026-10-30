@@ -45,7 +45,7 @@
 
     <script type="text/babel">
         // ==========================================
-        // 🚀 Firebase 雲端連線金鑰 (與型錄區隔安全存放)
+        // 🚀 Firebase 雲端連線金鑰
         // ==========================================
         const firebaseConfig = {
             apiKey: "AIzaSyBFLjVGT5kkThgxuWpdeLbqNLzYKiWB6CA",
@@ -675,7 +675,47 @@
             const currentMonth = safeStr(date).substring(0, 7);
             const currentMonthExpenses = expenses.filter(e => safeStr(e.date).startsWith(currentMonth));
             
-            const typeConfig = { wholesale: { label: '現貨進貨', color: 'bg-[#e57373]', text: 'text-[#e57373]', bgLight: 'bg-[#ffebee]', placeholder: '現貨品名 / 廠商', icon: 'inventory_2' }, supply: { label: '生財包材', color: 'bg-[#64b5f6]', text: 'text-[#64b5f6]', bgLight: 'bg-[#e0f7fa]', placeholder: '品牌袋、衣架、文具', icon: 'shopping_bag' }, fixed: { label: '倉租水電', color: 'bg-[#81c784]', text: 'text-[#81c784]', bgLight: 'bg-[#e8f5e9]', placeholder: '倉庫租金、水電網費', icon: 'home' }, traffic: { label: '交通油資', color: 'bg-[#ba68c8]', text: 'text-[#ab47bc]', bgLight: 'bg-[#f3e5f5]', placeholder: '加油、高鐵、客運', icon: 'local_gas_station' }, salary: { label: '老闆支薪', color: 'bg-[#ffd54f]', text: 'text-[#fbc02d]', bgLight: 'bg-[#fffde7]', placeholder: '老闆薪水', icon: 'account_balance_wallet' }, financing: { label: '資金借還', color: 'bg-[#9e9e9e]', text: 'text-[#757575]', bgLight: 'bg-[#f5f5f5]', placeholder: '借入週轉金 / 償還欠款', icon: 'swap_horiz' } };
+            const typeConfig = { 
+                wholesale: { label: '現貨進貨', color: 'bg-[#e57373]', text: 'text-[#e57373]', bgLight: 'bg-[#ffebee]', placeholder: '現貨品名 / 廠商', icon: 'inventory_2' }, 
+                supply: { label: '生財包材', color: 'bg-[#64b5f6]', text: 'text-[#64b5f6]', bgLight: 'bg-[#e0f7fa]', placeholder: '品牌袋、衣架、文具', icon: 'shopping_bag' }, 
+                fixed: { label: '倉租水電', color: 'bg-[#81c784]', text: 'text-[#81c784]', bgLight: 'bg-[#e8f5e9]', placeholder: '倉庫租金、水電網費', icon: 'home' }, 
+                traffic: { label: '交通油資', color: 'bg-[#ba68c8]', text: 'text-[#ab47bc]', bgLight: 'bg-[#f3e5f5]', placeholder: '加油、高鐵、客運', icon: 'local_gas_station' }, 
+                salary: { label: '老闆支薪', color: 'bg-[#ffd54f]', text: 'text-[#fbc02d]', bgLight: 'bg-[#fffde7]', placeholder: '老闆薪水', icon: 'account_balance_wallet' }, 
+                financing: { label: '資金借還', color: 'bg-[#9e9e9e]', text: 'text-[#757575]', bgLight: 'bg-[#f5f5f5]', placeholder: '對象人名 / 銀行名稱', icon: 'swap_horiz' } 
+            };
+
+            // 🔥 AI 智能快取：自動抓取前 8 大最常使用的進貨廠商！
+            const wholesaleTags = useMemo(() => {
+                const counts = {};
+                expenses.forEach(e => {
+                    if (e.type === 'wholesale' && e.name) {
+                        counts[e.name] = (counts[e.name] || 0) + 1;
+                    }
+                });
+                const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(entry => entry[0]);
+                return sorted.length > 0 ? sorted.slice(0, 8) : ['五分埔', '廣州十三行', '東大門', '廠商A']; 
+            }, [expenses]);
+
+            // 🔥 AI 智能快取：自動抓取常借貸的對象 (人名/銀行)
+            const financingTags = useMemo(() => {
+                const counts = {};
+                expenses.forEach(e => {
+                    if (e.type === 'financing' && e.name) {
+                        counts[e.name] = (counts[e.name] || 0) + 1;
+                    }
+                });
+                const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(entry => entry[0]);
+                return sorted.length > 0 ? sorted.slice(0, 8) : ['媽媽', '老公', '銀行', '朋友A']; 
+            }, [expenses]);
+
+            const quickTags = {
+                wholesale: wholesaleTags,
+                supply: ['破壞袋', '透明袋', '衣架', '熱感紙'],
+                fixed: ['倉庫租金', '水電費'],
+                traffic: ['⛽ 加油', '🅿️ 停車費', '🛣️ 過路費', '🚄 車票'],
+                salary: ['保底薪水', '業績分紅'],
+                financing: financingTags
+            };
 
             const groupedExpenses = useMemo(() => { const groups = {}; expenses.forEach(e => { const t = e.type || 'wholesale'; if (!groups[t]) groups[t] = []; groups[t].push(e); }); return groups; }, [expenses]);
 
@@ -699,7 +739,28 @@
                             </div>
                         )}
 
-                        <Input placeholder={typeConfig[type] ? typeConfig[type].placeholder : '名稱'} value={name} onChange={e => setName(e.target.value)} />
+                        <div className="mb-3 w-full">
+                            <div className={`flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 h-[48px] focus-within:border-[#bc9f8b] transition-colors`}>
+                                <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder={typeConfig[type] ? typeConfig[type].placeholder : '名稱'} className="bg-transparent w-full h-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
+                            </div>
+                        </div>
+
+                        {/* 🔥 快速輸入標籤 (一鍵懶人輸入 / AI廠商快取 / AI人名快取) */}
+                        {quickTags[type] && (
+                            <div className="flex gap-2 mb-4 -mt-2 px-1 overflow-x-auto custom-scrollbar">
+                                {quickTags[type].map(tag => (
+                                    <button
+                                        key={tag}
+                                        type="button"
+                                        onClick={(e) => { e.preventDefault(); setName(tag); }}
+                                        className={`shrink-0 text-[11px] border px-2 py-1.5 rounded-lg font-bold shadow-sm transition-colors active:opacity-70 ${typeConfig[type].bgLight} ${typeConfig[type].text}`}
+                                        style={{ borderColor: 'currentColor', opacity: 0.8 }}
+                                    >
+                                        + {tag}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                         
                         {type === 'wholesale' ? (
                             <React.Fragment>
