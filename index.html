@@ -939,7 +939,6 @@
             const companyGross = monthlyTotalRev - bossSalary; 
             const companyNet = companyGross - monthlyMarketExp - monthlyOtherTotal; 
             
-            // 🔥 新增：算出本月挪去批貨的錢，以及公司最終剩下的現金
             const monthlyWholesaleCashPaid = currentExpenses.filter(e => e.type === 'wholesale' && e.isPaid !== false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const companyFinalCash = companyNet - monthlyWholesaleCashPaid;
 
@@ -972,7 +971,7 @@
             else if (reportMonth > currentMonthStr) remainingDays = daysInMonth;
             const dailyRevenueTarget = remainingDays > 0 ? Math.ceil(shortfallRevenue / remainingDays) : 0;
 
-            // ---- 庫存盤點 ----
+            // ---- 庫存盤點 (新增月度售出) ----
             const wholesaleToMonth = expenses.filter(e => e.type === 'wholesale' && safeStr(e.date).substring(0, 7) <= reportMonth && e.isArrived !== false && e.isForMarket !== false);
             const accumulatedWholesaleQty = wholesaleToMonth.reduce((sum, e) => sum + (Number(e.qty)||0), 0);
             const accumulatedWholesaleCost = wholesaleToMonth.reduce((sum, e) => sum + (Number(e.amount)||0), 0);
@@ -981,6 +980,22 @@
             const savedInventory = marketSoldStats[reportMonth];
             const currentInventoryQty = savedInventory !== undefined ? Number(savedInventory) : '?';
             const accumulatedTotalSold = savedInventory !== undefined ? Math.max(0, accumulatedWholesaleQty - currentInventoryQty) : '?';
+
+            // 🔥 新增：本月實際售出推算
+            const [ry, rm] = reportMonth.split('-');
+            const prevD = new Date(parseInt(ry, 10), parseInt(rm, 10) - 2, 1);
+            const prevMonthStr = `${prevD.getFullYear()}-${String(prevD.getMonth() + 1).padStart(2, '0')}`;
+            const prevInv = marketSoldStats[prevMonthStr];
+            const thisMonthWholesaleQty = currentExpenses.filter(e => e.type === 'wholesale' && e.isArrived !== false && e.isForMarket !== false).reduce((sum, e) => sum + (Number(e.qty)||0), 0);
+            
+            let monthlySold = '?';
+            if (currentInventoryQty !== '?') {
+                if (prevInv !== undefined) {
+                    monthlySold = Math.max(0, Number(prevInv) + thisMonthWholesaleQty - currentInventoryQty);
+                } else {
+                    monthlySold = '需上月盤點資料';
+                }
+            }
 
             const saveInventoryCheck = () => {
                 if(actualInv !== '') {
@@ -1025,11 +1040,16 @@
                         <div className="flex items-center text-[#4caf50] font-bold text-lg mb-1 relative z-10"><Icon name="inventory_2" className="mr-2" /> 📦 攤位現貨庫存與盤點</div>
                         <div className="text-[10px] text-[#a89689] mb-3 ml-7 relative z-10">(已自動排除標記為「獨立網拍/私用」的貨源)</div>
                         <div className="flex items-center justify-between mb-3 text-sm relative z-10"><span className="text-[#7a6453] font-bold">攤位現貨平均成本</span><span className="font-black text-[#5c4d43]">${avgUnitCost.toFixed(1)} <span className="text-xs text-[#a89689] font-normal">/件</span></span></div>
-                        <div className="grid grid-cols-3 gap-2 border-t border-[#f2e7df] pt-3 pb-2 relative z-10">
-                            <div className="text-center"><div className="text-[10px] text-[#a89689] font-bold">歷史總進貨</div><div className="font-black text-lg text-[#5c4d43]">{accumulatedWholesaleQty}</div></div>
-                            <div className="text-center border-x border-[#f2e7df]"><div className="text-[10px] text-[#a89689] font-bold">歷史總售出</div><div className="font-black text-lg text-[#5c4d43]">{accumulatedTotalSold}</div></div>
-                            <div className="text-center"><div className="text-[10px] text-[#4caf50] font-bold">手邊實際剩餘</div><div className="font-black text-2xl text-[#4caf50]">{currentInventoryQty}</div></div>
+                        
+                        {/* 🔥 升級版 2x2 網格：歷史與本月銷售追蹤 */}
+                        <div className="grid grid-cols-2 gap-y-3 gap-x-2 border-t border-[#f2e7df] pt-3 pb-2 relative z-10">
+                            <div className="text-center border-r border-[#f2e7df]"><div className="text-[10px] text-[#a89689] font-bold">歷史總進貨</div><div className="font-black text-lg text-[#5c4d43]">{accumulatedWholesaleQty}</div></div>
+                            <div className="text-center"><div className="text-[10px] text-[#a89689] font-bold">歷史總售出</div><div className="font-black text-lg text-[#5c4d43]">{accumulatedTotalSold}</div></div>
+                            
+                            <div className="text-center border-r border-[#f2e7df] bg-[#fff2f2] rounded-l-lg py-1.5"><div className="text-[10px] text-[#e57373] font-bold">本月實際售出</div><div className="font-black text-xl text-[#e57373]">{monthlySold}</div></div>
+                            <div className="text-center bg-[#f0f9f0] rounded-r-lg py-1.5"><div className="text-[10px] text-[#4caf50] font-bold">手邊盤點剩餘</div><div className="font-black text-xl text-[#4caf50]">{currentInventoryQty}</div></div>
                         </div>
+
                         <div className="mt-2 pt-2 border-t border-[#f2e7df] relative z-10">
                             {isCheckingInventory ? (
                                 <div className="animate-fade-in pt-2">
@@ -1039,7 +1059,7 @@
                                     <div className="flex gap-2"><button onClick={()=>setIsCheckingInventory(false)} className="flex-1 h-[40px] bg-[#f2e7df] text-[#7a6453] rounded-lg text-sm font-bold font-wawa">取消</button><button onClick={saveInventoryCheck} className="flex-[2] h-[40px] bg-[#4caf50] text-white rounded-lg text-sm font-bold font-wawa shadow-sm">儲存盤點數量</button></div>
                                 </div>
                             ) : (
-                                <button onClick={()=>{setActualInv(''); setIsCheckingInventory(true);}} className="w-full py-2 bg-[#f0f9f0] text-[#4caf50] rounded-lg text-sm font-bold border border-[#c8e6c9] transition-colors active:bg-[#e8f5e9]">✏️ 盤點更新 (計算歷史總售出)</button>
+                                <button onClick={()=>{setActualInv(''); setIsCheckingInventory(true);}} className="w-full py-2 bg-[#f0f9f0] text-[#4caf50] rounded-lg text-sm font-bold border border-[#c8e6c9] transition-colors active:bg-[#e8f5e9]">✏️ 盤點更新 (計算歷史/本月售出)</button>
                             )}
                         </div>
                     </Card>
