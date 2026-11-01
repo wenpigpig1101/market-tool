@@ -419,6 +419,13 @@
             const [selectedDay, setSelectedDay] = useState(currentDate);
             const [searchTerm, setSearchTerm] = useState('');
 
+            // 🔥 新增：自動抓取歷史市場地點，建立下拉選單記憶庫
+            const allLocations = useMemo(() => {
+                const locs = new Set();
+                marketSales.forEach(m => { if (m.location) locs.add(m.location); });
+                return Array.from(locs);
+            }, [marketSales]);
+
             const dailyStats = useMemo(() => {
                 const stats = {};
                 marketSales.forEach(m => {
@@ -561,7 +568,7 @@
                         <Input type="date" value={date} onChange={e => { setDate(e.target.value); setSelectedDay(e.target.value); setViewMonthStr(safeStr(e.target.value).substring(0,7)); }} />
                         
                         <div className="grid grid-cols-2 gap-3">
-                            <Input placeholder="地點" value={location} onChange={e => setLocation(e.target.value)} />
+                            <AutocompleteInput placeholder="地點" value={location} onChange={e => setLocation(e.target.value)} options={allLocations} />
                             <Input type="number" placeholder="位租" value={rent} onChange={e => setRent(e.target.value)} />
                         </div>
                         <Input type="number" placeholder="當日總營業額" value={revenue} onChange={e => setRevenue(e.target.value)} />
