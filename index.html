@@ -1017,27 +1017,27 @@
                 }
             };
 
-            // ---- 市場地段排行榜 ----
+            // 🔥 更新：市場地段排行榜 (改用「平均單次營業額」排行，並顯示「租金佔比」)
             const locationStats = useMemo(() => {
                 const stats = {};
                 marketSales.forEach(m => {
                     const loc = m.location || '未知';
-                    if (!stats[loc]) stats[loc] = { count: 0, totalRev: 0, totalExp: 0 };
+                    if (!stats[loc]) stats[loc] = { count: 0, totalRev: 0, totalRent: 0 };
                     stats[loc].count += 1;
                     stats[loc].totalRev += (Number(m.revenue) || 0);
-                    const dailyMisc = (Number(m.electricity) || 0) + (Number(m.cleaning) || 0) + (Number(m.toll) || 0) + (Number(m.parking) || 0);
-                    stats[loc].totalExp += (Number(m.rent) || 0) + dailyMisc;
+                    stats[loc].totalRent += (Number(m.rent) || 0); // 只抓純攤租來算比例
                 });
                 return Object.keys(stats).map(loc => {
                     const s = stats[loc];
-                    const netProfit = s.totalRev - s.totalExp;
-                    return { location: loc, count: s.count, avgProfit: Math.round(netProfit / s.count) };
-                }).sort((a, b) => b.avgProfit - a.avgProfit);
+                    const avgRev = Math.round(s.totalRev / s.count);
+                    const rentRatio = s.totalRev > 0 ? ((s.totalRent / s.totalRev) * 100).toFixed(1) : 0;
+                    return { location: loc, count: s.count, avgRev, rentRatio: Number(rentRatio) };
+                }).sort((a, b) => b.avgRev - a.avgRev); // 改用含金量 (平均營業額) 排序
             }, [marketSales]);
             const topMarkets = locationStats.filter(m=>m.count>0).slice(0, 3);
             const bottomMarkets = locationStats.filter(m=>m.count>0 && !topMarkets.find(t=>t.location===m.location)).slice(-3).reverse();
 
-            // 💖 新增：VIP 乾媽排行榜 (抓取所有狀態為 shipped 的超商客群)
+            // 💖 VIP 乾媽排行榜
             const topVips = useMemo(() => {
                 const stats = {};
                 deliveries.filter(d => d.status === 'shipped').forEach(d => {
@@ -1050,7 +1050,7 @@
                     name, 
                     count: stats[name].count, 
                     totalRev: stats[name].totalRev
-                })).sort((a, b) => b.totalRev - a.totalRev).slice(0, 5); // 只取前 5 名
+                })).sort((a, b) => b.totalRev - a.totalRev).slice(0, 5); 
             }, [deliveries]);
 
             const storeGifts = currentDeliveries.reduce((sum, d) => sum + (Number(d.giftCount) || 0), 0);
@@ -1189,43 +1189,57 @@
                         </div>
                     </Card>
 
-                    {/* 👑 市場地段含金量排行榜 */}
+                    {/* 👑 市場地段含金量排行榜 (全新租金佔比邏輯) */}
                     <Card className="bg-[#fafafa] border-[#e0e0e0] mb-4 shadow-sm">
                         <div className="flex items-center text-[#5c4d43] font-bold text-lg mb-3 pb-2 border-b border-[#e0e0e0]"><Icon name="emoji_events" className="mr-2 text-[#ffb300]" /> 👑 市場地段含金量排行榜</div>
-                        <div className="text-[10px] text-[#a89689] mb-3 text-center">依據歷史全期各市場的「平均單次淨利」進行排行</div>
+                        <div className="text-[10px] text-[#a89689] mb-3 text-center">依據歷史全期各市場的「平均單次營業額」排行，並監測租金佔比</div>
                         
                         {topMarkets.length === 0 ? (
                             <div className="text-center text-[#c4b5aa] text-xs py-4">目前尚無足夠的市場營業數據</div>
                         ) : (
                             <div className="space-y-4">
                                 <div>
-                                    <div className="text-xs font-bold text-[#4caf50] mb-2 flex items-center"><Icon name="thumb_up" className="text-[14px] mr-1" /> 賺最大！黃金前三名</div>
+                                    <div className="text-xs font-bold text-[#4caf50] mb-2 flex items-center"><Icon name="thumb_up" className="text-[14px] mr-1" /> 含金量最高！最強前三名</div>
                                     <div className="space-y-2">
                                         {topMarkets.map((m, idx) => (
-                                            <div key={`top-${m.location}`} className="flex justify-between items-center bg-[#f0f9f0] p-2 rounded-lg border border-[#c8e6c9]">
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white ${idx === 0 ? 'bg-[#ffb300]' : idx === 1 ? 'bg-[#9e9e9e]' : 'bg-[#8d6e63]'}`}>{idx + 1}</span>
-                                                    <span className="font-bold text-[#2e7d32]">{m.location}</span>
-                                                    <span className="text-[10px] text-[#81c784] bg-white px-1 rounded shadow-sm">去過 {m.count} 次</span>
+                                            <div key={`top-${m.location}`} className="bg-white p-3 rounded-xl border border-[#c8e6c9] shadow-sm relative overflow-hidden">
+                                                {m.rentRatio > 25 && <div className="absolute top-0 right-0 bg-red-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-bl shadow-sm animate-pulse">租金偏高</div>}
+                                                {m.rentRatio < 15 && m.rentRatio > 0 && <div className="absolute top-0 right-0 bg-green-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-bl shadow-sm">租金神級</div>}
+                                                
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white ${idx === 0 ? 'bg-[#ffb300]' : idx === 1 ? 'bg-[#9e9e9e]' : 'bg-[#8d6e63]'}`}>{idx + 1}</span>
+                                                        <span className="font-bold text-[#2e7d32]">{m.location}</span>
+                                                    </div>
+                                                    <div className="font-black text-[#2e7d32] text-base">${m.avgRev.toLocaleString()}</div>
                                                 </div>
-                                                <div className="font-black text-[#2e7d32] text-sm">${m.avgProfit.toLocaleString()}</div>
+                                                <div className="flex justify-between items-end mt-2 pt-2 border-t border-dashed border-[#e8f5e9]">
+                                                    <span className="text-[10px] text-[#81c784] bg-[#f0f9f0] px-1.5 py-0.5 rounded">去過 {m.count} 次</span>
+                                                    <span className={`text-[10px] font-bold ${m.rentRatio > 25 ? 'text-red-500' : (m.rentRatio < 15 && m.rentRatio > 0 ? 'text-green-600' : 'text-[#a89689]')}`}>平均租金佔比: {m.rentRatio}%</span>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
 
                                 {bottomMarkets.length > 0 && (
-                                    <div className="pt-2 border-t border-dashed border-[#e0e0e0]">
-                                        <div className="text-xs font-bold text-[#e57373] mb-2 flex items-center mt-2"><Icon name="warning" className="text-[14px] mr-1" /> 注意！做白工後三名</div>
+                                    <div className="pt-2 border-t border-[#e0e0e0]">
+                                        <div className="text-xs font-bold text-[#e57373] mb-2 flex items-center mt-2"><Icon name="warning" className="text-[14px] mr-1" /> 買氣低迷！倒數後三名</div>
                                         <div className="space-y-2">
                                             {bottomMarkets.map((m, idx) => (
-                                                <div key={`bot-${m.location}`} className="flex justify-between items-center bg-[#fff2f2] p-2 rounded-lg border border-[#ffcdd2]">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white bg-[#e57373]"><Icon name="trending_down" className="text-[12px]"/></span>
-                                                        <span className="font-bold text-[#c62828]">{m.location}</span>
-                                                        <span className="text-[10px] text-[#ef5350] bg-white px-1 rounded shadow-sm">去過 {m.count} 次</span>
+                                                <div key={`bot-${m.location}`} className="bg-white p-3 rounded-xl border border-[#ffcdd2] shadow-sm relative overflow-hidden">
+                                                    {m.rentRatio > 30 && <div className="absolute top-0 right-0 bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-bl shadow-sm">在幫房東打工</div>}
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white bg-[#e57373]"><Icon name="trending_down" className="text-[12px]"/></span>
+                                                            <span className="font-bold text-[#c62828]">{m.location}</span>
+                                                        </div>
+                                                        <div className="font-black text-[#c62828] text-base">${m.avgRev.toLocaleString()}</div>
                                                     </div>
-                                                    <div className={`font-black text-sm ${m.avgProfit < 0 ? 'text-red-600' : 'text-[#c62828]'}`}>{m.avgProfit < 0 ? '-' : ''}${Math.abs(m.avgProfit).toLocaleString()}</div>
+                                                    <div className="flex justify-between items-end mt-2 pt-2 border-t border-dashed border-[#ffebee]">
+                                                        <span className="text-[10px] text-[#ef5350] bg-[#fff2f2] px-1.5 py-0.5 rounded">去過 {m.count} 次</span>
+                                                        <span className={`text-[10px] font-bold ${m.rentRatio > 25 ? 'text-red-600' : 'text-[#a89689]'}`}>平均租金佔比: {m.rentRatio}%</span>
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
@@ -1233,9 +1247,9 @@
                                 )}
                             </div>
                         )}
-            </Card>
+                    </Card>
 
-            {/* 💖 VIP 乾媽排行榜 (全新功能) */}
+            {/* 💖 VIP 乾媽排行榜 */}
             <Card className="bg-[#fff8e1] border-[#ffe082] mb-4 shadow-sm">
                 <div className="flex items-center text-[#e65100] font-bold text-lg mb-3 pb-2 border-b border-[#ffe082]"><Icon name="favorite" className="mr-2 text-[#f50057]" /> 💖 VIP 乾媽排行榜</div>
                 <div className="text-[10px] text-[#f57f17] mb-3 text-center">依據超商/網拍「已結單之歷史總額」進行前 5 名排行</div>
@@ -1398,9 +1412,91 @@
             );
         };
 
+        // --- 🧮 黃金定價計算機 Modal ---
+        const CalculatorModal = ({ isOpen, onClose }) => {
+            const [cost, setCost] = useState('');
+            const [sell, setSell] = useState('');
+
+            useEffect(() => {
+                if (!isOpen) { setCost(''); setSell(''); }
+            }, [isOpen]);
+
+            if (!isOpen) return null;
+
+            const c = Number(cost) || 0;
+            const s = Number(sell) || 0;
+            const profit = s - c;
+            const margin = s > 0 ? ((profit / s) * 100).toFixed(1) : 0;
+            
+            const bossSalary = s * 0.35;
+            const companyFund = s * 0.65;
+            const companyNet = companyFund - c; // 公司拿65%去把衣服買回來後，還剩多少錢
+
+            let badge = null;
+            if (s > 0 && c > 0) {
+                if (companyNet < 0) badge = <div className="bg-red-100 text-red-600 text-xs font-bold py-1 px-3 rounded-full animate-pulse border border-red-200">🚨 警告：定價太低，公司補貨會倒貼！</div>;
+                else if (margin >= 60) badge = <div className="bg-green-100 text-green-700 text-xs font-bold py-1 px-3 rounded-full border border-green-200">🔥 黃金暴利：利潤極佳，公司水庫會滿！</div>;
+                else if (margin >= 50) badge = <div className="bg-blue-100 text-blue-700 text-xs font-bold py-1 px-3 rounded-full border border-blue-200">✅ 正常利潤：健康定價，順順賣</div>;
+                else badge = <div className="bg-orange-100 text-orange-700 text-xs font-bold py-1 px-3 rounded-full border border-orange-200">⚠️ 毛利偏低：老闆賺錢，但公司存不到錢</div>;
+            }
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[110] animate-fade-in px-4 pb-10">
+                    <div className="bg-[#fdfaf7] rounded-3xl p-5 w-full max-w-sm shadow-2xl relative">
+                        <button onClick={onClose} className="absolute top-4 right-4 text-[#a89689] p-1 bg-white rounded-full shadow-sm hover:bg-[#f2e7df]"><Icon name="close" /></button>
+                        
+                        <div className="text-center text-[#5c4d43] font-bold mb-4 mt-2 text-lg flex items-center justify-center"><Icon name="calculate" className="mr-2 text-[#bc9f8b] text-[24px]" /> 🧮 黃金定價計算機</div>
+                        
+                        <div className="bg-white p-4 rounded-xl border border-[#f2e7df] shadow-sm mb-4">
+                            <div className="flex gap-3 mb-3">
+                                <div className="flex-1">
+                                    <div className="text-xs text-[#a89689] font-bold mb-1 ml-1">進貨批價 (成本)</div>
+                                    <input type="number" placeholder="成本 $" value={cost} onChange={e => setCost(e.target.value)} className="w-full bg-[#fdfaf7] border border-[#f0e6e0] rounded-xl px-3 h-[44px] outline-none text-[#5c4d43] font-wawa focus:border-[#bc9f8b]" />
+                                </div>
+                                <div className="flex-1">
+                                    <div className="text-xs text-[#a89689] font-bold mb-1 ml-1">終端賣價 (售價)</div>
+                                    <input type="number" placeholder="賣價 $" value={sell} onChange={e => setSell(e.target.value)} className="w-full bg-[#fff8e1] border border-[#ffe082] rounded-xl px-3 h-[44px] outline-none text-[#f57f17] font-wawa font-bold focus:border-[#ffb300]" />
+                                </div>
+                            </div>
+                            
+                            <div className="flex justify-center h-6">{badge}</div>
+                        </div>
+
+                        {s > 0 && c > 0 && (
+                            <div className="space-y-3 animate-expand">
+                                <div className="bg-white p-3 rounded-xl border border-[#f2e7df] flex justify-between items-center shadow-sm">
+                                    <span className="text-sm font-bold text-[#7a6453]">基本毛利</span>
+                                    <div className="text-right">
+                                        <div className="font-black text-[#bc9f8b] text-lg">${profit.toLocaleString()}</div>
+                                        <div className="text-xs font-bold text-[#a89689]">毛利率 {margin}%</div>
+                                    </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="bg-orange-50 p-3 rounded-xl border border-[#ffcc80] text-center shadow-sm">
+                                        <div className="text-[10px] text-[#e65100] font-bold mb-1">老闆私房錢 (35%)</div>
+                                        <div className="font-black text-[#e65100] text-lg">${bossSalary.toLocaleString()}</div>
+                                        <div className="text-[9px] text-[#fb8c00] mt-1">賣一件賺一件</div>
+                                    </div>
+                                    <div className={`p-3 rounded-xl border text-center shadow-sm ${companyNet >= 0 ? 'bg-blue-50 border-[#9fa8da]' : 'bg-red-50 border-[#ef9a9a]'}`}>
+                                        <div className={`text-[10px] font-bold mb-1 ${companyNet >= 0 ? 'text-[#3949ab]' : 'text-[#c62828]'}`}>公司純現 (65%-補貨)</div>
+                                        <div className={`font-black text-lg ${companyNet >= 0 ? 'text-[#3949ab]' : 'text-[#c62828]'}`}>{companyNet >= 0 ? '+' : ''}${companyNet.toLocaleString()}</div>
+                                        <div className={`text-[9px] mt-1 ${companyNet >= 0 ? 'text-[#5c6bc0]' : 'text-[#e53935]'}`}>{companyNet >= 0 ? '水庫有水，可付租金' : '水庫失血，倒貼老本'}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        
+                        <button onClick={onClose} className="w-full mt-5 py-3 bg-[#bc9f8b] text-white font-bold rounded-xl shadow-sm">關閉計算機</button>
+                    </div>
+                </div>
+            );
+        };
+
         const App = () => {
             const [activeTab, setActiveTab] = useState('report');
             const [showSettings, setShowSettings] = useState(false);
+            const [showCalculator, setShowCalculator] = useState(false);
             const [cloudStatus, setCloudStatus] = useState(isCloudActive ? 'active' : 'offline');
 
             useEffect(() => {
@@ -1463,7 +1559,10 @@
                             <div className="flex items-center gap-3">
                                 {cloudStatus === 'active' && <span className="text-[10px] bg-white bg-opacity-20 px-2 py-0.5 rounded-full flex items-center"><Icon name="cloud_done" className="text-[12px] mr-1"/>雲端同步中</span>}
                                 {cloudStatus === 'error' && <span onClick={()=>alert('雲端連線被 Firebase 拒絕！\n請至 Firebase 後台的 Firestore Database -> Rules 將權限改為 allow read, write: if true;')} className="text-[10px] bg-red-500 text-white px-2 py-0.5 rounded-full flex items-center font-bold cursor-pointer shadow-sm animate-pulse"><Icon name="error" className="text-[12px] mr-1"/>雲端被阻擋</span>}
-                                <button onClick={() => setShowSettings(true)} className="p-1.5 bg-white bg-opacity-20 rounded-full hover:bg-opacity-30 transition-colors">
+                                <button onClick={() => setShowCalculator(true)} className="p-1.5 bg-white bg-opacity-20 rounded-full hover:bg-opacity-30 transition-colors mr-1 shadow-sm">
+                                    <Icon name="calculate" className="text-[20px]" />
+                                </button>
+                                <button onClick={() => setShowSettings(true)} className="p-1.5 bg-white bg-opacity-20 rounded-full hover:bg-opacity-30 transition-colors shadow-sm">
                                     <Icon name="settings" className="text-[20px]" />
                                 </button>
                             </div>
@@ -1494,6 +1593,7 @@
                             })}
                         </nav>
                         <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
+                        <CalculatorModal isOpen={showCalculator} onClose={() => setShowCalculator(false)} />
                         <ConfirmModal isOpen={confirmDialog.isOpen} message={confirmDialog.message || "確定要刪除這筆紀錄嗎？"} onConfirm={executeDelete} onCancel={() => setConfirmDialog({isOpen: false, id: null, collection: '', message: ''})} />
                     </div>
                 </ErrorBoundary>
