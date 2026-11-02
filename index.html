@@ -204,7 +204,7 @@
             );
         };
 
-        // --- 分頁 1：超商 & 現貨保留 (自動顯示客人備忘錄標籤) ---
+        // --- 分頁 1：超商 & 現貨保留 ---
         const StoreTab = ({ deliveries, setDeliveries, reservations, setReservations, setConfirmDialog, allCustomerNames, vipNotes }) => {
             const [formMode, setFormMode] = useState('delivery'); 
             const [editingId, setEditingId] = useState(null);
@@ -246,8 +246,12 @@
             const handleAddReserve = () => {
                 if (!rCustomerName) return;
                 const recordData = { date: rDate, customerName: rCustomerName, revenue: Number(rRevenue) || 0, note: rNote };
-                if (editingId && formMode === 'reserve') setReservations(prev => prev.map(r => r.id === editingId ? { ...r, ...recordData } : r).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
-                else setReservations(prev => [{ id: Date.now().toString(), ...recordData }, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
+                if (editingId && formMode === 'reserve') {
+                    setReservations(prev => prev.map(r => r.id === editingId ? { ...r, ...recordData } : r).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
+                } else {
+                    // 🔥 新增保留時，預設為「未打勾(未理貨)」
+                    setReservations(prev => [{ id: Date.now().toString(), isPacked: false, ...recordData }, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
+                }
                 resetReserveForm();
             };
 
@@ -255,6 +259,12 @@
             const handleEditReserve = (record) => { setFormMode('reserve'); setEditingId(record.id); setRDate(record.date); setRCustomerName(record.customerName); setRRevenue(record.revenue || ''); setRNote(record.note || ''); scrollToTop(); };
 
             const toggleDeliveryStatus = (id, currentStatus) => { const newStatus = currentStatus === 'pending' ? 'shipped' : 'pending'; setDeliveries(prev => prev.map(d => d.id === id ? { ...d, status: newStatus } : d)); };
+            
+            // 🔥 新增：切換理貨打勾狀態
+            const toggleReservePacked = (id, currentStatus) => {
+                setReservations(prev => prev.map(r => r.id === id ? { ...r, isPacked: !currentStatus } : r));
+            };
+
             const openTransferModal = (record) => { setTransferRecord(record); setTDate(new Date().toISOString().split('T')[0]); setTRevenue(record.revenue || ''); setTShippingExpense(''); setTShippingIncome(''); setTHasGift(false); setTGiftCount(''); };
 
             const handleTransferSubmit = () => {
@@ -340,12 +350,31 @@
                         {reservations.length === 0 ? <div className="text-center text-[#90caf9] text-sm py-6 bg-white rounded-xl border border-dashed border-[#e3f2fd] mx-1">目前沒有保留清單喔！</div> : (
                             <div className="space-y-2">
                             {reservations.map(r => (
-                                <div key={r.id} className="bg-white rounded-xl p-3 shadow-sm border-l-4 border-[#64b5f6] relative mx-1 px-4">
+                                /* 🔥 卡片邊框顏色會根據是否理貨改變 */
+                                <div key={r.id} className={`bg-white rounded-xl p-3 shadow-sm border-l-4 relative mx-1 px-4 transition-colors duration-300 ${r.isPacked ? 'border-[#64b5f6]' : 'border-[#ffb300]'}`}>
                                     <div className="flex justify-between items-start mb-2">
-                                        <div><div className="font-bold text-[#5c4d43] text-base">{r.customerName} {Number(r.revenue) > 0 && <span className="text-xs font-bold text-[#1976d2] ml-1">${r.revenue}</span>}</div><div className="text-[11px] text-[#a89689] mt-0.5">{r.date} 保留 {r.note && <span className="ml-1 text-[#7a6453]">({r.note})</span>}</div></div>
-                                        <div className="flex gap-1 shrink-0"><button onClick={() => handleEditReserve(r)} className="p-1.5 text-[#64b5f6] bg-[#f5f9ff] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button><button onClick={() => setConfirmDialog({isOpen: true, id: r.id, collection: 'reservations', message: "確定要刪除這筆保留紀錄嗎？"})} className="p-1.5 text-[#e57373] bg-[#fdf2f2] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button></div>
+                                        <div className="flex items-start">
+                                            {/* 🔥 理貨打勾按鈕 */}
+                                            <button onClick={() => toggleReservePacked(r.id, r.isPacked)} className="mr-2 mt-0.5 shrink-0 transition-transform active:scale-90">
+                                                <Icon name={r.isPacked ? "check_box" : "check_box_outline_blank"} className={`text-[22px] ${r.isPacked ? 'text-[#64b5f6]' : 'text-[#ffb300]'}`} />
+                                            </button>
+                                            
+                                            <div>
+                                                <div className="font-bold text-[#5c4d43] text-base flex items-center flex-wrap gap-1">
+                                                    {r.customerName} 
+                                                    {Number(r.revenue) > 0 && <span className="text-xs font-bold text-[#1976d2] ml-1">${r.revenue}</span>}
+                                                    {/* 🔥 待理貨閃爍標籤 */}
+                                                    {!r.isPacked && <span className="text-[9px] bg-[#fff8e1] text-[#f57f17] border border-[#ffe082] px-1.5 py-0.5 rounded shadow-sm leading-none ml-1 animate-pulse">待理貨</span>}
+                                                </div>
+                                                <div className="text-[11px] text-[#a89689] mt-1">{r.date} 保留 {r.note && <span className="ml-1 text-[#7a6453]">({r.note})</span>}</div>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-1 shrink-0 ml-2">
+                                            <button onClick={() => handleEditReserve(r)} className="p-1.5 text-[#64b5f6] bg-[#f5f9ff] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
+                                            <button onClick={() => setConfirmDialog({isOpen: true, id: r.id, collection: 'reservations', message: "確定要刪除這筆保留紀錄嗎？"})} className="p-1.5 text-[#e57373] bg-[#fdf2f2] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
+                                        </div>
                                     </div>
-                                    <button onClick={() => openTransferModal(r)} className="w-full py-2 bg-[#e8f5e9] text-[#2e7d32] rounded-lg font-bold flex justify-center items-center text-sm shadow-sm transition-colors active:bg-[#c8e6c9]"><Icon name="check_circle" className="mr-1 text-[16px]" /> 客人已結單，轉入準備寄件</button>
+                                    <button onClick={() => openTransferModal(r)} className="w-full py-2 bg-[#e8f5e9] text-[#2e7d32] rounded-lg font-bold flex justify-center items-center text-sm shadow-sm transition-colors active:bg-[#c8e6c9] mt-1"><Icon name="check_circle" className="mr-1 text-[16px]" /> 客人已結單，轉入準備寄件</button>
                                 </div>
                             ))}
                             </div>
@@ -1329,7 +1358,7 @@
                         )}
                     </Card>
 
-                    {/* 💖 顧客資料與排行榜 (全面解鎖所有客人) */}
+                    {/* 💖 顧客資料與排行榜 */}
                     <Card className="bg-[#fff8e1] border-[#ffe082] mb-4 shadow-sm relative">
                         <div className="flex items-center text-[#e65100] font-bold text-lg mb-3 pb-2 border-b border-[#ffe082]">
                             <Icon name="contact_phone" className="mr-2 text-[#f50057]" /> 💖 顧客資料與排行榜
