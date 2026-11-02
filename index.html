@@ -204,8 +204,8 @@
             );
         };
 
-        // --- 分頁 1：超商 & 現貨保留 ---
-        const StoreTab = ({ deliveries, setDeliveries, reservations, setReservations, setConfirmDialog, allCustomerNames }) => {
+        // --- 分頁 1：超商 & 現貨保留 (自動顯示客人備忘錄標籤) ---
+        const StoreTab = ({ deliveries, setDeliveries, reservations, setReservations, setConfirmDialog, allCustomerNames, vipNotes }) => {
             const [formMode, setFormMode] = useState('delivery'); 
             const [editingId, setEditingId] = useState(null);
             
@@ -290,6 +290,15 @@
                             <React.Fragment>
                                 <Input type="date" value={dDate} onChange={e => setDDate(e.target.value)} />
                                 <AutocompleteInput placeholder="顧客姓名" value={dCustomerName} onChange={e => setDCustomerName(e.target.value)} options={allCustomerNames} />
+                                {/* 🔥 自動顯示該顧客的備忘錄標籤 */}
+                                {vipNotes[dCustomerName] && (
+                                    <div className="flex flex-wrap gap-1 mb-3 px-1 -mt-1 animate-fade-in">
+                                        {vipNotes[dCustomerName].split(/[\s,，]+/).map((tag, i) => tag && (
+                                            <span key={i} className="text-[10px] bg-[#fce4ec] text-[#d81b60] px-2 py-0.5 rounded-full border border-[#f8bbd0] shadow-sm">{tag}</span>
+                                        ))}
+                                    </div>
+                                )}
+                                
                                 <Input type="number" placeholder="商品售價(總額)" value={dRevenue} onChange={e => setDRevenue(e.target.value)} />
                                 
                                 <div className="flex gap-2 mb-3 -mt-2 px-1 overflow-x-auto custom-scrollbar">
@@ -309,6 +318,15 @@
                             <React.Fragment>
                                 <Input type="date" value={rDate} onChange={e => setRDate(e.target.value)} />
                                 <AutocompleteInput placeholder="訂購人姓名" value={rCustomerName} onChange={e => setRCustomerName(e.target.value)} options={allCustomerNames} />
+                                {/* 🔥 自動顯示該顧客的備忘錄標籤 */}
+                                {vipNotes[rCustomerName] && (
+                                    <div className="flex flex-wrap gap-1 mb-3 px-1 -mt-1 animate-fade-in">
+                                        {vipNotes[rCustomerName].split(/[\s,，]+/).map((tag, i) => tag && (
+                                            <span key={i} className="text-[10px] bg-[#fce4ec] text-[#d81b60] px-2 py-0.5 rounded-full border border-[#f8bbd0] shadow-sm">{tag}</span>
+                                        ))}
+                                    </div>
+                                )}
+                                
                                 <Input type="number" placeholder="預估售價(總額)" value={rRevenue} onChange={e => setRRevenue(e.target.value)} />
                                 <Input placeholder="保留備註(選填)" value={rNote} onChange={e => setRNote(e.target.value)} />
                                 <div className="flex gap-3">{editingId && <Button onClick={resetReserveForm} className="flex-1 bg-[#e3f2fd] !text-[#1976d2]">取消</Button>}<Button onClick={handleAddReserve} className={editingId ? 'flex-[2] bg-[#64b5f6] text-white' : 'w-full bg-[#64b5f6] text-white'}>{editingId ? '儲存修改' : '加入現貨保留清單'}</Button></div>
@@ -402,6 +420,7 @@
         const MarketTab = ({ marketSales, setMarketSales, setConfirmDialog }) => {
             const currentDate = new Date().toISOString().split('T')[0];
             const [editingId, setEditingId] = useState(null);
+            const [txMode, setTxMode] = useState('normal'); // 'normal', 'clearance'
             
             const [date, setDate] = useState(currentDate);
             const [location, setLocation] = useState('');
@@ -419,7 +438,6 @@
             const [selectedDay, setSelectedDay] = useState(currentDate);
             const [searchTerm, setSearchTerm] = useState('');
 
-            // 🔥 新增：自動抓取歷史市場地點，建立下拉選單記憶庫
             const allLocations = useMemo(() => {
                 const locs = new Set();
                 marketSales.forEach(m => { if (m.location) locs.add(m.location); });
@@ -441,17 +459,21 @@
             }, [marketSales, viewMonthStr]);
 
             const resetForm = () => {
-                setEditingId(null); setDate(currentDate); setLocation(''); setRevenue(''); setRent(''); setNote(''); 
+                setEditingId(null); setTxMode('normal'); setDate(currentDate); setLocation(''); setRevenue(''); setRent(''); setNote(''); 
                 setElectricity(''); setCleaning(''); setToll(''); setParking(''); setHasGift(false); setGiftCount(''); 
                 setSearchTerm('');
             };
 
             const handleAddMarket = () => {
                 if (!location) return;
+                
+                let finalRev = Number(revenue) || 0;
+
                 const recordData = {
-                    date, location, revenue: Number(revenue) || 0, rent: Number(rent) || 0, note,
+                    date, location, revenue: finalRev, rent: Number(rent) || 0, note,
                     electricity: Number(electricity) || 0, cleaning: Number(cleaning) || 0, toll: Number(toll) || 0, parking: Number(parking) || 0,
-                    hasGift, giftCount: hasGift ? (Number(giftCount) || 0) : 0
+                    hasGift, giftCount: hasGift ? (Number(giftCount) || 0) : 0,
+                    isClearance: txMode === 'clearance'
                 };
                 
                 if (editingId) setMarketSales(prev => prev.map(m => m.id === editingId ? { ...m, ...recordData } : m).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
@@ -460,7 +482,10 @@
             };
 
             const handleEditClick = (record) => {
-                setEditingId(record.id); setDate(record.date); setLocation(record.location); setRevenue(record.revenue || '');
+                setEditingId(record.id); 
+                setTxMode(record.isClearance ? 'clearance' : 'normal');
+                setDate(record.date); setLocation(record.location); 
+                setRevenue(record.revenue || ''); 
                 setRent(record.rent || ''); setNote(record.note || ''); setElectricity(record.electricity || ''); setCleaning(record.cleaning || ''); setToll(record.toll || ''); setParking(record.parking || ''); setHasGift(record.hasGift || false); setGiftCount(record.giftCount || '');
                 setSearchTerm(''); scrollToTop();
             };
@@ -542,7 +567,11 @@
                                         <button onClick={() => handleEditClick(m)} className="p-1.5 bg-[#fdfaf7] text-[#bc9f8b] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
                                         <button onClick={() => setConfirmDialog({isOpen: true, id: m.id, collection: 'market_sales', message: "確定要刪除這筆市場紀錄嗎？"})} className="p-1.5 bg-[#fdf2f2] text-[#e57373] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
                                     </div>
-                                    <div className="font-bold text-[#5c4d43] mb-1 text-base flex items-center"><span className="bg-[#bc9f8b] w-2 h-2 rounded-full mr-2"></span>{m.location} <span className="ml-2 text-xs font-normal text-[#a89689] bg-[#fdfaf7] px-1 rounded">{m.date}</span></div>
+                                    <div className="font-bold text-[#5c4d43] mb-1 text-base flex items-center">
+                                        <span className="bg-[#bc9f8b] w-2 h-2 rounded-full mr-2"></span>{m.location} 
+                                        <span className="ml-2 text-xs font-normal text-[#a89689] bg-[#fdfaf7] px-1 rounded">{m.date}</span>
+                                        {m.isClearance && <span className="ml-2 text-[10px] bg-[#ff9800] text-white px-1.5 py-0.5 rounded shadow-sm">換季清倉</span>}
+                                    </div>
                                     {m.note && <div className="text-xs text-[#a89689] mb-2 pl-4">備註: {m.note}</div>}
                                     <div className="text-sm text-[#7a6453] grid grid-cols-2 gap-y-1.5 mt-3 pt-3 border-t border-[#fdfaf7] pl-4">
                                         <div>營業額: <span className="font-bold text-[#5c4d43]">${m.revenue}</span></div>
@@ -565,13 +594,27 @@
                 <div className="animate-fade-in pb-20">
                     <Card className={editingId ? 'border-2 border-[#bc9f8b]' : ''}>
                         <div className="flex items-center mb-4 text-[#7a6453] font-bold text-lg"><Icon name={editingId ? 'edit' : 'storefront'} className="mr-2 text-[#bc9f8b]" /> {editingId ? '編輯市場營業' : '新增市場營業'}</div>
+                        
+                        {/* 🌟 模式切換按鈕 🌟 */}
+                        <div className="flex gap-2 mb-4 bg-[#fdfaf7] p-1.5 rounded-xl border border-[#f2e7df] shadow-inner">
+                            <button onClick={() => setTxMode('normal')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all shadow-sm ${txMode === 'normal' ? 'bg-[#bc9f8b] text-white' : 'bg-white text-[#a89689]'}`}>正常營業</button>
+                            <button onClick={() => setTxMode('clearance')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all shadow-sm ${txMode === 'clearance' ? 'bg-[#ff9800] text-white' : 'bg-white text-[#a89689]'}`}>🍂 換季清倉</button>
+                        </div>
+                        {txMode === 'clearance' && <div className="text-[10px] text-[#e65100] text-center mb-3 bg-[#fff8e1] py-1 rounded-full animate-fade-in">💡 換季模式：此筆收入「不扣 35% 老闆薪水」，100% 灌回公司水庫！</div>}
+
                         <Input type="date" value={date} onChange={e => { setDate(e.target.value); setSelectedDay(e.target.value); setViewMonthStr(safeStr(e.target.value).substring(0,7)); }} />
                         
                         <div className="grid grid-cols-2 gap-3">
                             <AutocompleteInput placeholder="地點" value={location} onChange={e => setLocation(e.target.value)} options={allLocations} />
                             <Input type="number" placeholder="位租" value={rent} onChange={e => setRent(e.target.value)} />
                         </div>
-                        <Input type="number" placeholder="當日總營業額" value={revenue} onChange={e => setRevenue(e.target.value)} />
+                        
+                        <div className="mb-3 w-full">
+                            <div className={`flex items-center bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-3 h-[48px] focus-within:border-[#bc9f8b] transition-colors`}>
+                                <input type="number" value={revenue} onChange={e=>setRevenue(e.target.value)} placeholder={txMode === 'clearance' ? "換季清倉總額" : "當日總營業額"} className="bg-transparent w-full h-full outline-none text-[#5c4d43] placeholder-[#c4b5aa] text-[15px] font-wawa" />
+                            </div>
+                        </div>
+
                         <Input placeholder="備註 (選填)" value={note} onChange={e => setNote(e.target.value)} />
                         
                         <div className="grid grid-cols-2 gap-3 mt-1">
@@ -629,10 +672,13 @@
                                             <button onClick={() => handleEditClick(m)} className="p-1.5 bg-[#fdfaf7] text-[#bc9f8b] rounded-lg shadow-sm"><Icon name="edit" className="text-[18px]" /></button>
                                             <button onClick={() => setConfirmDialog({isOpen: true, id: m.id, collection: 'market_sales', message: "確定要刪除這筆市場紀錄嗎？"})} className="p-1.5 bg-[#fdf2f2] text-[#e57373] rounded-lg shadow-sm"><Icon name="delete" className="text-[18px]" /></button>
                                         </div>
-                                        <div className="font-bold text-[#5c4d43] mb-1 text-base flex items-center"><span className="bg-[#bc9f8b] w-2 h-2 rounded-full mr-2"></span>{m.location}</div>
+                                        <div className="font-bold text-[#5c4d43] mb-1 text-base flex items-center">
+                                            <span className="bg-[#bc9f8b] w-2 h-2 rounded-full mr-2"></span>{m.location}
+                                            {m.isClearance && <span className="ml-2 text-[10px] bg-[#ff9800] text-white px-1.5 py-0.5 rounded shadow-sm">換季清倉</span>}
+                                        </div>
                                         {m.note && <div className="text-xs text-[#a89689] mb-2 pl-4">備註: {m.note}</div>}
                                         <div className="text-sm text-[#7a6453] grid grid-cols-2 gap-y-1.5 mt-3 pt-3 border-t border-[#fdfaf7] pl-4">
-                                            <div>總營業額: <span className="font-bold text-[#5c4d43]">${m.revenue}</span></div>
+                                            <div>總營業額: <span className={`font-bold ${Number(m.revenue)<0 ? 'text-[#e57373]' : 'text-[#5c4d43]'}`}>${m.revenue}</span></div>
                                             <div>攤租雜支: <span className="font-medium">-${(Number(m.rent)||0) + dailyMisc}</span></div>
                                             <div className="col-span-2 flex justify-end items-end mt-1 pt-2 border-t border-dashed border-[#f2e7df]">
                                                 <span className="font-bold text-[#5c4d43] text-base">單日純現淨利: <span className={operatingProfit >= 0 ? 'text-[#4caf50]' : 'text-[#e57373]'}>${operatingProfit}</span></span>
@@ -691,7 +737,6 @@
                 financing: { label: '資金借還', color: 'bg-[#9e9e9e]', text: 'text-[#757575]', bgLight: 'bg-[#f5f5f5]', placeholder: '對象人名 / 銀行名稱', icon: 'swap_horiz' } 
             };
 
-            // 🔥 AI 智能快取：自動抓取前 8 大最常使用的進貨廠商！
             const wholesaleTags = useMemo(() => {
                 const counts = {};
                 expenses.forEach(e => {
@@ -703,7 +748,6 @@
                 return sorted.length > 0 ? sorted.slice(0, 8) : ['五分埔', '廣州十三行', '東大門', '廠商A']; 
             }, [expenses]);
 
-            // 🔥 AI 智能快取：自動抓取常借貸的對象 (人名/銀行)
             const financingTags = useMemo(() => {
                 const counts = {};
                 expenses.forEach(e => {
@@ -752,7 +796,6 @@
                             </div>
                         </div>
 
-                        {/* 🔥 快速輸入標籤 (一鍵懶人輸入 / AI廠商快取 / AI人名快取) */}
                         {quickTags[type] && (
                             <div className="flex gap-2 mb-4 -mt-2 px-1 overflow-x-auto custom-scrollbar">
                                 {quickTags[type].map(tag => (
@@ -859,8 +902,8 @@
             );
         }
 
-        // --- 分頁 4：營運報表 (含小金庫、KPI與排行榜) ---
-        const ReportTab = ({ deliveries, marketSales, expenses, settings, setSettings, marketSoldStats, setMarketSoldStats, privateExpenses, setPrivateExpenses, setDialog }) => {
+        // --- 分頁 4：營運報表 (加入 完整顧客資料庫與自動標籤) ---
+        const ReportTab = ({ deliveries, setDeliveries, marketSales, expenses, settings, setSettings, marketSoldStats, setMarketSoldStats, privateExpenses, setPrivateExpenses, reservations, setReservations, vipNotes, setVipNotes, setDialog, allCustomerNames }) => {
             const [reportMonth, setReportMonth] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; });
             const [isCheckingInventory, setIsCheckingInventory] = useState(false);
             const [actualInv, setActualInv] = useState('');
@@ -871,6 +914,16 @@
             const [privateDate, setPrivateDate] = useState(new Date().toISOString().split('T')[0]);
             const [privateName, setPrivateName] = useState('');
             const [privateAmount, setPrivateAmount] = useState('');
+
+            // VIP / 顧客資料庫 Modal State
+            const [isCustomerDbOpen, setIsCustomerDbOpen] = useState(false);
+            const [customerSearch, setCustomerSearch] = useState('');
+            const [selectedVip, setSelectedVip] = useState(null);
+            const [vipNoteText, setVipNoteText] = useState('');
+
+            // 🔥 顧客合併 Modal State
+            const [mergeSource, setMergeSource] = useState(null);
+            const [mergeTarget, setMergeTarget] = useState('');
 
             const toggleExp = (key) => setExpState(prev => ({...prev, [key]: !prev[key]}));
 
@@ -884,15 +937,7 @@
             };
 
             const currentStartupCap = settings && settings.startupCapital !== undefined ? settings.startupCapital : 36284;
-            // 💰 新增：安全防護網設定目標 (預設 10萬)
             const reserveTarget = settings && settings.reserveTarget !== undefined ? settings.reserveTarget : 100000;
-
-            const handleReserveTargetChange = () => {
-                const newTarget = window.prompt("請設定您的「公司安全防護網」總金額：\n\n建議算法：4萬(急難準備) + 6萬(換季進貨本金) = 100000\n\n只要公司帳戶超過這個數字，多出來的錢就是您的半年大分紅！", reserveTarget);
-                if (newTarget !== null && newTarget.trim() !== '' && !isNaN(Number(newTarget))) {
-                    setSettings({ ...(settings || {}), reserveTarget: Number(newTarget) });
-                }
-            };
 
             // ---- 全期存摺 ----
             const allTimeMarketRev = marketSales.reduce((sum, m) => sum + (Number(m.revenue)||0), 0);
@@ -907,17 +952,14 @@
             const allTimeWholePaidArrived = expenses.filter(e => e.type === 'wholesale' && e.isArrived !== false && e.isPaid !== false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const allTimeWholePaidTransit = expenses.filter(e => e.type === 'wholesale' && e.isArrived === false && e.isPaid !== false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const allTimeWholesaleCashPaid = allTimeWholePaidArrived + allTimeWholePaidTransit;
-            const allTimeWholesaleUnpaid = expenses.filter(e => e.type === 'wholesale' && e.isPaid === false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             
             const allTimeOtherExp = expenses.filter(e => ['supply', 'fixed', 'traffic', 'salary'].includes(e.type)).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const allTimeFinancingIn = expenses.filter(e => e.type === 'financing' && e.flowType === 'in').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const allTimeFinancingOut = expenses.filter(e => e.type === 'financing' && e.flowType !== 'in').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
 
-            // 🏦 計算目前公司總共還剩多少「絕對現金」(包含本金與賺的錢)
+            // 🏦 計算目前公司總共還剩多少「絕對現金」
             const pocketCash = currentStartupCap + allTimeRev + allTimeShippingNet - allTimeMarketExp - allTimeWholesaleCashPaid - allTimeOtherExp + allTimeFinancingIn - allTimeFinancingOut;
-            const reserveProgress = Math.min(100, Math.max(0, (pocketCash / reserveTarget) * 100));
-            const isBonusAvailable = pocketCash > reserveTarget;
-            const bonusAmount = isBonusAvailable ? (pocketCash - reserveTarget) : 0;
+            const salaryGoal = 100000;
 
             // ---- 計算本月損益 ----
             const currentDeliveries = deliveries.filter(d => safeStr(d.date).startsWith(reportMonth) && d.status === 'shipped');
@@ -929,6 +971,9 @@
             const storeRevenue = currentDeliveries.reduce((sum, d) => sum + (Number(d.revenue) || 0), 0);
             const marketRevenue = currentMarket.reduce((sum, m) => sum + (Number(m.revenue) || 0), 0);
             const monthlyTotalRev = storeRevenue + marketRevenue; 
+            
+            // 🌟 抓取「換季清倉」的總業績，不列入老闆薪水計算
+            const clearanceRevenue = currentMarket.filter(m => m.isClearance).reduce((sum, m) => sum + (Number(m.revenue)||0), 0);
 
             const marketRent = currentMarket.reduce((sum, m) => sum + (Number(m.rent)||0), 0);
             const marketElec = currentMarket.reduce((sum, m) => sum + (Number(m.electricity)||0), 0);
@@ -942,23 +987,20 @@
             const monthlyShippingProfit = storeShippingNetExp < 0 ? Math.abs(storeShippingNetExp) : 0; 
             const frontlineNetIncome = monthlyTotalRev - monthlyMarketExp + monthlyShippingProfit;
 
-            // ---- 月損益 (純現金流，免扣服裝與包材) ----
+            // ---- 月損益 ----
             const grossProfit = frontlineNetIncome; 
             const monthlyFixedExp = currentExpenses.filter(e => e.type === 'fixed').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const monthlyTrafficExp = currentExpenses.filter(e => e.type === 'traffic').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const monthlyOtherTotal = monthlyFixedExp + monthlyTrafficExp; 
 
             // ---- 薪水與公司營運分配 ----
-            const bossSalary = Math.round(monthlyTotalRev * 0.35); 
+            const bossSalary = Math.round((monthlyTotalRev - clearanceRevenue) * 0.35); 
             const companyGross = monthlyTotalRev - bossSalary; 
             const companyNet = companyGross - monthlyMarketExp - monthlyOtherTotal; 
             
             const monthlyWholesaleCashPaid = currentExpenses.filter(e => e.type === 'wholesale' && e.isPaid !== false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const companyFinalCash = companyNet - monthlyWholesaleCashPaid;
-
             const monthlyFinalProfit = grossProfit - monthlyOtherTotal; 
-
-            const salaryGoal = 100000;
             const salaryProgress = Math.min(100, Math.max(0, (bossSalary / salaryGoal) * 100));
             const shortfallSalary = Math.max(0, salaryGoal - bossSalary);
             const shortfallRevenue = Math.max(0, Math.ceil(shortfallSalary / 0.35)); 
@@ -973,6 +1015,45 @@
                 const newPriv = { id: Date.now().toString(), date: privateDate, name: privateName, amount: Number(privateAmount) };
                 setPrivateExpenses(prev => [newPriv, ...prev].sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
                 setPrivateName(''); setPrivateAmount('');
+            };
+
+            const handleSaveVipNote = () => {
+                if (!selectedVip) return;
+                setVipNotes({ ...vipNotes, [selectedVip]: vipNoteText });
+                setSelectedVip(null);
+            };
+
+            // 🔥 顧客合併執行邏輯
+            const handleMergeCustomer = () => {
+                const target = mergeTarget.trim();
+                if (!target || mergeSource === target) return;
+
+                // 1. 全域更新 deliveries (包含已寄出、未寄出)
+                setDeliveries(prev => prev.map(d =>
+                    d.customerName === mergeSource ? { ...d, customerName: target } : d
+                ));
+                // 2. 全域更新 reservations
+                setReservations(prev => prev.map(r =>
+                    r.customerName === mergeSource ? { ...r, customerName: target } : r
+                ));
+
+                // 3. 智能合併備忘錄標籤
+                setVipNotes(prev => {
+                    const newNotes = { ...prev };
+                    const sourceNote = newNotes[mergeSource];
+                    const targetNote = newNotes[target];
+                    if (sourceNote) {
+                        // 防呆去重複：如果兩邊都有備忘錄，把他們接起來並去掉重複的標籤
+                        const combined = targetNote ? Array.from(new Set(`${targetNote},${sourceNote}`.split(/[\s,，]+/).filter(Boolean))).join(' ') : sourceNote;
+                        newNotes[target] = combined;
+                        delete newNotes[mergeSource];
+                    }
+                    return newNotes;
+                });
+
+                alert(`✅ 已成功將「${mergeSource}」的所有訂單與備忘錄，完美合併至「${target}」！`);
+                setMergeSource(null);
+                setMergeTarget('');
             };
 
             // 每日 KPI 智能拆解
@@ -993,7 +1074,6 @@
             
             const savedInventory = marketSoldStats[reportMonth];
             const currentInventoryQty = savedInventory !== undefined ? Number(savedInventory) : '?';
-            const accumulatedTotalSold = savedInventory !== undefined ? Math.max(0, accumulatedWholesaleQty - currentInventoryQty) : '?';
 
             const [ry, rm] = reportMonth.split('-');
             const prevD = new Date(parseInt(ry, 10), parseInt(rm, 10) - 2, 1);
@@ -1017,7 +1097,6 @@
                 }
             };
 
-            // 🔥 更新：市場地段排行榜 (改用「平均單次營業額」排行，並顯示「租金佔比」)
             const locationStats = useMemo(() => {
                 const stats = {};
                 marketSales.forEach(m => {
@@ -1025,14 +1104,14 @@
                     if (!stats[loc]) stats[loc] = { count: 0, totalRev: 0, totalRent: 0 };
                     stats[loc].count += 1;
                     stats[loc].totalRev += (Number(m.revenue) || 0);
-                    stats[loc].totalRent += (Number(m.rent) || 0); // 只抓純攤租來算比例
+                    stats[loc].totalRent += (Number(m.rent) || 0);
                 });
                 return Object.keys(stats).map(loc => {
                     const s = stats[loc];
                     const avgRev = Math.round(s.totalRev / s.count);
                     const rentRatio = s.totalRev > 0 ? ((s.totalRent / s.totalRev) * 100).toFixed(1) : 0;
                     return { location: loc, count: s.count, avgRev, rentRatio: Number(rentRatio) };
-                }).sort((a, b) => b.avgRev - a.avgRev); // 改用含金量 (平均營業額) 排序
+                }).sort((a, b) => b.avgRev - a.avgRev); 
             }, [marketSales]);
             const topMarkets = locationStats.filter(m=>m.count>0).slice(0, 3);
             const bottomMarkets = locationStats.filter(m=>m.count>0 && !topMarkets.find(t=>t.location===m.location)).slice(-3).reverse();
@@ -1103,6 +1182,7 @@
                                 <div className="absolute top-0 right-0 bg-[#ff9800] text-white text-[9px] px-2 py-0.5 rounded-bl-lg font-bold">點擊記帳</div>
                                 <div className="text-[11px] text-[#e65100] font-bold mb-1">老闆私用薪水 (35%)</div>
                                 <div className="font-black text-2xl text-[#e65100]">${bossSalary.toLocaleString()}</div>
+                                {clearanceRevenue > 0 && <div className="text-[9px] text-[#fb8c00] mt-1 font-bold">(已扣除換季清倉不抽成)</div>}
                                 <div className="text-[9px] text-[#fb8c00] mt-1">安心花用，犒賞自己</div>
                                 {totalPrivateSpent > 0 && <div className="text-[10px] bg-orange-100 text-[#e65100] mt-2 py-0.5 rounded font-bold">剩餘: ${remainingSalary.toLocaleString()}</div>}
                             </div>
@@ -1189,7 +1269,7 @@
                         </div>
                     </Card>
 
-                    {/* 👑 市場地段含金量排行榜 (全新租金佔比邏輯) */}
+                    {/* 👑 市場地段含金量排行榜 */}
                     <Card className="bg-[#fafafa] border-[#e0e0e0] mb-4 shadow-sm">
                         <div className="flex items-center text-[#5c4d43] font-bold text-lg mb-3 pb-2 border-b border-[#e0e0e0]"><Icon name="emoji_events" className="mr-2 text-[#ffb300]" /> 👑 市場地段含金量排行榜</div>
                         <div className="text-[10px] text-[#a89689] mb-3 text-center">依據歷史全期各市場的「平均單次營業額」排行，並監測租金佔比</div>
@@ -1249,29 +1329,48 @@
                         )}
                     </Card>
 
-            {/* 💖 VIP 乾媽排行榜 */}
-            <Card className="bg-[#fff8e1] border-[#ffe082] mb-4 shadow-sm">
-                <div className="flex items-center text-[#e65100] font-bold text-lg mb-3 pb-2 border-b border-[#ffe082]"><Icon name="favorite" className="mr-2 text-[#f50057]" /> 💖 VIP 乾媽排行榜</div>
-                <div className="text-[10px] text-[#f57f17] mb-3 text-center">依據超商/網拍「已結單之歷史總額」進行前 5 名排行</div>
-                
-                {topVips.length === 0 ? (
+                    {/* 💖 顧客資料與排行榜 (全面解鎖所有客人) */}
+                    <Card className="bg-[#fff8e1] border-[#ffe082] mb-4 shadow-sm relative">
+                        <div className="flex items-center text-[#e65100] font-bold text-lg mb-3 pb-2 border-b border-[#ffe082]">
+                            <Icon name="contact_phone" className="mr-2 text-[#f50057]" /> 💖 顧客資料與排行榜
+                            <span className="text-[10px] bg-white bg-opacity-50 text-[#f57f17] ml-auto px-2 py-0.5 rounded-full border border-[#ffcc80]">點名字加備忘錄</span>
+                        </div>
+                        
+                        {topVips.length === 0 ? (
                             <div className="text-center text-[#c4b5aa] text-xs py-4">目前尚無超商客戶結單數據</div>
                         ) : (
                             <div className="space-y-2.5">
                                 {topVips.map((vip, idx) => (
-                                    <div key={`vip-${vip.name}`} className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-[#ffecb3] shadow-sm relative overflow-hidden">
+                                    <div key={`vip-${vip.name}`} 
+                                         onClick={() => { setSelectedVip(vip.name); setVipNoteText(vipNotes[vip.name] || ''); }}
+                                         className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-[#ffecb3] shadow-sm relative overflow-hidden cursor-pointer hover:bg-orange-50 transition-colors active:scale-[0.98]">
                                         {idx === 0 && <div className="absolute top-0 right-0 bg-[#ffca28] text-white text-[8px] font-black px-1.5 py-0.5 rounded-bl shadow-sm">榜首</div>}
                                         <div className="flex items-center gap-3">
                                             <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black text-white ${idx === 0 ? 'bg-[#ff9800] ring-2 ring-[#ffe082]' : idx === 1 ? 'bg-[#bdbdbd]' : idx === 2 ? 'bg-[#8d6e63]' : 'bg-[#ffcc80]'}`}>{idx + 1}</span>
-                                            <div>
+                                            <div className="flex flex-col">
                                                 <div className="font-bold text-[#5c4d43]">{vip.name}</div>
-                                                <div className="text-[10px] text-[#a89689] flex items-center mt-0.5"><Icon name="local_shipping" className="text-[12px] mr-0.5"/>累計購買 {vip.count} 次</div>
+                                                {/* 顯示專屬備忘錄小標籤 */}
+                                                {vipNotes[vip.name] ? (
+                                                    <div className="mt-1 flex flex-wrap gap-1">
+                                                        {vipNotes[vip.name].split(/[\s,，]+/).map((tag, i) => tag && (
+                                                            <span key={i} className="text-[9px] bg-[#fce4ec] text-[#d81b60] px-1.5 py-0.5 rounded border border-[#f8bbd0] leading-none">{tag}</span>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-[10px] text-[#a89689] flex items-center mt-0.5"><Icon name="local_shipping" className="text-[12px] mr-0.5"/>累計購買 {vip.count} 次</div>
+                                                )}
                                             </div>
                                         </div>
                                         <div className="font-black text-[#e65100] text-base">${vip.totalRev.toLocaleString()}</div>
                                     </div>
                                 ))}
                             </div>
+                        )}
+                        
+                        {allCustomerNames.length > 0 && (
+                            <button onClick={() => setIsCustomerDbOpen(true)} className="w-full mt-3 py-3 bg-white border border-[#ffe082] text-[#f57f17] font-bold rounded-xl shadow-sm text-sm active:bg-[#fff8e1] transition-colors flex items-center justify-center">
+                                <Icon name="menu_book" className="mr-2 text-[18px]" /> 開啟完整顧客資料庫 (共 {allCustomerNames.length} 人)
+                            </button>
                         )}
                     </Card>
 
@@ -1325,6 +1424,113 @@
                             </div>
                         </div>
                     )}
+
+                    {/* 完整顧客資料庫 Modal (🌟加入合併按鈕) */}
+                    {isCustomerDbOpen && (
+                        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-[85] animate-fade-in px-4 pb-10">
+                            <div className="bg-white rounded-3xl p-5 w-full max-w-sm shadow-2xl relative max-h-[85vh] flex flex-col">
+                                <button onClick={() => setIsCustomerDbOpen(false)} className="absolute top-4 right-4 text-[#a89689] p-1 bg-[#fdfaf7] rounded-full shadow-sm hover:bg-[#f2e7df]"><Icon name="close" /></button>
+                                <div className="text-center text-[#e65100] font-bold mb-4 text-lg border-b border-[#ffe082] pb-3 mt-2">
+                                    <Icon name="contact_page" className="align-text-bottom mr-1" /> 完整顧客資料庫
+                                </div>
+                                <div className="mb-3 relative">
+                                    <Icon name="search" className="absolute left-3 top-3 text-[#c4b5aa]" />
+                                    <input 
+                                        type="text" 
+                                        placeholder="搜尋顧客名稱..." 
+                                        value={customerSearch} 
+                                        onChange={e => setCustomerSearch(e.target.value)} 
+                                        className="w-full bg-[#fdfaf7] border border-[#f2e7df] rounded-xl pl-10 pr-3 h-[44px] outline-none text-[#5c4d43] font-wawa focus:border-[#bc9f8b]" 
+                                    />
+                                </div>
+                                <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pb-2">
+                                    {allCustomerNames.filter(name => name.includes(customerSearch)).length === 0 ? (
+                                        <div className="text-center text-[#c4b5aa] text-sm py-4">找不到此顧客</div>
+                                    ) : (
+                                        allCustomerNames.filter(name => name.includes(customerSearch)).map(name => (
+                                            <div key={name} className="bg-white p-3 rounded-xl border border-[#f2e7df] hover:bg-orange-50 transition-all flex justify-between items-center shadow-sm">
+                                                <div 
+                                                    className="flex flex-col flex-1 cursor-pointer active:scale-[0.98]"
+                                                    onClick={() => { setSelectedVip(name); setVipNoteText(vipNotes[name] || ''); }} 
+                                                >
+                                                    <div className="font-bold text-[#5c4d43]">{name}</div>
+                                                    {vipNotes[name] ? (
+                                                        <div className="mt-1 flex flex-wrap gap-1">
+                                                            {vipNotes[name].split(/[\s,，]+/).map((tag, i) => tag && (
+                                                                <span key={i} className="text-[9px] bg-[#fce4ec] text-[#d81b60] px-1.5 py-0.5 rounded border border-[#f8bbd0] leading-none">{tag}</span>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-[9px] text-[#c4b5aa] mt-0.5">點擊新增喜好備忘錄</div>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                                                    {/* 🔥 合併按鈕 */}
+                                                    <button onClick={(e) => { e.stopPropagation(); setMergeSource(name); setMergeTarget(''); }} className="p-1.5 bg-[#f0f9f0] text-[#4caf50] rounded-lg shadow-sm border border-[#c8e6c9] flex items-center justify-center hover:bg-[#e8f5e9]">
+                                                        <Icon name="join_inner" className="text-[18px]" />
+                                                    </button>
+                                                    <button onClick={(e) => { e.stopPropagation(); setSelectedVip(name); setVipNoteText(vipNotes[name] || ''); }} className="p-1.5 bg-[#fff8e1] text-[#ffb74d] rounded-lg shadow-sm border border-[#ffe082] flex items-center justify-center hover:bg-[#ffecb3]">
+                                                        <Icon name="edit" className="text-[18px]" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 🔥 顧客合併執行 Modal */}
+                    {mergeSource && (
+                        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[105] animate-fade-in px-4">
+                            <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl relative border-t-8 border-[#4caf50]">
+                                <div className="text-center text-[#2e7d32] font-bold mb-4 text-xl">
+                                    <Icon name="join_inner" className="align-text-bottom mr-2 text-[24px]" /> 顧客資料合併
+                                </div>
+                                <div className="text-sm text-[#7a6453] mb-4 text-center leading-relaxed">
+                                    您即將把 <span className="font-bold text-[#e57373] text-base bg-red-50 px-2 py-0.5 rounded">{mergeSource}</span> 的<br/>所有歷史訂單與備忘錄，轉移給：
+                                </div>
+                                
+                                <AutocompleteInput 
+                                    placeholder="請輸入她真正的新名字..." 
+                                    value={mergeTarget} 
+                                    onChange={e => setMergeTarget(e.target.value)} 
+                                    options={allCustomerNames.filter(n => n !== mergeSource)} 
+                                />
+                                <div className="text-[10px] text-[#a89689] text-center mb-5 mt-1 -mt-2">💡 提示：可以用來合併重複帳號，或用來修改打錯的名字喔！合併後無法復原。</div>
+
+                                <div className="flex gap-3">
+                                    <button onClick={() => {setMergeSource(null); setMergeTarget('');}} className="flex-1 py-3.5 rounded-xl bg-[#f2e7df] text-[#7a6453] font-bold">取消</button>
+                                    <button onClick={handleMergeCustomer} className="flex-[2] py-3.5 rounded-xl bg-[#4caf50] text-white font-bold shadow-sm active:bg-[#388e3c]">確定合併資料</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* VIP 備忘錄 編輯 Modal */}
+                    {selectedVip && (
+                        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-[95] animate-fade-in px-4">
+                            <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl relative">
+                                <div className="text-center text-[#e65100] font-bold mb-4 text-lg border-b border-[#ffe082] pb-3">
+                                    <Icon name="edit_note" className="align-text-bottom mr-1" /> 顧客專屬備忘錄
+                                </div>
+                                <div className="font-bold text-[#5c4d43] mb-3 text-center">顧客：<span className="text-[#f50057]">{selectedVip}</span></div>
+                                
+                                <textarea 
+                                    value={vipNoteText} 
+                                    onChange={e => setVipNoteText(e.target.value)} 
+                                    placeholder="例如：穿XL、討厭綠色、愛蕾絲 (可用空格或逗號分開，系統會自動變成彩色標籤)"
+                                    className="w-full bg-[#fdfaf7] border border-[#f2e7df] rounded-xl p-3 h-24 outline-none text-[#5c4d43] text-sm font-wawa focus:border-[#bc9f8b] resize-none mb-4 custom-scrollbar"
+                                />
+                                
+                                <div className="flex gap-3">
+                                    <button onClick={() => setSelectedVip(null)} className="flex-1 py-3 rounded-xl bg-[#f2e7df] text-[#7a6453] font-bold">取消</button>
+                                    <button onClick={handleSaveVipNote} className="flex-[2] py-3 rounded-xl bg-[#f50057] text-white font-bold shadow-sm active:bg-[#c51162]">儲存備忘錄</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         };
@@ -1340,7 +1546,8 @@
                     xq_reservations: localStorage.getItem('xq_reservations'), 
                     xq_settings: localStorage.getItem('xq_settings'), 
                     xq_market_sold: localStorage.getItem('xq_market_sold'),
-                    xq_private_exp: localStorage.getItem('xq_private_exp')
+                    xq_private_exp: localStorage.getItem('xq_private_exp'),
+                    xq_vip_notes: localStorage.getItem('xq_vip_notes')
                 };
                 const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
@@ -1358,6 +1565,7 @@
                         if(d.xq_settings) localStorage.setItem('xq_settings', d.xq_settings);
                         if(d.xq_market_sold) localStorage.setItem('xq_market_sold', d.xq_market_sold);
                         if(d.xq_private_exp) localStorage.setItem('xq_private_exp', d.xq_private_exp);
+                        if(d.xq_vip_notes) localStorage.setItem('xq_vip_notes', d.xq_vip_notes);
                         alert('✅ 資料匯入成功！系統將為您重新整理畫面。'); window.location.reload();
                     } catch(err) { alert('❌ 匯入失敗！檔案格式不正確。'); }
                 }; reader.readAsText(file);
@@ -1367,7 +1575,7 @@
                 if (!isCloudActive || !db) return alert('雲端未連線！');
                 if (!window.confirm('⚠️ 確定要把「這台手機」的資料強制上傳至雲端嗎？\n\n(請務必用「資料最完整的那支手機」來按這個按鈕！按下去後，雲端會以這台的資料為主)')) return;
                 try {
-                    const keys = ['xq_deliveries', 'xq_marketSales', 'xq_expenses', 'xq_reservations', 'xq_settings', 'xq_market_sold', 'xq_private_exp'];
+                    const keys = ['xq_deliveries', 'xq_marketSales', 'xq_expenses', 'xq_reservations', 'xq_settings', 'xq_market_sold', 'xq_private_exp', 'xq_vip_notes'];
                     for (const key of keys) {
                         const localData = localStorage.getItem(key);
                         if (localData) {
@@ -1430,7 +1638,7 @@
             
             const bossSalary = s * 0.35;
             const companyFund = s * 0.65;
-            const companyNet = companyFund - c; // 公司拿65%去把衣服買回來後，還剩多少錢
+            const companyNet = companyFund - c; 
 
             let badge = null;
             if (s > 0 && c > 0) {
@@ -1512,6 +1720,7 @@
             const [privateExpensesRaw, setPrivateExpensesRaw] = useDataSync('xq_private_exp', []);
             const [settingsRaw, setSettingsRaw] = useDataSync('xq_settings', { monthlyGoal: 100000, startupCapital: 36284, reserveTarget: 100000 });
             const [marketSoldStatsRaw, setMarketSoldStatsRaw] = useDataSync('xq_market_sold', {});
+            const [vipNotesRaw, setVipNotesRaw] = useDataSync('xq_vip_notes', {});
 
             const deliveries = getSafeArr(deliveriesRaw);
             const marketSales = getSafeArr(marketSalesRaw);
@@ -1520,6 +1729,7 @@
             const privateExpenses = getSafeArr(privateExpensesRaw);
             const settings = (typeof settingsRaw === 'object' && settingsRaw !== null && !Array.isArray(settingsRaw)) ? settingsRaw : { monthlyGoal: 100000, startupCapital: 36284, reserveTarget: 100000 };
             const marketSoldStats = (typeof marketSoldStatsRaw === 'object' && marketSoldStatsRaw !== null && !Array.isArray(marketSoldStatsRaw)) ? marketSoldStatsRaw : {};
+            const vipNotes = (typeof vipNotesRaw === 'object' && vipNotesRaw !== null && !Array.isArray(vipNotesRaw)) ? vipNotesRaw : {};
 
             const setDeliveries = (u) => setDeliveriesRaw(p => typeof u === 'function' ? u(getSafeArr(p)) : u);
             const setMarketSales = (u) => setMarketSalesRaw(p => typeof u === 'function' ? u(getSafeArr(p)) : u);
@@ -1528,6 +1738,7 @@
             const setPrivateExpenses = (u) => setPrivateExpensesRaw(p => typeof u === 'function' ? u(getSafeArr(p)) : u);
             const setSettings = (u) => setSettingsRaw(p => typeof u === 'function' ? u(p) : u);
             const setMarketSoldStats = (u) => setMarketSoldStatsRaw(p => typeof u === 'function' ? u(p) : u);
+            const setVipNotes = (u) => setVipNotesRaw(p => typeof u === 'function' ? u(p) : u);
             
             const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, id: null, collection: '', message: '' });
 
@@ -1569,10 +1780,10 @@
                         </header>
                         
                         <main id="main-content" className="flex-1 overflow-y-auto p-4 relative custom-scrollbar">
-                            {activeTab === 'store' && <StoreTab deliveries={deliveries} setDeliveries={setDeliveries} reservations={reservations} setReservations={setReservations} setConfirmDialog={setConfirmDialog} allCustomerNames={allCustomerNames} />}
+                            {activeTab === 'store' && <StoreTab deliveries={deliveries} setDeliveries={setDeliveries} reservations={reservations} setReservations={setReservations} setConfirmDialog={setConfirmDialog} allCustomerNames={allCustomerNames} vipNotes={vipNotes} />}
                             {activeTab === 'market' && <MarketTab marketSales={marketSales} setMarketSales={setMarketSales} expenses={expenses} setConfirmDialog={setConfirmDialog} />}
                             {activeTab === 'expense' && <ExpenseTab expenses={expenses} setExpenses={setExpenses} setConfirmDialog={setConfirmDialog} />}
-                            {activeTab === 'report' && <ReportTab deliveries={deliveries} marketSales={marketSales} expenses={expenses} settings={settings} setSettings={setSettings} marketSoldStats={marketSoldStats} setMarketSoldStats={setMarketSoldStats} privateExpenses={privateExpenses} setPrivateExpenses={setPrivateExpenses} setDialog={setConfirmDialog} />}
+                            {activeTab === 'report' && <ReportTab deliveries={deliveries} setDeliveries={setDeliveries} marketSales={marketSales} expenses={expenses} settings={settings} setSettings={setSettings} marketSoldStats={marketSoldStats} setMarketSoldStats={setMarketSoldStats} privateExpenses={privateExpenses} setPrivateExpenses={setPrivateExpenses} reservations={reservations} setReservations={setReservations} vipNotes={vipNotes} setVipNotes={setVipNotes} setDialog={setConfirmDialog} allCustomerNames={allCustomerNames} />}
                         </main>
 
                         <nav className="bg-white border-t border-[#f2e7df] flex justify-around pb-safe pt-2 fixed bottom-0 w-full max-w-lg z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] px-1">
