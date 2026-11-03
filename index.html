@@ -624,9 +624,12 @@
                 if (!searchTerm) return null;
                 if (searchedSales.length === 0) return <div className="text-center text-[#c4b5aa] py-8 mx-2 mt-4 bg-white rounded-2xl border border-dashed border-[#e0d6ce]">找不到「{searchTerm}」的歷史紀錄 🥺</div>;
 
-                const times = searchedSales.length;
-                const totalRev = searchedSales.reduce((sum, m) => sum + (Number(m.revenue) || 0), 0);
-                const totalProfit = searchedSales.reduce((sum, m) => {
+                const todayStr = new Date().toISOString().split('T')[0];
+                const statsSales = searchedSales.filter(m => safeStr(m.date) <= todayStr);
+
+                const times = statsSales.length;
+                const totalRev = statsSales.reduce((sum, m) => sum + (Number(m.revenue) || 0), 0);
+                const totalProfit = statsSales.reduce((sum, m) => {
                     const dailyMisc = (Number(m.electricity) || 0) + (Number(m.cleaning) || 0) + (Number(m.toll) || 0) + (Number(m.parking) || 0);
                     return sum + (Number(m.revenue) || 0) - (Number(m.rent) || 0) - dailyMisc; 
                 }, 0);
@@ -636,10 +639,10 @@
                         <Card className="bg-gradient-to-r from-[#fffde7] to-[#fff8e1] border-[#fff59d] mb-4">
                             <div className="flex items-center text-[#f57f17] font-bold text-lg mb-3 pb-2 border-b border-[#fff59d]"><Icon name="analytics" className="mr-2" /> 「{searchTerm}」績效評估報告</div>
                             <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-sm text-[#7a6453]">
-                                <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">出攤次數</span><span className="font-black text-lg text-[#5c4d43]">{times} 次</span></div>
+                                <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">出攤次數 (不含未來)</span><span className="font-black text-lg text-[#5c4d43]">{times} 次</span></div>
                                 <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">累積總業績</span><span className="font-black text-lg text-[#5c4d43]">${totalRev.toLocaleString()}</span></div>
-                                <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">平均單次業績</span><span className="font-black text-xl text-[#4caf50]">${Math.round(totalRev / times).toLocaleString()}</span></div>
-                                <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">單次純現淨利</span><span className="font-black text-xl text-[#e57373]">${Math.round(totalProfit / times).toLocaleString()}</span></div>
+                                <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">平均單次業績</span><span className="font-black text-xl text-[#4caf50]">${times > 0 ? Math.round(totalRev / times).toLocaleString() : 0}</span></div>
+                                <div className="flex flex-col"><span className="text-[10px] text-[#a89689] font-bold">單次純現淨利</span><span className="font-black text-xl text-[#e57373]">${times > 0 ? Math.round(totalProfit / times).toLocaleString() : 0}</span></div>
                             </div>
                         </Card>
                         
@@ -1002,6 +1005,7 @@
 
         // --- 分頁 4：營運報表 ---
         const ReportTab = ({ deliveries, setDeliveries, marketSales, expenses, settings, setSettings, marketSoldStats, setMarketSoldStats, privateExpenses, setPrivateExpenses, reservations, setReservations, vipNotes, setVipNotes, setDialog, allCustomerNames }) => {
+            const todayStr = new Date().toISOString().split('T')[0];
             const [reportMonth, setReportMonth] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; });
             const [isCheckingInventory, setIsCheckingInventory] = useState(false);
             const [actualInv, setActualInv] = useState('');
@@ -1037,15 +1041,18 @@
             const currentStartupCap = settings && settings.startupCapital !== undefined ? settings.startupCapital : 36284;
             const reserveTarget = settings && settings.reserveTarget !== undefined ? settings.reserveTarget : 100000;
 
+            // 🔥 新增：過濾掉未來的預排市場紀錄，確保營收與淨利計算不受未來租金干擾
+            const validMarketSales = useMemo(() => marketSales.filter(m => safeStr(m.date) <= todayStr), [marketSales, todayStr]);
+
             // ---- 全期存摺 ----
-            const allTimeMarketRev = marketSales.reduce((sum, m) => sum + (Number(m.revenue)||0), 0);
+            const allTimeMarketRev = validMarketSales.reduce((sum, m) => sum + (Number(m.revenue)||0), 0);
             const allTimeStoreRev = deliveries.reduce((sum, d) => sum + (Number(d.revenue)||0), 0);
             const allTimeStoreShipIn = deliveries.reduce((sum, d) => sum + (Number(d.shippingIncome)||0), 0);
             const allTimeStoreShipExp = deliveries.reduce((sum, d) => sum + (Number(d.shippingExpense)||0), 0);
             const allTimeShippingNet = allTimeStoreShipIn - allTimeStoreShipExp;
 
             const allTimeRev = allTimeMarketRev + allTimeStoreRev; 
-            const allTimeMarketExp = marketSales.reduce((sum, m) => sum + (Number(m.rent)||0) + (Number(m.electricity)||0) + (Number(m.cleaning)||0) + (Number(m.toll)||0) + (Number(m.parking)||0), 0); 
+            const allTimeMarketExp = validMarketSales.reduce((sum, m) => sum + (Number(m.rent)||0) + (Number(m.electricity)||0) + (Number(m.cleaning)||0) + (Number(m.toll)||0) + (Number(m.parking)||0), 0); 
             
             const allTimeWholePaidArrived = expenses.filter(e => e.type === 'wholesale' && e.isArrived !== false && e.isPaid !== false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const allTimeWholePaidTransit = expenses.filter(e => e.type === 'wholesale' && e.isArrived === false && e.isPaid !== false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
@@ -1061,7 +1068,7 @@
 
             // ---- 計算本月損益 ----
             const currentDeliveries = deliveries.filter(d => safeStr(d.date).startsWith(reportMonth) && d.status === 'shipped');
-            const currentMarket = marketSales.filter(m => safeStr(m.date).startsWith(reportMonth));
+            const currentMarket = validMarketSales.filter(m => safeStr(m.date).startsWith(reportMonth));
             const currentExpenses = expenses.filter(e => safeStr(e.date).startsWith(reportMonth));
             
             const marketDays = new Set(currentMarket.map(m => m.date)).size; // 統計出攤天數
@@ -1197,7 +1204,7 @@
 
             const locationStats = useMemo(() => {
                 const stats = {};
-                marketSales.forEach(m => {
+                validMarketSales.forEach(m => {
                     const loc = m.location || '未知';
                     if (!stats[loc]) stats[loc] = { count: 0, totalRev: 0, totalRent: 0 };
                     stats[loc].count += 1;
@@ -1379,7 +1386,7 @@
                             )}
                             <div className="border-t-2 border-[#bc9f8b] pt-3 mt-4"></div>
                             <div className="flex justify-between items-end mt-1"><span className="text-lg text-[#bc9f8b]">🏦 本月最終淨利</span><span className={`text-3xl font-black ${monthlyFinalProfit < 0 ? 'text-red-500' : 'text-[#bc9f8b]'}`}>${monthlyFinalProfit.toLocaleString()}</span></div>
-                            <div className="text-[10px] text-center text-[#a89689] mt-2">(註：資金的借款、還款與包材費不計入本表，僅影響系統帳面資金)</div>
+                            <div className="text-[10px] text-center text-[#a89689] mt-2">(註：借款、還款與包材費不計入本表，未來的預排攤位也會自動排除以免干擾)</div>
                         </div>
                     </Card>
 
