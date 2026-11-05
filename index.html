@@ -1052,6 +1052,11 @@
             const [actualInv, setActualInv] = useState('');
             const [expState, setExpState] = useState({});
             
+            // 📅 自訂區間查詢 State
+            const currentMonthFirstDay = todayStr.substring(0, 7) + '-01';
+            const [rangeStart, setRangeStart] = useState(currentMonthFirstDay);
+            const [rangeEnd, setRangeEnd] = useState(todayStr);
+
             // 私人小金庫 Modal State
             const [isPrivateModalOpen, setIsPrivateModalOpen] = useState(false);
             const [privateDate, setPrivateDate] = useState(new Date().toISOString().split('T')[0]);
@@ -1112,13 +1117,12 @@
             const currentMarket = validMarketSales.filter(m => safeStr(m.date).startsWith(reportMonth));
             const currentExpenses = expenses.filter(e => safeStr(e.date).startsWith(reportMonth));
             
-            const marketDays = new Set(currentMarket.map(m => m.date)).size; // 統計出攤天數
+            const marketDays = new Set(currentMarket.map(m => m.date)).size; 
 
             const storeRevenue = currentDeliveries.reduce((sum, d) => sum + (Number(d.revenue) || 0), 0);
             const marketRevenue = currentMarket.reduce((sum, m) => sum + (Number(m.revenue) || 0), 0);
             const monthlyTotalRev = storeRevenue + marketRevenue; 
             
-            // 抓取「換季清倉」的總業績，不列入老闆薪水計算
             const clearanceRevenue = currentMarket.filter(m => m.isClearance).reduce((sum, m) => sum + (Number(m.revenue)||0), 0);
 
             const marketRent = currentMarket.reduce((sum, m) => sum + (Number(m.rent)||0), 0);
@@ -1139,13 +1143,9 @@
             const monthlyTrafficExp = currentExpenses.filter(e => e.type === 'traffic').reduce((sum, e) => sum + (Number(e.amount)||0), 0);
             const monthlyOtherTotal = monthlyFixedExp + monthlyTrafficExp; 
 
-            // ==========================================
-            // 🌟 薪水與公司營運分配 (B模式：先扣租金再切分)
-            // ==========================================
-            const distributableRevenue = Math.max(0, monthlyTotalRev - clearanceRevenue - monthlyMarketExp); // 真正的淨利才拿來分
+            const distributableRevenue = Math.max(0, monthlyTotalRev - clearanceRevenue - monthlyMarketExp); 
             const bossSalary = Math.round(distributableRevenue * 0.35); 
             
-            // 公司拿走所有的換季清倉 + (淨利的65%) - 後勤水電油資
             const companyNet = monthlyTotalRev - monthlyMarketExp - bossSalary - monthlyOtherTotal; 
             
             const monthlyWholesaleCashPaid = currentExpenses.filter(e => e.type === 'wholesale' && e.isPaid !== false).reduce((sum, e) => sum + (Number(e.amount)||0), 0);
@@ -1154,9 +1154,8 @@
             const monthlyFinalProfit = grossProfit - monthlyOtherTotal; 
             const salaryProgress = Math.min(100, Math.max(0, (bossSalary / salaryGoal) * 100));
             const shortfallSalary = Math.max(0, salaryGoal - bossSalary);
-            const shortfallNetProfit = Math.max(0, Math.ceil(shortfallSalary / 0.35)); // 換算成「需要補多少淨利」
+            const shortfallNetProfit = Math.max(0, Math.ceil(shortfallSalary / 0.35)); 
 
-            // 私人記帳本處理
             const currentMonthPrivate = privateExpenses.filter(p => safeStr(p.date).startsWith(reportMonth));
             const totalPrivateSpent = currentMonthPrivate.reduce((sum, p) => sum + (Number(p.amount)||0), 0);
             const remainingSalary = bossSalary - totalPrivateSpent;
@@ -1174,7 +1173,6 @@
                 setSelectedVip(null);
             };
 
-            // 顧客合併執行邏輯
             const handleMergeCustomer = () => {
                 const target = mergeTarget.trim();
                 if (!target || mergeSource === target) return;
@@ -1203,7 +1201,6 @@
                 setMergeTarget('');
             };
 
-            // 每日 KPI 智能拆解
             const today = new Date();
             const currentMonthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
             const isCurrentMonth = reportMonth === currentMonthStr;
@@ -1213,7 +1210,6 @@
             else if (reportMonth > currentMonthStr) remainingDays = daysInMonth;
             const dailyNetTarget = remainingDays > 0 ? Math.ceil(shortfallNetProfit / remainingDays) : 0;
 
-            // ---- 庫存盤點 ----
             const wholesaleToMonth = expenses.filter(e => e.type === 'wholesale' && safeStr(e.date).substring(0, 7) <= reportMonth && e.isArrived !== false && e.isForMarket !== false);
             const accumulatedWholesaleQty = wholesaleToMonth.reduce((sum, e) => sum + (Number(e.qty)||0), 0);
             const accumulatedWholesaleCost = wholesaleToMonth.reduce((sum, e) => sum + (Number(e.amount)||0), 0);
@@ -1263,7 +1259,6 @@
             const topMarkets = locationStats.filter(m=>m.count>0).slice(0, 3);
             const bottomMarkets = locationStats.filter(m=>m.count>0 && !topMarkets.find(t=>t.location===m.location)).slice(-3).reverse();
 
-            // 💖 VIP 乾媽排行榜
             const topVips = useMemo(() => {
                 const stats = {};
                 deliveries.filter(d => d.status === 'shipped').forEach(d => {
@@ -1279,7 +1274,6 @@
                 })).sort((a, b) => b.totalRev - a.totalRev).slice(0, 5); 
             }, [deliveries]);
 
-            // 🎁 贈品精準統計 (拆分為「全期待出貨」與「本月已送出」)
             const pendingDeliveries = deliveries.filter(d => d.status === 'pending');
             const pendingDeliveryGifts = pendingDeliveries.reduce((sum, d) => sum + (d.hasGift ? (Number(d.giftCount) || 1) : 0), 0);
             const reservationGifts = reservations.reduce((sum, r) => sum + (r.hasGift ? (Number(r.giftCount) || 1) : 0), 0);
@@ -1388,6 +1382,7 @@
                         </div>
                     </Card>
 
+                    {/* 💰 本月損益表 */}
                     <Card>
                         <div className="flex items-center font-bold text-[#7a6453] text-lg mb-4 pb-2 border-b border-[#f2e7df]"><Icon name="request_quote" className="mr-2 text-[#e57373]" /> 本月損益表 <span className="text-xs text-[#a89689] font-normal ml-2">(真實現金流)</span></div>
                         <div className="space-y-3 text-sm font-bold text-[#5c4d43]">
@@ -1424,6 +1419,65 @@
                             <div className="flex justify-between items-end mt-1"><span className="text-lg text-[#bc9f8b]">🏦 本月最終淨利</span><span className={`text-3xl font-black ${monthlyFinalProfit < 0 ? 'text-red-500' : 'text-[#bc9f8b]'}`}>${monthlyFinalProfit.toLocaleString()}</span></div>
                             <div className="text-[10px] text-center text-[#a89689] mt-2">(註：借款、還款與包材費不計入本表，未來的預排攤位也會自動排除以免干擾)</div>
                         </div>
+                    </Card>
+
+                    {/* 📅 自訂區間快查 */}
+                    <Card className="bg-white border-[#bcaaa4] mb-4 shadow-sm relative">
+                        <div className="flex items-center text-[#5d4037] font-bold text-lg mb-3 pb-2 border-b border-[#d7ccc8]">
+                            <Icon name="date_range" className="mr-2 text-[#8d6e63]" /> 📅 自訂區間業績快查
+                        </div>
+                        <div className="text-[10px] text-[#8d6e63] mb-3 -mt-1 text-center">可查特地活動檔期、或是單週這幾天的總賺頭！</div>
+                        
+                        <div className="flex items-center gap-2 mb-4">
+                            <input type="date" value={rangeStart} onChange={e => setRangeStart(e.target.value)} className="flex-1 bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-2 h-[44px] text-sm font-bold text-[#5c4d43] outline-none focus:border-[#bc9f8b] font-wawa text-center" />
+                            <span className="text-[#a89689] font-bold">至</span>
+                            <input type="date" value={rangeEnd} onChange={e => setRangeEnd(e.target.value)} className="flex-1 bg-[#fdfdfd] border border-[#f0e6e0] rounded-xl px-2 h-[44px] text-sm font-bold text-[#5c4d43] outline-none focus:border-[#bc9f8b] font-wawa text-center" />
+                        </div>
+                        
+                        {(() => {
+                            const rMarkets = marketSales.filter(m => safeStr(m.date) >= rangeStart && safeStr(m.date) <= rangeEnd);
+                            const rDeliveries = deliveries.filter(d => d.status === 'shipped' && safeStr(d.date) >= rangeStart && safeStr(d.date) <= rangeEnd);
+                            
+                            const rMarketRev = rMarkets.reduce((s, m) => s + (Number(m.revenue)||0), 0);
+                            const rStoreRev = rDeliveries.reduce((s, d) => s + (Number(d.revenue)||0), 0);
+                            const rTotalRev = rMarketRev + rStoreRev;
+                            
+                            const rRent = rMarkets.reduce((s, m) => s + (Number(m.rent)||0), 0);
+                            const rMarketMisc = rMarkets.reduce((s, m) => s + (Number(m.electricity)||0) + (Number(m.cleaning)||0) + (Number(m.toll)||0) + (Number(m.parking)||0), 0);
+                            const rMarketCost = rRent + rMarketMisc;
+                            
+                            const rShipIncome = rDeliveries.reduce((s, d) => s + (Number(d.shippingIncome)||0), 0);
+                            const rShipExpense = rDeliveries.reduce((s, d) => s + (Number(d.shippingExpense)||0), 0);
+                            const rShipNet = rShipIncome - rShipExpense; // >0 是賺, <0是虧
+                            
+                            const rNetProfit = rTotalRev - rMarketCost + rShipNet;
+                            
+                            return (
+                                <div className="grid grid-cols-2 gap-y-3 gap-x-2">
+                                    {/* 🔥 精緻化的區間總營業額拆分 */}
+                                    <div className="bg-[#fdfaf7] p-2.5 rounded-xl border border-[#f2e7df] shadow-inner">
+                                        <div className="text-[11px] font-bold text-[#a89689] mb-1 text-center">區間總營業額</div>
+                                        <div className="font-black text-xl text-[#5c4d43] text-center">${rTotalRev.toLocaleString()}</div>
+                                        <div className="text-[9px] text-[#a89689] mt-1.5 space-y-0.5 px-1.5 bg-white rounded border border-[#f0e6e0] py-0.5">
+                                            <div className="flex justify-between items-center"><span>市場</span><span className="font-bold text-[#7a6453]">${rMarketRev.toLocaleString()}</span></div>
+                                            <div className="flex justify-between items-center"><span>寄件</span><span className="font-bold text-[#7a6453]">${rStoreRev.toLocaleString()}</span></div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-[#fff3e0] p-2.5 rounded-xl border border-[#ffcc80] text-center shadow-inner flex flex-col justify-center">
+                                        <div className="text-[11px] font-bold text-[#e65100] mb-1">區間攤位總租金</div>
+                                        <div className="font-black text-xl text-[#e65100]">-${rRent.toLocaleString()}</div>
+                                        {rMarketMisc > 0 && <div className="text-[9px] text-[#fb8c00] mt-1 font-bold">(另有雜支 ${rMarketMisc})</div>}
+                                    </div>
+                                    <div className="col-span-2 bg-[#f0f9f0] p-3 rounded-xl border border-[#a5d6a7] flex justify-between items-center shadow-sm mt-1">
+                                        <div>
+                                            <div className="text-sm font-bold text-[#2e7d32]">這段期間「前端淨利」</div>
+                                            <div className="text-[10px] text-[#4caf50] mt-0.5">總業績 - 租金雜支 ± 運費盈虧</div>
+                                        </div>
+                                        <div className="font-black text-2xl text-[#2e7d32]">${rNetProfit.toLocaleString()}</div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </Card>
 
                     {/* 👑 市場地段含金量排行榜 */}
