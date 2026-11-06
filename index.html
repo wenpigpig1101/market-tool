@@ -1252,8 +1252,9 @@
                 return Object.keys(stats).map(loc => {
                     const s = stats[loc];
                     const avgRev = Math.round(s.totalRev / s.count);
+                    const avgRent = Math.round(s.totalRent / s.count); // 🔥 新增：算出當時平均實付租金
                     const rentRatio = s.totalRev > 0 ? ((s.totalRent / s.totalRev) * 100).toFixed(1) : 0;
-                    return { location: loc, count: s.count, avgRev, rentRatio: Number(rentRatio) };
+                    return { location: loc, count: s.count, avgRev, avgRent, rentRatio: Number(rentRatio) };
                 }).sort((a, b) => b.avgRev - a.avgRev); 
             }, [marketSales]);
             const topMarkets = locationStats.filter(m=>m.count>0).slice(0, 3);
@@ -1517,22 +1518,39 @@
                                     <div className="pt-2 border-t border-[#e0e0e0]">
                                         <div className="text-xs font-bold text-[#e57373] mb-2 flex items-center mt-2"><Icon name="warning" className="text-[14px] mr-1" /> 買氣低迷！倒數後三名</div>
                                         <div className="space-y-2">
-                                            {bottomMarkets.map((m, idx) => (
-                                                <div key={`bot-${m.location}`} className="bg-white p-3 rounded-xl border border-[#ffcdd2] shadow-sm relative overflow-hidden">
-                                                    {m.rentRatio > 30 && <div className="absolute top-0 right-0 bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-bl shadow-sm">在幫房東打工</div>}
-                                                    <div className="flex justify-between items-center mb-1">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white bg-[#e57373]"><Icon name="trending_down" className="text-[12px]"/></span>
-                                                            <span className="font-bold text-[#c62828]">{m.location}</span>
+                                            {bottomMarkets.map((m, idx) => {
+                                                const reasonableRent = Math.round(m.avgRev * 0.2); // 20% criteria
+                                                return (
+                                                    <div key={`bot-${m.location}`} className="bg-white p-3 rounded-xl border border-[#ffcdd2] shadow-sm relative overflow-hidden">
+                                                        {m.rentRatio > 30 && <div className="absolute top-0 right-0 bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-bl shadow-sm">在幫房東打工</div>}
+                                                        <div className="flex justify-between items-center mb-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white bg-[#e57373]"><Icon name="trending_down" className="text-[12px]"/></span>
+                                                                <span className="font-bold text-[#c62828]">{m.location}</span>
+                                                            </div>
+                                                            <div className="font-black text-[#c62828] text-base">${m.avgRev.toLocaleString()}</div>
                                                         </div>
-                                                        <div className="font-black text-[#c62828] text-base">${m.avgRev.toLocaleString()}</div>
+                                                        <div className="mt-2 pt-2 border-t border-dashed border-[#ffebee]">
+                                                            <div className="flex justify-between items-center mb-1.5">
+                                                                <span className="text-[10px] text-[#ef5350] bg-[#fff2f2] px-1.5 py-0.5 rounded">去過 {m.count} 次</span>
+                                                                <span className={`text-[10px] font-bold ${m.rentRatio > 25 ? 'text-red-600' : 'text-[#a89689]'}`}>平均租金佔比: {m.rentRatio}%</span>
+                                                            </div>
+                                                            
+                                                            {/* 🔥 升級：當時實付平均租金 vs 建議殺價底線 */}
+                                                            <div className="bg-red-50 text-[#d32f2f] text-[10px] p-2 rounded flex flex-col gap-1 font-bold border border-red-100 shadow-inner mt-2">
+                                                                <div className="flex justify-between items-center border-b border-red-100 pb-1">
+                                                                    <span className="flex items-center"><Icon name="storefront" className="text-[12px] mr-0.5"/>當時平均實付租金</span>
+                                                                    <span className="text-[#c62828]">${m.avgRent.toLocaleString()}</span>
+                                                                </div>
+                                                                <div className="flex justify-between items-center pt-0.5">
+                                                                    <span className="flex items-center"><Icon name="gavel" className="text-[12px] mr-0.5"/>建議殺價底線 (20%)</span>
+                                                                    <span className="text-green-700">應低於 ${reasonableRent.toLocaleString()}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                    <div className="flex justify-between items-end mt-2 pt-2 border-t border-dashed border-[#ffebee]">
-                                                        <span className="text-[10px] text-[#ef5350] bg-[#fff2f2] px-1.5 py-0.5 rounded">去過 {m.count} 次</span>
-                                                        <span className={`text-[10px] font-bold ${m.rentRatio > 25 ? 'text-red-600' : 'text-[#a89689]'}`}>平均租金佔比: {m.rentRatio}%</span>
-                                                    </div>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 )}
@@ -2001,15 +2019,15 @@
             return (
                 <ErrorBoundary>
                     <div className="flex flex-col h-screen custom-scrollbar text-[#5c4d43] max-w-lg mx-auto bg-[#fdfaf7] shadow-2xl relative">
-                        <header className="bg-[#bc9f8b] text-white pt-6 pb-4 px-5 flex justify-between items-center shadow-md sticky top-0 z-10">
-                            <div className="flex items-center text-2xl font-bold tracking-widest drop-shadow-sm">💰 200%森衣好</div>
-                            <div className="flex items-center gap-3">
-                                {cloudStatus === 'active' && <span className="text-[10px] bg-white bg-opacity-20 px-2 py-0.5 rounded-full flex items-center"><Icon name="cloud_done" className="text-[12px] mr-1"/>雲端同步中</span>}
-                                {cloudStatus === 'error' && <span onClick={()=>alert('雲端連線被 Firebase 拒絕！\n請至 Firebase 後台的 Firestore Database -> Rules 將權限改為 allow read, write: if true;')} className="text-[10px] bg-red-500 text-white px-2 py-0.5 rounded-full flex items-center font-bold cursor-pointer shadow-sm animate-pulse"><Icon name="error" className="text-[12px] mr-1"/>雲端被阻擋</span>}
-                                <button onClick={() => setShowCalculator(true)} className="p-1.5 bg-white bg-opacity-20 rounded-full hover:bg-opacity-30 transition-colors mr-1 shadow-sm">
+                        <header className="bg-[#bc9f8b] text-white pt-6 pb-4 px-4 flex justify-between items-center shadow-md sticky top-0 z-10 gap-2">
+                            <div className="flex items-center text-xl font-bold tracking-wide drop-shadow-sm whitespace-nowrap flex-shrink-0">💰 200%森衣好</div>
+                            <div className="flex items-center gap-1.5 sm:gap-3 overflow-hidden justify-end">
+                                {cloudStatus === 'active' && <span className="text-[10px] bg-white bg-opacity-20 px-1.5 py-0.5 rounded-full flex items-center whitespace-nowrap"><Icon name="cloud_done" className="text-[12px] mr-0.5"/>雲端同步中</span>}
+                                {cloudStatus === 'error' && <span onClick={()=>alert('雲端連線被 Firebase 拒絕！\n請至 Firebase 後台的 Firestore Database -> Rules 將權限改為 allow read, write: if true;')} className="text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-full flex items-center font-bold cursor-pointer shadow-sm animate-pulse whitespace-nowrap"><Icon name="error" className="text-[12px] mr-0.5"/>雲端被阻擋</span>}
+                                <button onClick={() => setShowCalculator(true)} className="p-1 sm:p-1.5 bg-white bg-opacity-20 rounded-full hover:bg-opacity-30 transition-colors shadow-sm flex-shrink-0">
                                     <Icon name="calculate" className="text-[20px]" />
                                 </button>
-                                <button onClick={() => setShowSettings(true)} className="p-1.5 bg-white bg-opacity-20 rounded-full hover:bg-opacity-30 transition-colors shadow-sm">
+                                <button onClick={() => setShowSettings(true)} className="p-1 sm:p-1.5 bg-white bg-opacity-20 rounded-full hover:bg-opacity-30 transition-colors shadow-sm flex-shrink-0">
                                     <Icon name="settings" className="text-[20px]" />
                                 </button>
                             </div>
