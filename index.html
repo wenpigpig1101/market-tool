@@ -1240,25 +1240,30 @@
                 }
             };
 
+            // 👑 市場排行榜 (核心升級：改用單次平均淨利排序！)
             const locationStats = useMemo(() => {
                 const stats = {};
                 validMarketSales.forEach(m => {
                     const loc = m.location || '未知';
-                    if (!stats[loc]) stats[loc] = { count: 0, totalRev: 0, totalRent: 0 };
+                    if (!stats[loc]) stats[loc] = { count: 0, totalRev: 0, totalRent: 0, totalMisc: 0 };
                     stats[loc].count += 1;
                     stats[loc].totalRev += (Number(m.revenue) || 0);
                     stats[loc].totalRent += (Number(m.rent) || 0);
+                    stats[loc].totalMisc += (Number(m.electricity)||0) + (Number(m.cleaning)||0) + (Number(m.toll)||0) + (Number(m.parking)||0);
                 });
                 return Object.keys(stats).map(loc => {
                     const s = stats[loc];
                     const avgRev = Math.round(s.totalRev / s.count);
-                    const avgRent = Math.round(s.totalRent / s.count); // 🔥 新增：算出當時平均實付租金
+                    const avgRent = Math.round(s.totalRent / s.count);
+                    const avgMisc = Math.round(s.totalMisc / s.count);
+                    const avgNet = avgRev - avgRent - avgMisc; // 🔥 真正淨利
                     const rentRatio = s.totalRev > 0 ? ((s.totalRent / s.totalRev) * 100).toFixed(1) : 0;
-                    return { location: loc, count: s.count, avgRev, avgRent, rentRatio: Number(rentRatio) };
-                }).sort((a, b) => b.avgRev - a.avgRev); 
-            }, [marketSales]);
-            const topMarkets = locationStats.filter(m=>m.count>0).slice(0, 3);
-            const bottomMarkets = locationStats.filter(m=>m.count>0 && !topMarkets.find(t=>t.location===m.location)).slice(-3).reverse();
+                    return { location: loc, count: s.count, avgRev, avgRent, avgMisc, avgNet, rentRatio: Number(rentRatio) };
+                }).sort((a, b) => b.avgNet - a.avgNet); // 🎯 使用淨利排序
+            }, [validMarketSales]); 
+            
+            // 🔥 使用者要求：隱藏地雷後五名，只留最賺錢的前五名
+            const topMarkets = locationStats.filter(m=>m.count>0).slice(0, 5);
 
             const topVips = useMemo(() => {
                 const stats = {};
@@ -1483,15 +1488,15 @@
 
                     {/* 👑 市場地段含金量排行榜 */}
                     <Card className="bg-[#fafafa] border-[#e0e0e0] mb-4 shadow-sm">
-                        <div className="flex items-center text-[#5c4d43] font-bold text-lg mb-3 pb-2 border-b border-[#e0e0e0]"><Icon name="emoji_events" className="mr-2 text-[#ffb300]" /> 👑 市場地段含金量排行榜</div>
-                        <div className="text-[10px] text-[#a89689] mb-3 text-center">依據歷史全期各市場的「平均單次營業額」排行，並監測租金佔比</div>
+                        <div className="flex items-center text-[#5c4d43] font-bold text-lg mb-3 pb-2 border-b border-[#e0e0e0]"><Icon name="emoji_events" className="mr-2 text-[#ffb300]" /> 👑 單次純現淨利排行榜</div>
+                        <div className="text-[10px] text-[#a89689] mb-3 text-center">依據歷史各市場的「平均單次<strong className="text-[#e57373]">真實淨利</strong>」重新洗牌排名！</div>
                         
                         {topMarkets.length === 0 ? (
                             <div className="text-center text-[#c4b5aa] text-xs py-4">目前尚無足夠的市場營業數據</div>
                         ) : (
                             <div className="space-y-4">
                                 <div>
-                                    <div className="text-xs font-bold text-[#4caf50] mb-2 flex items-center"><Icon name="thumb_up" className="text-[14px] mr-1" /> 含金量最高！最強前三名</div>
+                                    <div className="text-xs font-bold text-[#4caf50] mb-2 flex items-center"><Icon name="thumb_up" className="text-[14px] mr-1" /> 淨賺最多！金雞母前五名</div>
                                     <div className="space-y-2">
                                         {topMarkets.map((m, idx) => (
                                             <div key={`top-${m.location}`} className="bg-white p-3 rounded-xl border border-[#c8e6c9] shadow-sm relative overflow-hidden">
@@ -1500,10 +1505,13 @@
                                                 
                                                 <div className="flex justify-between items-center mb-1">
                                                     <div className="flex items-center gap-2">
-                                                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white ${idx === 0 ? 'bg-[#ffb300]' : idx === 1 ? 'bg-[#9e9e9e]' : 'bg-[#8d6e63]'}`}>{idx + 1}</span>
+                                                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white ${idx === 0 ? 'bg-[#ffb300]' : idx === 1 ? 'bg-[#9e9e9e]' : idx === 2 ? 'bg-[#8d6e63]' : 'bg-[#a89689]'}`}>{idx + 1}</span>
                                                         <span className="font-bold text-[#2e7d32]">{m.location}</span>
                                                     </div>
-                                                    <div className="font-black text-[#2e7d32] text-base">${m.avgRev.toLocaleString()}</div>
+                                                    <div className="text-right">
+                                                        <div className="font-black text-[#2e7d32] text-base">淨賺 ${m.avgNet.toLocaleString()}</div>
+                                                        <div className="text-[10px] text-[#81c784] font-bold">均收 ${m.avgRev.toLocaleString()}</div>
+                                                    </div>
                                                 </div>
                                                 <div className="flex justify-between items-end mt-2 pt-2 border-t border-dashed border-[#e8f5e9]">
                                                     <span className="text-[10px] text-[#81c784] bg-[#f0f9f0] px-1.5 py-0.5 rounded">去過 {m.count} 次</span>
@@ -1513,47 +1521,6 @@
                                         ))}
                                     </div>
                                 </div>
-
-                                {bottomMarkets.length > 0 && (
-                                    <div className="pt-2 border-t border-[#e0e0e0]">
-                                        <div className="text-xs font-bold text-[#e57373] mb-2 flex items-center mt-2"><Icon name="warning" className="text-[14px] mr-1" /> 買氣低迷！倒數後三名</div>
-                                        <div className="space-y-2">
-                                            {bottomMarkets.map((m, idx) => {
-                                                const reasonableRent = Math.round(m.avgRev * 0.2); // 20% criteria
-                                                return (
-                                                    <div key={`bot-${m.location}`} className="bg-white p-3 rounded-xl border border-[#ffcdd2] shadow-sm relative overflow-hidden">
-                                                        {m.rentRatio > 30 && <div className="absolute top-0 right-0 bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-bl shadow-sm">在幫房東打工</div>}
-                                                        <div className="flex justify-between items-center mb-1">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white bg-[#e57373]"><Icon name="trending_down" className="text-[12px]"/></span>
-                                                                <span className="font-bold text-[#c62828]">{m.location}</span>
-                                                            </div>
-                                                            <div className="font-black text-[#c62828] text-base">${m.avgRev.toLocaleString()}</div>
-                                                        </div>
-                                                        <div className="mt-2 pt-2 border-t border-dashed border-[#ffebee]">
-                                                            <div className="flex justify-between items-center mb-1.5">
-                                                                <span className="text-[10px] text-[#ef5350] bg-[#fff2f2] px-1.5 py-0.5 rounded">去過 {m.count} 次</span>
-                                                                <span className={`text-[10px] font-bold ${m.rentRatio > 25 ? 'text-red-600' : 'text-[#a89689]'}`}>平均租金佔比: {m.rentRatio}%</span>
-                                                            </div>
-                                                            
-                                                            {/* 🔥 升級：當時實付平均租金 vs 建議殺價底線 */}
-                                                            <div className="bg-red-50 text-[#d32f2f] text-[10px] p-2 rounded flex flex-col gap-1 font-bold border border-red-100 shadow-inner mt-2">
-                                                                <div className="flex justify-between items-center border-b border-red-100 pb-1">
-                                                                    <span className="flex items-center"><Icon name="storefront" className="text-[12px] mr-0.5"/>當時平均實付租金</span>
-                                                                    <span className="text-[#c62828]">${m.avgRent.toLocaleString()}</span>
-                                                                </div>
-                                                                <div className="flex justify-between items-center pt-0.5">
-                                                                    <span className="flex items-center"><Icon name="gavel" className="text-[12px] mr-0.5"/>建議殺價底線 (20%)</span>
-                                                                    <span className="text-green-700">應低於 ${reasonableRent.toLocaleString()}</span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
                             </div>
                         )}
                     </Card>
