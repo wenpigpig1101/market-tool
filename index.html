@@ -858,7 +858,7 @@
                     isPaid: type === 'wholesale' ? isPaid : true, 
                     isForMarket: type === 'wholesale' ? isForMarket : true, 
                     flowType: type === 'financing' ? flowType : 'out',
-                    removalAction: type === 'removal' ? removalAction : undefined // 儲存打包還是上架
+                    removalAction: type === 'removal' ? removalAction : null // 🔥 這裡修復了！將 undefined 改為 Firebase 允許的 null
                 };
                 
                 if (editingId) setExpenses(prev => prev.map(e => e.id === editingId ? { ...e, ...recordData } : e).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
