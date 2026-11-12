@@ -1941,7 +1941,7 @@
 
                         {s > 0 && c > 0 && (
                             <div className="space-y-3 animate-expand">
-                                <div className="bg-white p-3 rounded-xl border border-[#f2e7df] flex justify-between items-center shadow-sm">
+                            <div className="bg-white p-3 rounded-xl border border-[#f2e7df] flex justify-between items-center shadow-sm">
                                     <span className="text-sm font-bold text-[#7a6453]">基本毛利</span>
                                     <div className="text-right">
                                         <div className="font-black text-[#bc9f8b] text-lg">${profit.toLocaleString()}</div>
@@ -1969,10 +1969,45 @@
             );
         };
 
+        // --- 📋 隨身記事本 Modal ---
+        const NotepadModal = ({ isOpen, onClose, initialNote, onSave }) => {
+            const [text, setText] = useState('');
+
+            useEffect(() => {
+                if (isOpen) setText(initialNote || '');
+            }, [isOpen, initialNote]);
+
+            if (!isOpen) return null;
+
+            const handleClose = () => {
+                onSave(text);
+                onClose();
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[115] animate-fade-in px-4 pb-10">
+                    <div className="bg-[#fdfaf7] rounded-3xl p-5 w-full max-w-sm shadow-2xl relative flex flex-col h-[50vh]">
+                        <button onClick={handleClose} className="absolute top-4 right-4 text-[#a89689] p-1 bg-white rounded-full shadow-sm hover:bg-[#f2e7df]"><Icon name="close" /></button>
+                        <div className="text-center text-[#5c4d43] font-bold mb-4 mt-2 text-lg flex items-center justify-center"><Icon name="edit_note" className="mr-2 text-[#bc9f8b] text-[24px]" /> 📋 隨身記事本</div>
+                        
+                        <textarea 
+                            value={text}
+                            onChange={(e) => setText(e.target.value)}
+                            placeholder="隨手記下重要事項...&#10;(例如：禮拜四東園市場休市、下週二要去拿貨)"
+                            className="flex-1 w-full bg-white border border-[#f2e7df] rounded-xl p-4 outline-none text-[#5c4d43] text-sm font-wawa focus:border-[#bc9f8b] resize-none shadow-sm custom-scrollbar leading-relaxed"
+                        />
+                        
+                        <button onClick={handleClose} className="w-full mt-4 py-3 bg-[#bc9f8b] text-white font-bold rounded-xl shadow-sm active:bg-[#a38a78] transition-colors">儲存並關閉</button>
+                    </div>
+                </div>
+            );
+        };
+
         const App = () => {
             const [activeTab, setActiveTab] = useState('report');
             const [showSettings, setShowSettings] = useState(false);
             const [showCalculator, setShowCalculator] = useState(false);
+            const [showNotepad, setShowNotepad] = useState(false);
             const [cloudStatus, setCloudStatus] = useState(isCloudActive ? 'active' : 'offline');
 
             useEffect(() => {
@@ -1989,6 +2024,7 @@
             const [settingsRaw, setSettingsRaw] = useDataSync('xq_settings', { monthlyGoal: 100000, startupCapital: 36284, reserveTarget: 100000 });
             const [marketSoldStatsRaw, setMarketSoldStatsRaw] = useDataSync('xq_market_sold', {});
             const [vipNotesRaw, setVipNotesRaw] = useDataSync('xq_vip_notes', {});
+            const [globalNoteRaw, setGlobalNoteRaw] = useDataSync('xq_global_note', '');
 
             const deliveries = getSafeArr(deliveriesRaw);
             const marketSales = getSafeArr(marketSalesRaw);
@@ -1998,6 +2034,7 @@
             const settings = (typeof settingsRaw === 'object' && settingsRaw !== null && !Array.isArray(settingsRaw)) ? settingsRaw : { monthlyGoal: 100000, startupCapital: 36284, reserveTarget: 100000 };
             const marketSoldStats = (typeof marketSoldStatsRaw === 'object' && marketSoldStatsRaw !== null && !Array.isArray(marketSoldStatsRaw)) ? marketSoldStatsRaw : {};
             const vipNotes = (typeof vipNotesRaw === 'object' && vipNotesRaw !== null && !Array.isArray(vipNotesRaw)) ? vipNotesRaw : {};
+            const globalNote = typeof globalNoteRaw === 'string' ? globalNoteRaw : '';
 
             const setDeliveries = (u) => setDeliveriesRaw(p => typeof u === 'function' ? u(getSafeArr(p)) : u);
             const setMarketSales = (u) => setMarketSalesRaw(p => typeof u === 'function' ? u(getSafeArr(p)) : u);
@@ -2007,6 +2044,7 @@
             const setSettings = (u) => setSettingsRaw(p => typeof u === 'function' ? u(p) : u);
             const setMarketSoldStats = (u) => setMarketSoldStatsRaw(p => typeof u === 'function' ? u(p) : u);
             const setVipNotes = (u) => setVipNotesRaw(p => typeof u === 'function' ? u(p) : u);
+            const setGlobalNote = (u) => setGlobalNoteRaw(p => typeof u === 'function' ? u(p) : u);
             
             const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, id: null, collection: '', message: '' });
 
@@ -2037,6 +2075,11 @@
                             <div className="flex items-center gap-1.5 sm:gap-3 overflow-hidden justify-end">
                                 {cloudStatus === 'active' && <span className="text-[10px] bg-white bg-opacity-20 px-1.5 py-0.5 rounded-full flex items-center whitespace-nowrap"><Icon name="cloud_done" className="text-[12px] mr-0.5"/>雲端同步中</span>}
                                 {cloudStatus === 'error' && <span onClick={()=>alert('雲端連線被 Firebase 拒絕！\n請至 Firebase 後台的 Firestore Database -> Rules 將權限改為 allow read, write: if true;')} className="text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-full flex items-center font-bold cursor-pointer shadow-sm animate-pulse whitespace-nowrap"><Icon name="error" className="text-[12px] mr-0.5"/>雲端被阻擋</span>}
+                                
+                                <button onClick={() => setShowNotepad(true)} className="p-1 sm:p-1.5 bg-white bg-opacity-20 rounded-full hover:bg-opacity-30 transition-colors shadow-sm flex-shrink-0 relative">
+                                    <Icon name="edit_note" className="text-[20px]" />
+                                    {globalNote && <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-[#e57373] border-2 border-[#bc9f8b] rounded-full"></span>}
+                                </button>
                                 <button onClick={() => setShowCalculator(true)} className="p-1 sm:p-1.5 bg-white bg-opacity-20 rounded-full hover:bg-opacity-30 transition-colors shadow-sm flex-shrink-0">
                                     <Icon name="calculate" className="text-[20px]" />
                                 </button>
@@ -2072,6 +2115,7 @@
                         </nav>
                         <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
                         <CalculatorModal isOpen={showCalculator} onClose={() => setShowCalculator(false)} />
+                        <NotepadModal isOpen={showNotepad} onClose={() => setShowNotepad(false)} initialNote={globalNote} onSave={setGlobalNote} />
                         <ConfirmModal isOpen={confirmDialog.isOpen} message={confirmDialog.message || "確定要刪除這筆紀錄嗎？"} onConfirm={executeDelete} onCancel={() => setConfirmDialog({isOpen: false, id: null, collection: '', message: ''})} />
                 </div>
             );
