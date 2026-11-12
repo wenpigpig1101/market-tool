@@ -837,10 +837,11 @@
             const [isPaid, setIsPaid] = useState(true); 
             const [isForMarket, setIsForMarket] = useState(true);
             const [flowType, setFlowType] = useState('in');
+            const [removalAction, setRemovalAction] = useState('pack'); // 🔥 新增：下架退廠的子狀態
             
             const [expandedTypes, setExpandedTypes] = useState({});
 
-            const resetForm = () => { setEditingId(null); setDate(new Date().toISOString().split('T')[0]); setType('wholesale'); setName(''); setAmount(''); setQty(''); setIsArrived(true); setIsPaid(true); setIsForMarket(true); setFlowType('in'); };
+            const resetForm = () => { setEditingId(null); setDate(new Date().toISOString().split('T')[0]); setType('wholesale'); setName(''); setAmount(''); setQty(''); setIsArrived(true); setIsPaid(true); setIsForMarket(true); setFlowType('in'); setRemovalAction('pack'); };
 
             const handleAddExpense = () => {
                 if (!name || (!amount && type !== 'removal') || (type === 'removal' && !qty)) return;
@@ -856,7 +857,8 @@
                     isArrived: type === 'wholesale' ? isArrived : true, 
                     isPaid: type === 'wholesale' ? isPaid : true, 
                     isForMarket: type === 'wholesale' ? isForMarket : true, 
-                    flowType: type === 'financing' ? flowType : 'out' 
+                    flowType: type === 'financing' ? flowType : 'out',
+                    removalAction: type === 'removal' ? removalAction : undefined // 儲存打包還是上架
                 };
                 
                 if (editingId) setExpenses(prev => prev.map(e => e.id === editingId ? { ...e, ...recordData } : e).sort((a,b)=> safeTime(b.date) - safeTime(a.date)));
@@ -864,7 +866,7 @@
                 resetForm();
             };
 
-            const handleEditClick = (record) => { setEditingId(record.id); setDate(record.date); setType(record.type); setName(record.name); setAmount(record.amount || ''); setQty(record.qty || ''); setIsArrived(record.isArrived !== false); setIsPaid(record.isPaid !== false); setIsForMarket(record.isForMarket !== false); setFlowType(record.flowType || 'in'); scrollToTop(); };
+            const handleEditClick = (record) => { setEditingId(record.id); setDate(record.date); setType(record.type); setName(record.name); setAmount(record.amount || ''); setQty(record.qty || ''); setIsArrived(record.isArrived !== false); setIsPaid(record.isPaid !== false); setIsForMarket(record.isForMarket !== false); setFlowType(record.flowType || 'in'); setRemovalAction(record.removalAction || 'pack'); scrollToTop(); };
             const toggleArriveStatus = (id) => setExpenses(prev => prev.map(e => e.id === id ? { ...e, isArrived: true } : e));
             const toggleType = (t) => setExpandedTypes(prev => ({ ...prev, [t]: !prev[t] }));
 
@@ -930,7 +932,7 @@
                                 return ( 
                                     <button 
                                         key={tKey} 
-                                        onClick={() => { setType(tKey); setQty(''); setAmount(''); setIsArrived(true); setIsPaid(true); setIsForMarket(true); }} 
+                                        onClick={() => { setType(tKey); setQty(''); setAmount(''); setIsArrived(true); setIsPaid(true); setIsForMarket(true); setRemovalAction('pack'); }} 
                                         className={`flex-grow min-w-[28%] py-2.5 rounded-xl text-[12px] font-bold transition-all border ${type === tKey ? `${tConf.color} text-white border-transparent shadow-md` : 'bg-white border-[#f0e6e0] text-[#a89689]'}`}
                                     > 
                                         {tConf.label.split(' ')[0]} 
@@ -990,12 +992,21 @@
                             </React.Fragment>
                         ) : type === 'removal' ? (
                             <React.Fragment>
+                                {/* 🔥 下架退廠專用雙按鈕 */}
+                                <div className="flex items-center gap-3 mb-4">
+                                    <button className={`flex-1 h-[44px] rounded-xl border text-[12px] transition-colors font-wawa font-bold flex items-center justify-center shadow-sm ${removalAction === 'pack' ? 'border-[#78909c] bg-[#eceff1] text-[#546e7a]' : 'border-[#e0e0e0] bg-[#fdfdfd] text-[#9e9e9e]'}`} onClick={(e) => { e.preventDefault(); setRemovalAction('pack'); }}>📦 打包收起 (減庫存)</button>
+                                    <button className={`flex-1 h-[44px] rounded-xl border text-[12px] transition-colors font-wawa font-bold flex items-center justify-center shadow-sm ${removalAction === 'restock' ? 'border-[#4caf50] bg-[#f0f9f0] text-[#4caf50]' : 'border-[#e0e0e0] bg-[#fdfdfd] text-[#9e9e9e]'}`} onClick={(e) => { e.preventDefault(); setRemovalAction('restock'); }}>♻️ 舊貨上架 (加庫存)</button>
+                                </div>
+
                                 <div className="grid grid-cols-2 gap-3 mb-1">
-                                    <Input type="number" placeholder="打包下架件數" value={qty} onChange={e => setQty(e.target.value)} />
-                                    <Input type="number" placeholder="退回金額(沒有可留空)" value={amount} onChange={e => setAmount(e.target.value)} />
+                                    <Input type="number" placeholder={removalAction === 'pack' ? "打包下架件數" : "舊貨上架件數"} value={qty} onChange={e => setQty(e.target.value)} />
+                                    <Input type="number" placeholder={removalAction === 'pack' ? "退回金額(沒有可留空)" : "金額(免費補回,可留空)"} value={amount} onChange={e => setAmount(e.target.value)} />
                                 </div>
                                 <div className="text-[10px] text-center text-[#78909c] mb-4 bg-[#eceff1] py-1.5 rounded-lg border border-[#cfd8dc]">
-                                    💡 單純換季收起來，金額留空即可，系統會自動在盤點時扣除這 {qty || 'X'} 件，不影響營收數據！
+                                    {removalAction === 'pack' 
+                                        ? '💡 單純換季收起來，金額留空即可，系統會自動在盤點時扣除這數量，不影響營收數據！'
+                                        : '💡 舊貨重新拿出來賣，免費補回庫存，不扣當月成本！'
+                                    }
                                 </div>
                             </React.Fragment>
                         ) : (
@@ -1059,6 +1070,9 @@
                                                                     {e.type === 'financing' && <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded ${isBorrow ? 'bg-[#f0f9f0] text-[#4caf50]' : 'bg-[#fff2f2] text-[#e57373]'}`}>{isBorrow ? '借入' : '償還'}</span>}
                                                                     
                                                                     {e.type === 'wholesale' && e.isForMarket === false && <span className="shrink-0 text-[10px] bg-[#e8eaf6] text-[#5c6bc0] border border-[#c5cae9] px-1.5 py-0.5 rounded shadow-sm">調貨過水</span>}
+                                                                    
+                                                                    {/* 🔥 下架退廠的標籤顯示 */}
+                                                                    {e.type === 'removal' && <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded shadow-sm border ${e.removalAction === 'restock' ? 'bg-[#f0f9f0] text-[#4caf50] border-[#c8e6c9]' : 'bg-[#eceff1] text-[#546e7a] border-[#cfd8dc]'}`}>{e.removalAction === 'restock' ? '♻️ 舊貨上架' : '📦 打包退廠'}</span>}
                                                                 </div>
                                                                 <div className="text-xs text-[#a89689]">{e.date} {(e.type === 'wholesale' || e.type === 'removal') && e.qty > 0 && <span className={`ml-1 ${e.type === 'removal' ? 'text-[#78909c]' : 'text-[#e57373]'}`}>({e.qty}件)</span>}</div>
                                                             </div>
@@ -1267,24 +1281,30 @@
             
             const thisMonthWholesaleQty = currentExpenses.filter(e => e.type === 'wholesale' && e.isArrived !== false && e.isForMarket !== false).reduce((sum, e) => sum + (Number(e.qty)||0), 0);
             
-            // 🔥 新增：擷取本月下架/打包退廠的數量
-            const thisMonthRemovedQty = currentExpenses.filter(e => e.type === 'removal').reduce((sum, e) => sum + (Number(e.qty)||0), 0);
+            // 🔥 新增：擷取本月下架/打包退廠的數量 (雙向加減)
+            const thisMonthRemovedQty = currentExpenses.filter(e => e.type === 'removal' && e.removalAction !== 'restock').reduce((sum, e) => sum + (Number(e.qty)||0), 0);
+            const thisMonthRestockQty = currentExpenses.filter(e => e.type === 'removal' && e.removalAction === 'restock').reduce((sum, e) => sum + (Number(e.qty)||0), 0);
 
             let monthlySold = '?';
             if (currentInventoryQty !== '?') {
                 if (prevInv !== undefined) {
-                    // 🔥 公式更新：扣除本月下架退廠的衣服，才算真正售出
-                    monthlySold = Math.max(0, Number(prevInv) + thisMonthWholesaleQty - thisMonthRemovedQty - currentInventoryQty);
+                    // 🔥 公式更新：上月庫存 + 本月新買的 + 舊貨上架拿出來的 - 下架收進倉庫的 - 盤點剩下的 = 真正賣出去的！
+                    monthlySold = Math.max(0, Number(prevInv) + thisMonthWholesaleQty + thisMonthRestockQty - thisMonthRemovedQty - currentInventoryQty);
                 } else {
                     monthlySold = '需上月資料';
                 }
             }
 
             const saveInventoryCheck = () => {
-                if(actualInv !== '') {
+                if(actualInv === '') {
+                    const newStats = { ...marketSoldStats };
+                    delete newStats[reportMonth];
+                    setMarketSoldStats(newStats);
+                } else {
                     setMarketSoldStats({ ...(marketSoldStats || {}), [reportMonth]: Number(actualInv) });
-                    setIsCheckingInventory(false); setActualInv('');
                 }
+                setIsCheckingInventory(false); 
+                setActualInv('');
             };
 
             const locationStats = useMemo(() => {
@@ -1345,16 +1365,17 @@
                         <button onClick={() => changeMonth(1)} className="p-2 text-[#a89689]"><Icon name="chevron_right" /></button>
                     </div>
 
-                    {/* 🔥 升級版：現貨庫存與盤點 (包含下架) */}
+                    {/* 🔥 升級版：現貨庫存與盤點 (包含下架與舊貨上架) */}
                     <Card className="bg-white border-dashed border-2 border-[#c8e6c9] mb-4 relative overflow-hidden">
                         <div className="flex items-center text-[#4caf50] font-bold text-lg mb-1 relative z-10"><Icon name="inventory_2" className="mr-2" /> 📦 攤位現貨庫存與盤點</div>
                         <div className="text-[10px] text-[#a89689] mb-3 ml-7 relative z-10">(已排除調貨/代購，且已精準扣除換季下架)</div>
                         <div className="flex items-center justify-between mb-3 text-sm relative z-10"><span className="text-[#7a6453] font-bold">攤位現貨平均成本</span><span className="font-black text-[#5c4d43]">${avgUnitCost.toFixed(1)} <span className="text-xs text-[#a89689] font-normal">/件</span></span></div>
                         
-                        <div className="grid grid-cols-3 gap-x-2 border-t border-[#f2e7df] pt-3 pb-2 relative z-10">
-                            <div className="text-center border-r border-[#f2e7df]"><div className="text-[10px] text-[#a89689] font-bold">上月結轉</div><div className="font-black text-lg text-[#7a6453]">{prevInv !== undefined ? prevInv : '?'}</div></div>
-                            <div className="text-center border-r border-[#f2e7df]"><div className="text-[10px] text-[#a89689] font-bold">本月進貨</div><div className="font-black text-lg text-[#7a6453]">{thisMonthWholesaleQty}</div></div>
-                            <div className="text-center"><div className="text-[10px] text-[#78909c] font-bold">本月下架/打包</div><div className="font-black text-lg text-[#546e7a]">{thisMonthRemovedQty}</div></div>
+                        <div className="grid grid-cols-4 gap-x-1 border-t border-[#f2e7df] pt-3 pb-2 relative z-10">
+                            <div className="text-center border-r border-[#f2e7df]"><div className="text-[9px] text-[#a89689] font-bold">上月結轉</div><div className="font-black text-base text-[#7a6453]">{prevInv !== undefined ? prevInv : '?'}</div></div>
+                            <div className="text-center border-r border-[#f2e7df]"><div className="text-[9px] text-[#a89689] font-bold">新進貨</div><div className="font-black text-base text-[#7a6453]">{thisMonthWholesaleQty}</div></div>
+                            <div className="text-center border-r border-[#f2e7df]"><div className="text-[9px] text-[#4caf50] font-bold">舊貨上架</div><div className="font-black text-base text-[#4caf50]">{thisMonthRestockQty}</div></div>
+                            <div className="text-center"><div className="text-[9px] text-[#78909c] font-bold">下架打包</div><div className="font-black text-base text-[#546e7a]">{thisMonthRemovedQty}</div></div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-x-2 mt-1 relative z-10">
@@ -1366,12 +1387,12 @@
                             {isCheckingInventory ? (
                                 <div className="animate-fade-in pt-2">
                                     <div className="flex items-center gap-2 mb-3">
-                                        <input type="number" placeholder="請輸入您現在手邊實際剩下幾件？" value={actualInv} onChange={e=>setActualInv(e.target.value)} className="w-full bg-[#fdfdfd] border border-[#c8e6c9] rounded-lg px-3 h-[40px] text-sm outline-none focus:border-[#4caf50] font-wawa"/>
+                                        <input type="number" placeholder="請輸入手邊剩下幾件？(留空可清除紀錄)" value={actualInv} onChange={e=>setActualInv(e.target.value)} className="w-full bg-[#fdfdfd] border border-[#c8e6c9] rounded-lg px-3 h-[40px] text-sm outline-none focus:border-[#4caf50] font-wawa"/>
                                     </div>
-                                    <div className="flex gap-2"><button onClick={()=>setIsCheckingInventory(false)} className="flex-1 h-[40px] bg-[#f2e7df] text-[#7a6453] rounded-lg text-sm font-bold font-wawa">取消</button><button onClick={saveInventoryCheck} className="flex-[2] h-[40px] bg-[#4caf50] text-white rounded-lg text-sm font-bold font-wawa shadow-sm">儲存盤點數量</button></div>
+                                    <div className="flex gap-2"><button onClick={()=>setIsCheckingInventory(false)} className="flex-1 h-[40px] bg-[#f2e7df] text-[#7a6453] rounded-lg text-sm font-bold font-wawa">取消</button><button onClick={saveInventoryCheck} className="flex-[2] h-[40px] bg-[#4caf50] text-white rounded-lg text-sm font-bold font-wawa shadow-sm">{actualInv === '' ? '清除盤點紀錄' : '儲存盤點數量'}</button></div>
                                 </div>
                             ) : (
-                                <button onClick={()=>{setActualInv(''); setIsCheckingInventory(true);}} className="w-full py-2 bg-[#f0f9f0] text-[#4caf50] rounded-lg text-sm font-bold border border-[#c8e6c9] transition-colors active:bg-[#e8f5e9]">✏️ 盤點更新 (計算歷史/本月售出)</button>
+                                <button onClick={()=>{setActualInv(marketSoldStats[reportMonth] !== undefined ? String(marketSoldStats[reportMonth]) : ''); setIsCheckingInventory(true);}} className="w-full py-2 bg-[#f0f9f0] text-[#4caf50] rounded-lg text-sm font-bold border border-[#c8e6c9] transition-colors active:bg-[#e8f5e9]">✏️ 盤點更新 (計算歷史/本月售出)</button>
                             )}
                         </div>
                     </Card>
